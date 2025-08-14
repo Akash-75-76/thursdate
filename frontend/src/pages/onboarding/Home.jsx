@@ -91,7 +91,7 @@ export default function Home() {
       <div className="flex-1 overflow-y-auto pb-20 px-4">
         <ContentComponent />
       </div>
-      
+
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-sm flex justify-around items-center h-16">
         {navOptions.map(opt => {
@@ -99,9 +99,8 @@ export default function Home() {
           return (
             <button
               key={opt.key}
-              className={`flex-1 flex flex-col items-center justify-center transition-all focus:outline-none ${
-                isActive ? "text-black font-bold" : "text-gray-400 font-normal"
-              }`}
+              className={`flex-1 flex flex-col items-center justify-center transition-all focus:outline-none ${isActive ? "text-black font-bold" : "text-gray-400 font-normal"
+                }`}
               onClick={() => setSelected(opt.key)}
             >
               <img
