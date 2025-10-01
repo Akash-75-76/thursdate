@@ -1,6 +1,11 @@
 import { useNavigate } from "react-router-dom";
+import backgroundImage from '/bgs/bg-different.png';
 
-export default function Privacy() {
+const CARD_GLASS_ACTIVE = 'bg-white/20 backdrop-blur-sm border border-white/30 text-white shadow-xl';
+const BUTTON_GLASS_ACTIVE_SOLID = 'bg-white text-black border border-white/40 shadow-lg';
+const CARD_BODY_INACTIVE = 'text-white/80';
+
+export default function Different() {
   const navigate = useNavigate();
 
   const points = [
@@ -11,40 +16,52 @@ export default function Privacy() {
   ];
 
   return (
-    <div className="h-screen w-screen flex flex-col justify-between items-center py-10 bg-white">
-      {/* Top Image and Heading */}
-      <div className="flex flex-col items-center justify-center flex-1 w-full">
+    <div
+      className="h-screen w-screen flex flex-col justify-between items-center p-6"
+      style={{
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div className="absolute inset-0 bg-black/30 z-0"></div>
+
+      <div className="absolute top-10 w-full text-center text-white text-2xl font-semibold z-10">
+        Sundate
+      </div>
+
+      <div className="relative z-10 flex flex-col items-center justify-start flex-1 w-full pt-20">
         <img
           src="/different.png"
-          alt="Different"
-          className="w-full object-contain mb-24"
+          alt="What makes us different diagram"
+          className="w-full max-w-sm object-contain flex-grow mb-4" 
         />
+      </div>
 
-        <p className="text-center text-black font-medium text-lg mb-6">
+      <div className={`relative z-20 w-full max-w-sm p-6 pt-8 pb-10 rounded-3xl mt-auto ${CARD_GLASS_ACTIVE}`}>
+        <h2 className="text-center text-white font-semibold text-xl mb-6 drop-shadow-md">
           What makes us different
-        </p>
+        </h2>
 
-        {/* Bullet Points */}
-        <div className="w-full max-w-xs space-y-2">
+        <div className="w-full space-y-4 mb-8">
           {points.map((item, index) => (
-            <div key={index} className="flex items-center space-x-3">
-              <img src={item.icon} alt={`diff${index + 1}`} className="h-5 w-5 flex-shrink-0" />
-              <p className="text-[#767F89] text-xs whitespace-nowrap">
+            <div key={index} className="flex items-start space-x-3">
+              <img src={item.icon} alt={`diff${index + 1}`} className="h-5 w-5 flex-shrink-0 mt-0.5 filter" />
+              <p className={`text-base ${CARD_BODY_INACTIVE} font-light`}>
                 {item.text}
               </p>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* CTA Button */}
-      <div className="w-full px-6">
-        <button
-          onClick={() => navigate("/login")}
-          className="w-full py-4 mb-3 rounded-xl bg-[#222222] text-white text-sm font-medium"
-        >
-          Next
-        </button>
+        <div className="w-full">
+          <button
+            onClick={() => navigate("/verification")}
+            className={`w-full py-4 rounded-xl text-base font-medium transition duration-200 ${BUTTON_GLASS_ACTIVE_SOLID}`}
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );

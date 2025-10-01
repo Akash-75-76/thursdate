@@ -1,31 +1,59 @@
 import { useNavigate } from "react-router-dom";
+import backgroundImage from '../../../public/bgs/bg-gateway.png';
+import tick from '../../../public/tick.svg';
+
+const CARD_GLASS_ACTIVE = 'bg-white/20 backdrop-blur-sm border border-white/30 text-white shadow-xl';
+const BUTTON_GLASS_BORDERED = 'bg-black/20 text-white border border-white/40';
 
 export default function Gateway() {
   const navigate = useNavigate();
 
   return (
-    <div className="h-screen w-screen flex flex-col justify-between items-center px-6 py-10 bg-white">
-      {/* Centered logo and text */}
-      <div className="flex flex-col items-center justify-center flex-1">
-        <img src="/logogray.png" alt="ThursDate Logo" className="h-12 mb-4" />
-        <p className="text-center text-[#767F89] text-xs max-w-xs">
-          This is a members-only playground, and referrals are your golden ticket. No invite? No entry.
-        </p>
+    <div 
+      className="h-screen w-screen flex flex-col justify-end items-center p-6"
+      style={{
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div className="absolute inset-0 bg-black/30 z-0"></div>
+      
+      <div className="absolute top-10 w-full text-center text-white text-2xl font-semibold z-10">
+        Sundate
       </div>
 
-      {/* CTA Buttons */}
-      <div className="w-full">
-        <button
-          onClick={() => navigate("/privacy")}
-          className="w-full py-4 mb-3 rounded-xl bg-[#222222] text-white text-sm font-medium"
-        >
-          I want to join
-        </button>
-        <button
-          onClick={() => navigate("/login")}
-          className="w-full py-4 rounded-xl border border-[#222222] bg-white text-[#222222] text-sm font-medium">
-          I want to login
-        </button>
+      <div className={`relative z-10 w-full max-w-sm p-6 pb-8 mb-6 rounded-3xl ${CARD_GLASS_ACTIVE}`}>
+        <h2 className="text-white text-2xl font-bold mb-4">
+          Exclusive Dating Circle
+        </h2>
+
+        <p className="text-white text-sm leading-relaxed mb-6 text-center">
+          Welcome to the premium dating experience for 35+ professionals. Membership is by invitation only - referrals from existing members are your pathway to join our exclusive community.
+        </p>
+
+        <div className="flex items-center mb-10">
+          <div className="w-8 h-8 mr-2 flex items-center justify-center rounded-sm">
+            <img src={tick} alt="tick" className="w-8 h-8" />
+          </div>
+          <span className="text-white text-base">Verified members only</span>
+        </div>
+
+        <div className="w-full space-y-3">
+          <button
+            onClick={() => navigate("/privacy")}
+            className="w-full py-4 rounded-xl bg-white text-black text-base font-medium transition duration-200 hover:bg-gray-100"
+          >
+            Request to join
+          </button>
+
+          <button
+            onClick={() => navigate("/login")}
+            className={`w-full py-4 rounded-xl text-base font-medium transition duration-200 hover:bg-black/50 ${BUTTON_GLASS_BORDERED}`}
+          >
+            Sign in
+          </button>
+        </div>
       </div>
     </div>
   );

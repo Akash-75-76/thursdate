@@ -30,6 +30,7 @@ import Membership from "./pages/settings/MembershipPage";
 import DevicePermissions from "./pages/settings/DevicePermissionsPage";
 
 import "@ncdai/react-wheel-picker/style.css";
+import Verification from "./pages/onboarding/Verification";
 
 export default function App() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/application-status" element={<ApplicationStatus />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/different" element={<Different />} />
+        <Route path="/verification" element={<Verification />} />
         <Route path="/permissions" element={<Permissions />} />
         <Route path="/waitlist-status" element={<WaitlistStatus />} />
         <Route path="/login" element={<Login />} />
