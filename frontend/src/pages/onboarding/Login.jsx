@@ -25,12 +25,29 @@ export default function Login() {
       await authAPI.login(email, password);
       try {
         const userData = await userAPI.getProfile();
-        if (userData.approval) {
+
+        if (userData.approval && userData.onboardingComplete) {
           navigate("/home");
-        } else {
-          navigate("/waitlist-status");
+          return;
         }
-      } catch {
+
+        if (userData.onboardingStage === "initial" || !userData.firstName) {
+          navigate("/user-info");
+          return;
+        }
+
+        if (userData.onboardingStage === "info_complete") {
+          navigate("/referral");
+          return;
+        }
+
+        if (userData.approval && !userData.onboardingComplete) {
+          navigate("/user-intent");
+          return;
+        }
+
+        navigate("/waitlist-status");
+      } catch (profileError) {
         navigate("/user-info");
       }
     } catch (err) {
