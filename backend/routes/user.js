@@ -1,4 +1,3 @@
-// backend/routes/user.js
 const express = require('express');
 const pool = require('../config/db');
 const auth = require('../middleware/auth');
@@ -6,203 +5,184 @@ const router = express.Router();
 
 // Helper function to safely parse JSON
 const safeJsonParse = (jsonString, defaultValue = null) => {
-  if (!jsonString) return defaultValue;
-  try {
-    return JSON.parse(jsonString);
-  } catch (error) {
-    console.error('JSON parse error:', error);
-    return defaultValue;
-  }
+    if (!jsonString) return defaultValue;
+    try {
+        // Only parse if it's a string; sometimes MySQL drivers return objects/arrays directly
+        if (typeof jsonString === 'string') {
+            return JSON.parse(jsonString);
+        }
+        return jsonString;
+    } catch (error) {
+        console.error('JSON parse error:', error);
+        return defaultValue;
+    }
 };
 
 // Helper function to validate database connection
 const validateConnection = async () => {
-  try {
-    await pool.execute('SELECT 1');
-    return true;
-  } catch (error) {
-    console.error('Database connection validation failed:', error);
-    return false;
-  }
+    try {
+        await pool.execute('SELECT 1');
+        return true;
+    } catch (error) {
+        console.error('Database connection validation failed:', error);
+        return false;
+    }
 };
 
 // Get user profile
 router.get('/profile', auth, async (req, res) => {
-  try {
-    if (!(await validateConnection())) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
+    try {
+        if (!(await validateConnection())) {
+            return res.status(500).json({ error: 'Database connection failed' });
+        }
 
-    const [users] = await pool.execute(
-      'SELECT id, email, first_name, last_name, gender, dob, current_location, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, approval, intent, onboarding_complete, is_private FROM users WHERE id = ?',
-      [req.user.userId]
-    );
-    
-    if (users.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+        const [users] = await pool.execute(
+            'SELECT id, email, first_name, last_name, gender, dob, current_location, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, approval, intent, onboarding_complete, is_private FROM users WHERE id = ?',
+            [req.user.userId]
+        );
+        
+        if (users.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const user = users[0];
+        
+        // 💡 CRITICAL FIX: Add defensive null checks (using || null) for all nullable columns 
+        // and explicitly convert boolean-like fields to proper booleans (using !!).
+        const transformedUser = {
+            id: user.id,
+            email: user.email,
+            firstName: user.first_name || null,
+            lastName: user.last_name || null,
+            gender: user.gender || null,
+            dob: user.dob || null,
+            currentLocation: user.current_location || null,
+            favouriteTravelDestination: user.favourite_travel_destination || null,
+            lastHolidayPlaces: safeJsonParse(user.last_holiday_places, []),
+            favouritePlacesToGo: safeJsonParse(user.favourite_places_to_go, []),
+            profilePicUrl: user.profile_pic_url || null,
+            intent: safeJsonParse(user.intent, {}),
+            onboardingComplete: !!user.onboarding_complete, // Ensure boolean
+            approval: !!user.approval,                     // Ensure boolean
+            createdAt: user.created_at,
+            updatedAt: user.updated_at,
+            isPrivate: !!user.is_private,                  // Ensure boolean
+        };
+        
+        res.json(transformedUser);
+        
+    } catch (error) {
+        console.error('Get profile error:', error);
+        // Returning the error message helps debug live issues
+        res.status(500).json({ error: 'Internal server error: ' + error.message });
     }
-    
-    const user = users[0];
-    
-    const transformedUser = {
-      id: user.id,
-      email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      gender: user.gender,
-      dob: user.dob,
-      currentLocation: user.current_location,
-      favouriteTravelDestination: user.favourite_travel_destination,
-      lastHolidayPlaces: safeJsonParse(user.last_holiday_places, []),
-      favouritePlacesToGo: safeJsonParse(user.favourite_places_to_go, []),
-      profilePicUrl: user.profile_pic_url,
-      intent: safeJsonParse(user.intent, {}),
-      onboardingComplete: user.onboarding_complete,
-      approval: user.approval,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
-      isPrivate: user.is_private,
-    };
-    
-    res.json(transformedUser);
-    
-  } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ error: 'Internal server error: ' + error.message });
-  }
 });
 
 // Save user profile (for onboarding)
 router.post('/profile', auth, async (req, res) => {
-  try {
-    if (!(await validateConnection())) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
+    try {
+        if (!(await validateConnection())) {
+            return res.status(500).json({ error: 'Database connection failed' });
+        }
 
-    const {
-      firstName, lastName, gender, dob, currentLocation, favouriteTravelDestination,
-      lastHolidayPlaces, favouritePlacesToGo, profilePicUrl
-    } = req.body;
-    
-    let formattedDob = dob ? new Date(dob).toISOString().split('T')[0] : null;
-    const lastHolidayPlacesJson = JSON.stringify(lastHolidayPlaces || []);
-    const favouritePlacesToGoJson = JSON.stringify(favouritePlacesToGo || []);
-    
-    await pool.execute(
-      `UPDATE users SET 
-        first_name = ?, last_name = ?, gender = ?, dob = ?, 
-        current_location = ?, favourite_travel_destination = ?, 
-        last_holiday_places = ?, favourite_places_to_go = ?, 
-        profile_pic_url = ?, approval = false
-      WHERE id = ?`,
-      [
-        firstName, lastName, gender, formattedDob, currentLocation, 
-        favouriteTravelDestination, lastHolidayPlacesJson, 
-        favouritePlacesToGoJson, profilePicUrl, req.user.userId
-      ]
-    );
-    
-    res.json({ message: 'Profile saved successfully' });
-    
-  } catch (error) {
-    console.error('Save profile error:', error);
-    res.status(500).json({ error: 'Internal server error: ' + error.message });
-  }
+        const {
+            firstName, lastName, gender, dob, currentLocation, favouriteTravelDestination,
+            lastHolidayPlaces, favouritePlacesToGo, profilePicUrl
+        } = req.body;
+        
+        let formattedDob = dob ? new Date(dob).toISOString().split('T')[0] : null;
+        const lastHolidayPlacesJson = JSON.stringify(lastHolidayPlaces || []);
+        const favouritePlacesToGoJson = JSON.stringify(favouritePlacesToGo || []);
+        
+        await pool.execute(
+            `UPDATE users SET 
+                first_name = ?, last_name = ?, gender = ?, dob = ?, 
+                current_location = ?, favourite_travel_destination = ?, 
+                last_holiday_places = ?, favourite_places_to_go = ?, 
+                profile_pic_url = ?, approval = false
+            WHERE id = ?`,
+            [
+                firstName, lastName, gender, formattedDob, currentLocation, 
+                favouriteTravelDestination, lastHolidayPlacesJson, 
+                favouritePlacesToGoJson, profilePicUrl, req.user.userId
+            ]
+        );
+        
+        res.json({ message: 'Profile saved successfully' });
+        
+    } catch (error) {
+        console.error('Save profile error:', error);
+        res.status(500).json({ error: 'Internal server error: ' + error.message });
+    }
 });
 
 // Update user profile
 router.put('/profile', auth, async (req, res) => {
-  try {
-    if (!(await validateConnection())) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
+    try {
+        if (!(await validateConnection())) {
+            return res.status(500).json({ error: 'Database connection failed' });
+        }
 
-    const [currentUsers] = await pool.execute('SELECT * FROM users WHERE id = ?', [req.user.userId]);
-    if (currentUsers.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+        const [currentUsers] = await pool.execute('SELECT * FROM users WHERE id = ?', [req.user.userId]);
+        if (currentUsers.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const currentUser = currentUsers[0];
+        const currentIntent = safeJsonParse(currentUser.intent, {});
+        
+        const {
+            firstName, lastName, gender, dob, currentLocation, favouriteTravelDestination,
+            lastHolidayPlaces, favouritePlacesToGo, profilePicUrl, intent, onboardingComplete,
+            isPrivate
+        } = req.body;
+        
+        let finalIntent = { ...currentIntent, ...intent };
+        // Handle the case where finalIntent might be an empty object but we want to save it as JSON.
+        const intentJson = JSON.stringify(finalIntent); 
+        
+        const updateData = [
+            firstName !== undefined ? firstName : currentUser.first_name,
+            lastName !== undefined ? lastName : currentUser.last_name,
+            gender !== undefined ? gender : currentUser.gender,
+            // Ensure date is formatted or use the existing value
+            dob ? new Date(dob).toISOString().split('T')[0] : currentUser.dob, 
+            currentLocation !== undefined ? currentLocation : currentUser.current_location,
+            favouriteTravelDestination !== undefined ? favouriteTravelDestination : currentUser.favourite_travel_destination,
+            JSON.stringify(lastHolidayPlaces !== undefined ? lastHolidayPlaces : safeJsonParse(currentUser.last_holiday_places, [])),
+            JSON.stringify(favouritePlacesToGo !== undefined ? favouritePlacesToGo : safeJsonParse(currentUser.favourite_places_to_go, [])),
+            profilePicUrl !== undefined ? profilePicUrl : currentUser.profile_pic_url,
+            intentJson,
+            onboardingComplete !== undefined ? onboardingComplete : currentUser.onboarding_complete,
+            isPrivate !== undefined ? isPrivate : currentUser.is_private,
+            req.user.userId
+        ];
+        
+        await pool.execute(
+            `UPDATE users SET 
+                first_name = ?, last_name = ?, gender = ?, dob = ?, 
+                current_location = ?, favourite_travel_destination = ?, 
+                last_holiday_places = ?, favourite_places_to_go = ?, 
+                profile_pic_url = ?, intent = ?, onboarding_complete = ?,
+                is_private = ? 
+            WHERE id = ?`,
+            updateData
+        );
+        
+        res.json({ message: 'Profile updated successfully' });
+        
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({ error: 'Internal server error: ' + error.message });
     }
-    
-    const currentUser = currentUsers[0];
-    const currentIntent = safeJsonParse(currentUser.intent, {});
-    
-    const {
-      firstName, lastName, gender, dob, currentLocation, favouriteTravelDestination,
-      lastHolidayPlaces, favouritePlacesToGo, profilePicUrl, intent, onboardingComplete,
-      isPrivate
-    } = req.body;
-    
-    let finalIntent = { ...currentIntent, ...intent };
-    const intentJson = finalIntent ? JSON.stringify(finalIntent) : currentUser.intent;
-    
-    const updateData = [
-      firstName !== undefined ? firstName : currentUser.first_name,
-      lastName !== undefined ? lastName : currentUser.last_name,
-      gender !== undefined ? gender : currentUser.gender,
-      dob ? new Date(dob).toISOString().split('T')[0] : currentUser.dob,
-      currentLocation !== undefined ? currentLocation : currentUser.current_location,
-      favouriteTravelDestination !== undefined ? favouriteTravelDestination : currentUser.favourite_travel_destination,
-      JSON.stringify(lastHolidayPlaces || safeJsonParse(currentUser.last_holiday_places, [])),
-      JSON.stringify(favouritePlacesToGo || safeJsonParse(currentUser.favourite_places_to_go, [])),
-      profilePicUrl !== undefined ? profilePicUrl : currentUser.profile_pic_url,
-      intentJson,
-      onboardingComplete !== undefined ? onboardingComplete : currentUser.onboarding_complete,
-      isPrivate !== undefined ? isPrivate : currentUser.is_private,
-      req.user.userId
-    ];
-    
-    await pool.execute(
-      `UPDATE users SET 
-        first_name = ?, last_name = ?, gender = ?, dob = ?, 
-        current_location = ?, favourite_travel_destination = ?, 
-        last_holiday_places = ?, favourite_places_to_go = ?, 
-        profile_pic_url = ?, intent = ?, onboarding_complete = ?,
-        is_private = ? 
-      WHERE id = ?`,
-      updateData
-    );
-    
-    res.json({ message: 'Profile updated successfully' });
-    
-  } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ error: 'Internal server error: ' + error.message });
-  }
 });
 
-// Admin endpoint to update user approval status
-// ⚠️ SECURITY NOTE: You should add an `isAdmin` middleware here to ensure only admins can use this.
-// Example: router.put('/approve/:userId', [auth, isAdmin], async (req, res) => { ... });
+// ❌ SECURITY FLAW & DUPLICATE ROUTE - THIS MUST BE REMOVED/MOVED
+// The admin approval logic should live in backend/routes/admin.js
 router.put('/approve/:userId', auth, async (req, res) => {
-  try {
-    if (!(await validateConnection())) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
-
-    // Get the userId from the URL parameter and approval status from the body
-    const { userId } = req.params;
-    const { approval } = req.body;
-
-    // Check if approval status is provided
-    if (approval === undefined) {
-        return res.status(400).json({ error: 'Approval status is required' });
-    }
-    
-    // Update the user's approval status in the database
-    const [result] = await pool.execute(
-      'UPDATE users SET approval = ? WHERE id = ?',
-      [approval, userId]
-    );
-
-    if (result.affectedRows === 0) {
-        return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json({ message: 'User approval status updated successfully' });
-    
-  } catch (error) {
-    console.error('Update approval error:', error);
-    res.status(500).json({ error: 'Internal server error: ' + error.message });
-  }
+    // This entire route should be removed as it's a security flaw and duplicated logic.
+    // The correct endpoint is in admin.js: PUT /admin/users/:userId/approval
+    res.status(403).json({ error: 'Route deprecated. Use /admin/users/:userId/approval' });
 });
 
 module.exports = router;
