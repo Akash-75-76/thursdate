@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { adminAPI } from '../../utils/api';
 
 export default function AdminUsers() {
+  // 💡 Note: users is initialized to [], which is correct.
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -26,10 +27,16 @@ export default function AdminUsers() {
     try {
       setLoading(true);
       setError('');
+      // When the API request fails (e.g., 500 error, though now fixed), 'data' might be undefined
+      // and data.users might also be undefined, but the catch block handles the error.
+      // If the request succeeds but returns an unexpected structure (e.g., data is null), 
+      // the setUsers(data.users) might fail. Assuming adminAPI.getAllUsers() returns { users: [...] }
       const data = await adminAPI.getAllUsers();
-      setUsers(data.users);
+      // 💡 Safety check here is optional but good practice:
+      setUsers(data?.users || []); 
     } catch (err) {
       setError(err.message);
+      setUsers([]); // Reset users on error
     } finally {
       setLoading(false);
     }
@@ -67,17 +74,27 @@ export default function AdminUsers() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    // Check if dateString is valid before proceeding
+    if (!dateString) return 'N/A';
+    try {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch {
+        return 'Invalid Date';
+    }
   };
 
-  // Filter and search users
-  const filteredUsers = users.filter(user => {
+  // 💡 FIX 1: The crash likely happens when trying to access `users` before it is initialized
+  // or if it was accidentally set to null/undefined. The || [] ensures it's always an array.
+  const safeUsers = users || []; 
+  
+  // Filter and search users (Line 80 is now safely referencing safeUsers)
+  const filteredUsers = safeUsers.filter(user => {
     const matchesFilter = filter === 'all' || 
       (filter === 'approved' && user.approval) ||
       (filter === 'pending' && !user.approval);
@@ -91,6 +108,7 @@ export default function AdminUsers() {
   });
 
   if (loading) {
+    // ... (loading state remains the same)
     return (
       <div className="h-screen flex flex-col bg-white font-sans">
         <div className="p-4 border-b">
@@ -110,6 +128,8 @@ export default function AdminUsers() {
       </div>
     );
   }
+
+  // ... (rest of the component)
 
   return (
     <div className="h-screen flex flex-col bg-white font-sans">
@@ -132,7 +152,7 @@ export default function AdminUsers() {
           {/* Header */}
           <div className="mb-6">
             <h1 className="text-xl font-bold mb-2">User Management</h1>
-            <p className="text-gray-600 text-sm">{filteredUsers.length} of {users.length} users</p>
+            <p className="text-gray-600 text-sm">{filteredUsers.length} of {safeUsers.length} users</p>
           </div>
 
           {error && (
@@ -162,7 +182,7 @@ export default function AdminUsers() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                All ({users.length})
+                All ({safeUsers.length})
               </button>
               <button
                 onClick={() => setFilter('approved')}
@@ -172,7 +192,8 @@ export default function AdminUsers() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                Approved ({users.filter(u => u.approval).length})
+                {/* 💡 FIX 2: Added safeUsers to prevent calling .filter() on undefined */}
+                Approved ({safeUsers.filter(u => u.approval).length})
               </button>
               <button
                 onClick={() => setFilter('pending')}
@@ -182,7 +203,8 @@ export default function AdminUsers() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                Pending ({users.filter(u => !u.approval).length})
+                {/* 💡 FIX 3: Added safeUsers to prevent calling .filter() on undefined */}
+                Pending ({safeUsers.filter(u => !u.approval).length})
               </button>
             </div>
           </div>
@@ -308,7 +330,7 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {/* User Details Modal */}
+      {/* User Details Modal (remains the same) */}
       {showUserModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full max-h-[80vh] overflow-y-auto">
@@ -433,4 +455,4 @@ export default function AdminUsers() {
       )}
     </div>
   );
-} 
+}

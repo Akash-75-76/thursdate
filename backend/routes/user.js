@@ -138,14 +138,24 @@ router.put('/profile', auth, async (req, res) => {
         } = req.body;
         
         let finalIntent = { ...currentIntent, ...intent };
-        // Handle the case where finalIntent might be an empty object but we want to save it as JSON.
         const intentJson = JSON.stringify(finalIntent); 
         
+        // 💡 CRITICAL: Determine the final approval status. 
+        // We ensure that if onboardingComplete is set to true (meaning user finished the app),
+        // we explicitly set APPROVAL TO FALSE to put them on the waitlist.
+        let finalApprovalStatus = currentUser.approval; // Preserve current status by default
+        if (onboardingComplete === true) {
+            finalApprovalStatus = false; 
+        } else if (onboardingComplete === false) {
+            // Allow the frontend to explicitly set onboardingComplete to false,
+            // but don't automatically change the approval state.
+        }
+
+
         const updateData = [
             firstName !== undefined ? firstName : currentUser.first_name,
             lastName !== undefined ? lastName : currentUser.last_name,
             gender !== undefined ? gender : currentUser.gender,
-            // Ensure date is formatted or use the existing value
             dob ? new Date(dob).toISOString().split('T')[0] : currentUser.dob, 
             currentLocation !== undefined ? currentLocation : currentUser.current_location,
             favouriteTravelDestination !== undefined ? favouriteTravelDestination : currentUser.favourite_travel_destination,
@@ -155,6 +165,7 @@ router.put('/profile', auth, async (req, res) => {
             intentJson,
             onboardingComplete !== undefined ? onboardingComplete : currentUser.onboarding_complete,
             isPrivate !== undefined ? isPrivate : currentUser.is_private,
+            finalApprovalStatus, // 👈 ADDED to the updateData array
             req.user.userId
         ];
         
@@ -164,9 +175,10 @@ router.put('/profile', auth, async (req, res) => {
                 current_location = ?, favourite_travel_destination = ?, 
                 last_holiday_places = ?, favourite_places_to_go = ?, 
                 profile_pic_url = ?, intent = ?, onboarding_complete = ?,
-                is_private = ? 
+                is_private = ?, 
+                approval = ?  
             WHERE id = ?`,
-            updateData
+            updateData // The array now matches the number of placeholders
         );
         
         res.json({ message: 'Profile updated successfully' });
