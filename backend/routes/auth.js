@@ -7,65 +7,61 @@ const router = express.Router();
 
 // Register endpoint
 router.post('/register', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    console.log('Registration attempt for:', email);
-    console.log('Database config:', {
-      host: process.env.DB_HOST,
-      user: process.env.DB_USER,
-      database: process.env.DB_NAME
-    });
-    
-    // Check if user already exists
-    const [existingUsers] = await pool.execute(
-      'SELECT id FROM users WHERE email = ?',
-      [email]
-    );
-    
-    if (existingUsers.length > 0) {
-      return res.status(400).json({ error: 'User already exists' });
-    }
-    
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Create user
-    // 🛑 CRITICAL FIX: Explicitly set approval = FALSE and onboarding_complete = FALSE
-    const [result] = await pool.execute(
-      'INSERT INTO users (email, password, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
-      [email, hashedPassword, false, false]
-    );
-    
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: result.insertId, email },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    
-    res.status(201).json({
-      message: 'User created successfully',
-      token,
-      userId: result.insertId
-    });
-    
-  } catch (error) {
-    console.error('Registration error:', error);
-    console.error('Error details:', error.message);
-    res.status(500).json({ error: 'Internal server error: ' + error.message });
-  }
+  try {
+    const { email, password } = req.body;
+    
+    console.log('Registration attempt for:', email);
+    console.log('Database config:', {
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      database: process.env.DB_NAME
+    });
+    
+    // Check if user already exists
+    const [existingUsers] = await pool.execute(
+      'SELECT id FROM users WHERE email = ?',
+      [email]
+    );
+    
+    if (existingUsers.length > 0) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Create user with default approval and onboarding status set to false
+    const [result] = await pool.execute(
+      'INSERT INTO users (email, password, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
+      [email, hashedPassword, false, false]
+    );
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: result.insertId, email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    res.status(201).json({
+      message: 'User created successfully',
+      token,
+      userId: result.insertId
+    });
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    console.error('Error details:', error.message);
+    res.status(500).json({ error: 'Internal server error: ' + error.message });
+  }
 });
-
-
-module.exports = router;
 
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Find user
+    // Find user by email
     const [users] = await pool.execute(
       'SELECT id, email, password FROM users WHERE email = ?',
       [email]
@@ -77,7 +73,7 @@ router.post('/login', async (req, res) => {
     
     const user = users[0];
     
-    // Check password
+    // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -119,4 +115,4 @@ router.delete('/account', auth, async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;
