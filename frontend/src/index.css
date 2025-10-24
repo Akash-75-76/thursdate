@@ -1,3 +1,22 @@
+/* Pulse animation for verification circles */
+@keyframes verification-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1.15);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.verification-pulse {
+  animation: verification-pulse 1.8s infinite;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
