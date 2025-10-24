@@ -17,7 +17,7 @@ export default function Different() {
 
   return (
     <div
-      className="h-screen w-screen flex flex-col justify-between items-center p-6"
+      className="min-h-screen flex flex-col justify-between items-center p-6"
       style={{
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
@@ -34,7 +34,7 @@ export default function Different() {
         <img
           src="/different.png"
           alt="What makes us different diagram"
-          className="w-full max-w-sm object-contain flex-grow mb-4" 
+          className="w-full max-w-sm object-contain flex-grow mb-4"
         />
       </div>
 

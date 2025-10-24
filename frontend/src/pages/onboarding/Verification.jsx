@@ -91,7 +91,11 @@ export default function Verification() {
       <div className="w-full mb-10 text-left text-sm">
         {timer > 0 ? (
           <p className="text-white/70">
-            Resend OTP in 0:{timer.toString().padStart(2, "0")}
+            {(() => {
+              const min = Math.floor(timer / 60);
+              const sec = timer % 60;
+              return `Resend OTP in ${min}:${sec.toString().padStart(2, "0")}`;
+            })()}
           </p>
         ) : (
           <button
@@ -113,29 +117,38 @@ export default function Verification() {
     </>
   );
 
-const SuccessStep = (
-  <div className="flex flex-col items-center text-center py-12">
-    <div className="w-26 h-26 mb-6 flex items-center justify-center rounded-full bg-green-500/20">
-      <img
-        src="/verification-success.svg"
-        alt="Success"
-        className="w-26 h-26"
-      />
+  const SuccessStep = (
+    <div className="flex flex-col items-center text-center py-12">
+      <div className="relative w-26 h-26 mb-6 flex items-center justify-center" style={{ width: '104px', height: '104px' }}>
+        {/* Three concentric circles behind the tick icon */}
+        <span className="absolute rounded-full z-0 verification-pulse" style={{ width: '140px', height: '140px', background: '#4CAF50', opacity: 0.2 }}></span>
+        <span className="absolute rounded-full z-0 verification-pulse" style={{ width: '110px', height: '110px', background: '#4CAF50', opacity: 0.4, animationDelay: '0.4s' }}></span>
+        <span className="absolute rounded-full z-0" style={{ width: '80px', height: '80px', background: '#4CAF50', opacity: 0.7 }}></span>
+        {/* Main success icon */}
+        <span className="relative flex items-center justify-center rounded-full z-10" style={{ width: '104px', height: '104px', background: 'rgba(76,175,80,0.12)' }}>
+          <img
+            src="/verification-tick.svg"
+            alt="Success"
+            className="w-10 h-10"
+            style={{ width: '30px', height: '30px' }}
+          />
+        </span>
+      </div>
+      <h2 className="text-white text-lg font-semibold mb-2 pt-4">
+        Verification successful
+      </h2>
+      <p className="text-white/80 text-sm mb-10">
+        Start your application process
+      </p>
+      <button
+        onClick={() => navigate("/login")}
+        className={BUTTON_SOLID + " w-full py-4"}
+      >
+        Next
+      </button>
     </div>
-    <h2 className="text-white text-lg font-semibold mb-2">
-      Verification successful
-    </h2>
-    <p className="text-white/80 text-sm mb-10">
-      Start your application process
-    </p>
-    <button
-      onClick={() => navigate("/login")}
-      className={BUTTON_SOLID + " w-full py-4"}
-    >
-      Next
-    </button>
-  </div>
-);
+  );
+  // Uses the same pulse animation classes as WaitlistStatus.jsx for reliable movement
 
 
   let content;
