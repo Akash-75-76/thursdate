@@ -71,7 +71,7 @@ const transformUser = (user) => {
         age: dobDate ? Math.floor((new Date() - dobDate) / (365.25 * 24 * 60 * 60 * 1000)) : null,
         hasProfilePic: !!user.profile_pic_url,
         hasLifestyleImages: intent && intent.lifestyleImageUrls && intent.lifestyleImageUrls.filter(Boolean).length > 0,
-        lifestyleImageCount: intent && intent.lifestyleImageUrls ? intent.filter(Boolean).length : 0
+        lifestyleImageCount: intent && intent.lifestyleImageUrls ? intent.lifestyleImageUrls.filter(Boolean).length : 0
     };
 };
 

@@ -44,8 +44,12 @@ const removeToken = () => {
 };
 
 // Helper function to make authenticated requests
-const authRequest = async (url, options = {}) => {
-    if (isMockMode()) {
+const authRequest = async (url, options = {}, forceLiveMode = false) => {
+    // If it's an admin endpoint or forceLiveMode is true, always use live mode
+    const isAdminEndpoint = url.startsWith('/admin');
+    const shouldUseMockMode = isMockMode() && !isAdminEndpoint && !forceLiveMode;
+    
+    if (shouldUseMockMode) {
         const token = getToken();
         if (!token) {
             throw new Error('No authentication token found (Mock Mode)');
