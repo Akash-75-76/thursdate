@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { authAPI, userAPI } from "../../utils/api";
+import { userAPI } from "../../utils/api";
+
+// Temporarily bypass backend for login: create a mock token in localStorage
+// and ensure a mock profile exists so the app's mock-mode paths work.
 
 const CARD_GLASS_ACTIVE =
   "bg-white/20 backdrop-blur-lg border border-white/30 text-white shadow-xl";
@@ -22,7 +25,28 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      await authAPI.login(email, password);
+      // Create mock token so userAPI will operate in mock mode.
+      const MOCK_TOKEN_PREFIX = "MOCK_SANWARI_";
+      const MOCK_STORAGE_KEY = "mockUserProfile";
+
+      // Set a mock token regardless of the entered credentials so the app
+      // can function without a backend. If a mock profile already exists
+      // in localStorage we'll reuse it; otherwise create a minimal one.
+      const mockToken = MOCK_TOKEN_PREFIX + Date.now();
+      localStorage.setItem('token', mockToken);
+
+      const existing = localStorage.getItem(MOCK_STORAGE_KEY);
+      if (!existing) {
+        const initialProfile = {
+          approval: false,
+          onboardingStage: 'initial',
+          onboardingComplete: false,
+        };
+        localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(initialProfile));
+      }
+
+      // Use userAPI.getProfile() to obtain the mock profile and follow the
+      // same routing logic as the original implementation.
       try {
         const userData = await userAPI.getProfile();
 
@@ -51,7 +75,7 @@ export default function Login() {
         navigate("/user-info");
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Login failed (client mock)');
     } finally {
       setLoading(false);
     }
