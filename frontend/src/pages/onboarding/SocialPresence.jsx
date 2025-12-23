@@ -33,9 +33,9 @@ export default function SocialPresence() {
     const INPUT_GLASS =
         "bg-white/20 backdrop-blur-sm placeholder-white/80 text-white border-white/30";
     const BUTTON_GLASS_ACTIVE =
-        "bg-white/30 backdrop-blur-md text-white border border-white/40 shadow-lg";
+        "bg-white backdrop-blur-md text-black border border-white/40 shadow-lg";
     const BUTTON_GLASS_INACTIVE =
-        "bg-white/10 text-white/50 cursor-not-allowed border border-white/20";
+        "bg-white text-black cursor-not-allowed border border-white/20";
 
     // === VALIDATIONS ===
     const isEmailValid = email.trim() && /.+@.+\..+/.test(email);
@@ -158,7 +158,7 @@ export default function SocialPresence() {
                 {/* === STEP 1: EMAIL === */}
                 {step === 1 && (
                     <div className="flex flex-col flex-grow">
-                        <h1 className="text-2xl font-normal mb-6 text-white drop-shadow-md">
+                        <h1 className="text-xl font-normal mb-6 text-white drop-shadow-md">
                             What's your email?
                         </h1>
                         <input
@@ -176,7 +176,7 @@ export default function SocialPresence() {
                             <button
                                 disabled={!isEmailValid}
                                 onClick={() => setShowConfirm(true)}
-                                className={`w-full py-4 rounded-xl font-medium text-lg mt-8 transition ${!isEmailValid ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
+                                className={`w-full py-4 rounded-[9999px] font-medium text-lg mt-8 transition ${!isEmailValid ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
                             >
                                 Next
                             </button>
