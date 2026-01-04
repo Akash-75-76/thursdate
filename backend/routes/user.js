@@ -261,7 +261,7 @@ router.get('/matches/potential', auth, async (req, res) => {
         }
 
         const currentUserIntent = safeJsonParse(currentUserData[0].intent, {});
-        const preferredAgeRange = currentUserIntent.preferredAgeRange || [30, 85];
+        const preferredAgeRange = currentUserIntent.preferredAgeRange || [35, 85];
         const interestedGender = currentUserIntent.interestedGender;
 
         // Validate age range
@@ -286,6 +286,12 @@ router.get('/matches/potential', auth, async (req, res) => {
             };
             normalizedGender = genderMap[rawGender] || 'both';
         }
+        
+        console.log('[DEBUG] Gender matching:', { 
+            rawInterestedGender: interestedGender, 
+            normalizedGender, 
+            willFilterBy: normalizedGender !== 'both' 
+        });
 
         // Calculate DOB range in Node.js to avoid YEAR(dob) malformed packet error
         const today = new Date();
@@ -311,9 +317,25 @@ router.get('/matches/potential', auth, async (req, res) => {
         if (normalizedGender !== 'both') {
             // Capitalize for DB: male -> Male, female -> Female
             const dbGender = normalizedGender.charAt(0).toUpperCase() + normalizedGender.slice(1);
-            genderClause = ' AND gender = ?';
-            queryParams.push(dbGender);
+            
+            // Handle variations in gender data (Female/Woman, Male/Man)
+            if (normalizedGender === 'female') {
+                genderClause = ' AND (gender = ? OR gender = ?)';
+                queryParams.push('Female', 'Woman');
+            } else if (normalizedGender === 'male') {
+                genderClause = ' AND (gender = ? OR gender = ?)';
+                queryParams.push('Male', 'Man');
+            } else {
+                genderClause = ' AND gender = ?';
+                queryParams.push(dbGender);
+            }
+            
+            console.log('[DEBUG] Filtering by gender:', normalizedGender, 'with values:', queryParams.slice(3));
+        } else {
+            console.log('[DEBUG] Not filtering by gender (showing all)');
         }
+
+        console.log('[DEBUG] Query params:', queryParams);
 
         // Get potential matches using dob BETWEEN (no YEAR function, no ORDER BY RAND)
         const [users] = await pool.execute(
@@ -333,6 +355,8 @@ router.get('/matches/potential', auth, async (req, res) => {
              LIMIT 20`,
             queryParams
         );
+
+        console.log('[DEBUG] Found users:', users.length, users.length > 0 ? users.map(u => ({ id: u.id, gender: u.gender, firstName: u.first_name })) : 'No users found');
 
         // Parse JSON fields and calculate exact age
         const candidates = users
