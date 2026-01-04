@@ -48,14 +48,14 @@ export default function ChatConversation() {
         }
 
         loadMessages();
-        
+
         // Ensure socket is connected before joining
         const token = localStorage.getItem('token');
         if (token && !socketService.isConnected()) {
             console.log('Socket not connected, connecting now...');
             socketService.connect(token);
         }
-        
+
         // Join conversation room (with slight delay to ensure socket is ready)
         setTimeout(() => {
             console.log('Joining conversation room:', conversationId, 'Socket connected:', socketService.isConnected());
@@ -68,16 +68,16 @@ export default function ChatConversation() {
                 // Get current user from localStorage to set isSent properly
                 const token = localStorage.getItem('token');
                 const currentUserId = token ? JSON.parse(atob(token.split('.')[1])).userId : null;
-                
+
                 // Ensure isSent is set correctly based on current user
                 const messageWithCorrectSent = normalizeMessage({
                     ...newMsg,
                     isSent: newMsg.senderId === currentUserId
                 });
-                
+
                 setMessages(prev => [...prev, messageWithCorrectSent]);
                 scrollToBottom();
-                
+
                 // Mark as read if not sent by current user
                 if (!messageWithCorrectSent.isSent) {
                     socketService.markMessagesAsRead(conversationId, [newMsg.id]);
@@ -96,7 +96,7 @@ export default function ChatConversation() {
         // Listen for read receipts
         socketService.onMessagesRead(({ conversationId: readConvId, messageIds }) => {
             if (readConvId === conversationId) {
-                setMessages(prev => prev.map(msg => 
+                setMessages(prev => prev.map(msg =>
                     messageIds.includes(msg.id) ? { ...msg, isRead: true, status: 'READ' } : msg
                 ));
             }
@@ -107,7 +107,7 @@ export default function ChatConversation() {
             console.log('ChatConversation received message_delivered:', { deliveredConvId, messageId, currentConversationId: conversationId });
             if (deliveredConvId === conversationId) {
                 console.log('Updating message', messageId, 'status to DELIVERED');
-                setMessages(prev => prev.map(msg => 
+                setMessages(prev => prev.map(msg =>
                     msg.id === messageId ? { ...msg, status: 'DELIVERED' } : msg
                 ));
             }
@@ -142,7 +142,7 @@ export default function ChatConversation() {
             socketService.off('message_delivered');
             socketService.off('user_status');
             socketService.off('message_deleted');
-            
+
             // Cleanup recorded audio if user navigates away
             if (recordedAudio) {
                 URL.revokeObjectURL(recordedAudio.url);
@@ -158,7 +158,7 @@ export default function ChatConversation() {
             const normalizedMessages = data.map(normalizeMessage);
             setMessages(normalizedMessages);
             scrollToBottom();
-            
+
             // Mark unread messages as read
             const unreadIds = normalizedMessages.filter(msg => !msg.isRead && !msg.isSent).map(msg => msg.id);
             if (unreadIds.length > 0) {
@@ -184,21 +184,41 @@ export default function ChatConversation() {
         const textToSend = message.trim();
         setMessage('');
         setShowEmojiPicker(false);
-        
+
         // Stop typing indicator
         socketService.stopTyping(conversationId, otherUser.id);
+
+        // Create optimistic message (show immediately)
+        const tempId = `temp-${Date.now()}`;
+        const optimisticMessage = {
+            id: tempId,
+            content: textToSend,
+            messageType: 'text',
+            isSent: true,
+            status: 'SENDING',
+            createdAt: new Date().toISOString(),
+            senderId: JSON.parse(atob(localStorage.getItem('token').split('.')[1])).userId
+        };
+
+        // Add message to UI immediately
+        setMessages(prev => [...prev, optimisticMessage]);
+        scrollToBottom();
 
         try {
             const newMsg = await chatAPI.sendMessage(conversationId, 'text', textToSend);
             console.log('Message sent, received response:', newMsg);
-            // Normalize the sent message
+
+            // Replace optimistic message with real message
             const normalizedMsg = normalizeMessage(newMsg);
-            console.log('Normalized message:', normalizedMsg);
-            setMessages(prev => [...prev, normalizedMsg]);
-            scrollToBottom();
+            setMessages(prev => prev.map(msg =>
+                msg.id === tempId ? normalizedMsg : msg
+            ));
         } catch (error) {
             console.error('Failed to send message:', error);
-            // Optionally show error to user
+            // Mark message as failed
+            setMessages(prev => prev.map(msg =>
+                msg.id === tempId ? { ...msg, status: 'FAILED' } : msg
+            ));
         }
     };
 
@@ -210,16 +230,16 @@ export default function ChatConversation() {
 
     const handleTyping = (e) => {
         setMessage(e.target.value);
-        
+
         // Clear previous timeout
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
         }
-        
+
         // Start typing
         if (e.target.value.length > 0) {
             socketService.startTyping(conversationId, otherUser.id);
-            
+
             // Stop typing after 2 seconds of inactivity
             typingTimeoutRef.current = setTimeout(() => {
                 socketService.stopTyping(conversationId, otherUser.id);
@@ -245,11 +265,11 @@ export default function ChatConversation() {
             mediaRecorder.onstop = async () => {
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 const audioUrl = URL.createObjectURL(audioBlob);
-                
+
                 // Save for preview instead of auto-sending
                 setRecordedAudio({ blob: audioBlob, url: audioUrl });
                 setRecordedDuration(recordingTime);
-                
+
                 // Stop all tracks
                 stream.getTracks().forEach(track => track.stop());
             };
@@ -272,7 +292,7 @@ export default function ChatConversation() {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
-            
+
             if (recordingIntervalRef.current) {
                 clearInterval(recordingIntervalRef.current);
             }
@@ -284,16 +304,16 @@ export default function ChatConversation() {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
             setRecordingTime(0);
-            
+
             if (recordingIntervalRef.current) {
                 clearInterval(recordingIntervalRef.current);
             }
-            
+
             // Stop all tracks without sending
             if (mediaRecorderRef.current.stream) {
                 mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
             }
-            
+
             audioChunksRef.current = [];
         }
     };
@@ -313,7 +333,7 @@ export default function ChatConversation() {
 
     const togglePlayPause = () => {
         if (!audioPreviewRef.current) return;
-        
+
         if (isPlaying) {
             audioPreviewRef.current.pause();
             setIsPlaying(false);
@@ -325,7 +345,7 @@ export default function ChatConversation() {
 
     const sendRecordedAudio = async () => {
         if (!recordedAudio) return;
-        
+
         try {
             if (audioPreviewRef.current) {
                 audioPreviewRef.current.pause();
@@ -342,11 +362,31 @@ export default function ChatConversation() {
     };
 
     const sendVoiceMessage = async (audioBlob, duration) => {
+        // Create temporary URL for optimistic message (before upload)
+        const tempAudioUrl = URL.createObjectURL(audioBlob);
+        const tempId = `temp-${Date.now()}`;
+
+        // Create optimistic voice message IMMEDIATELY (before upload)
+        const optimisticMessage = {
+            id: tempId,
+            content: tempAudioUrl, // Use temporary blob URL
+            messageType: 'voice',
+            isSent: true,
+            status: 'SENDING',
+            createdAt: new Date().toISOString(),
+            voiceDuration: Math.round(duration),
+            senderId: JSON.parse(atob(localStorage.getItem('token').split('.')[1])).userId
+        };
+
+        // Show message immediately
+        setMessages(prev => [...prev, optimisticMessage]);
+        scrollToBottom();
+
         try {
             // Upload audio to backend
             const formData = new FormData();
             formData.append('audio', audioBlob, 'voice-message.webm');
-            
+
             const token = localStorage.getItem('token');
             const uploadResponse = await fetch(
                 `${import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api'}/upload/voice-message`,
@@ -358,13 +398,13 @@ export default function ChatConversation() {
                     body: formData
                 }
             );
-            
+
             if (!uploadResponse.ok) {
                 throw new Error('Failed to upload voice message');
             }
-            
+
             const uploadData = await uploadResponse.json();
-            
+
             // Send voice message
             const newMsg = await chatAPI.sendMessage(
                 conversationId,
@@ -372,12 +412,23 @@ export default function ChatConversation() {
                 uploadData.url,
                 Math.round(duration)
             );
-            
+
+            // Replace optimistic message with real message (with Cloudinary URL)
             const normalizedMsg = normalizeMessage(newMsg);
-            setMessages(prev => [...prev, normalizedMsg]);
-            scrollToBottom();
+            setMessages(prev => prev.map(msg => {
+                if (msg.id === tempId) {
+                    // Clean up the temporary blob URL
+                    URL.revokeObjectURL(tempAudioUrl);
+                    return normalizedMsg;
+                }
+                return msg;
+            }));
         } catch (error) {
             console.error('Failed to send voice message:', error);
+            // Mark message as failed
+            setMessages(prev => prev.map(msg =>
+                msg.id === tempId ? { ...msg, status: 'FAILED' } : msg
+            ));
             alert('Failed to send voice message. Please try again.');
         }
     };
@@ -394,10 +445,10 @@ export default function ChatConversation() {
             // Immediately remove from UI for better UX
             const messageIdToDelete = selectedMessage.id;
             setMessages(prev => prev.filter(msg => msg.id !== messageIdToDelete));
-            
+
             setShowDeleteDialog(false);
             setSelectedMessage(null);
-            
+
             // Call API in background
             await chatAPI.deleteMessage(messageIdToDelete, deleteType);
             console.log('Message deleted successfully:', messageIdToDelete, 'deleteType:', deleteType);
@@ -409,22 +460,22 @@ export default function ChatConversation() {
         }
     };
 
- const formatTime = (timestamp) => {
-    if (!timestamp) return '';
+    const formatTime = (timestamp) => {
+        if (!timestamp) return '';
 
-    const date = new Date(timestamp); // UTC → LOCAL happens here
+        const date = new Date(timestamp); // UTC → LOCAL happens here
 
-    if (isNaN(date.getTime())) {
-        console.error('Invalid timestamp:', timestamp);
-        return '';
-    }
+        if (isNaN(date.getTime())) {
+            console.error('Invalid timestamp:', timestamp);
+            return '';
+        }
 
-    return date.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-    });
-};
+        return date.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
 
 
 
@@ -451,7 +502,7 @@ export default function ChatConversation() {
     const handleEmojiClick = (emojiObject) => {
         const emoji = emojiObject.emoji;
         const input = inputRef.current;
-        
+
         if (input) {
             const start = input.selectionStart;
             const end = input.selectionEnd;
@@ -459,9 +510,9 @@ export default function ChatConversation() {
             const before = text.substring(0, start);
             const after = text.substring(end);
             const newText = before + emoji + after;
-            
+
             setMessage(newText);
-            
+
             // Set cursor position after emoji
             setTimeout(() => {
                 input.selectionStart = input.selectionEnd = start + emoji.length;
@@ -495,11 +546,11 @@ export default function ChatConversation() {
                         </button>
 
                         <button
-                            onClick={() => navigate('/user-profile-info', { 
-                                state: { 
-                                    userId: otherUser?.id, 
-                                    otherUser: otherUser 
-                                } 
+                            onClick={() => navigate('/user-profile-info', {
+                                state: {
+                                    userId: otherUser?.id,
+                                    otherUser: otherUser
+                                }
                             })}
                             className="flex-shrink-0"
                         >
@@ -511,11 +562,11 @@ export default function ChatConversation() {
                         </button>
 
                         <button
-                            onClick={() => navigate('/user-profile-info', { 
-                                state: { 
-                                    userId: otherUser?.id, 
-                                    otherUser: otherUser 
-                                } 
+                            onClick={() => navigate('/user-profile-info', {
+                                state: {
+                                    userId: otherUser?.id,
+                                    otherUser: otherUser
+                                }
                             })}
                             className="flex-1 text-left"
                         >
@@ -621,19 +672,18 @@ export default function ChatConversation() {
                             }}
                         >
                             <div
-  className={`max-w-[75%] rounded-2xl px-4 py-3 overflow-hidden ${
-    msg.isSent
-      ? 'bg-white text-gray-800 rounded-br-md'
-      : 'bg-[#3A3A3C] text-white rounded-bl-md'
-  }`}
->
+                                className={`max-w-[75%] rounded-2xl px-4 py-3 overflow-hidden ${msg.isSent
+                                    ? 'bg-white text-gray-800 rounded-br-md'
+                                    : 'bg-[#3A3A3C] text-white rounded-bl-md'
+                                    }`}
+                            >
 
                                 {msg.messageType === 'voice' || msg.type === 'VOICE' ? (
-                                    <audio 
-                                        src={msg.content} 
-                                        controls 
+                                    <audio
+                                        src={msg.content}
+                                        controls
                                         className="max-w-full"
-                                        style={{ 
+                                        style={{
                                             height: '32px',
                                             filter: msg.isSent ? 'invert(0)' : 'invert(1)'
                                         }}
@@ -646,7 +696,18 @@ export default function ChatConversation() {
                                     {msg.isSent && (
                                         <div className="relative flex items-center ">
                                             {console.log('Rendering msg', msg.id, 'status:', msg.status, 'isRead:', msg.isRead)}
-                                            {msg.status === 'READ' || msg.isRead ? (
+                                            {msg.status === 'SENDING' ? (
+                                                // Clock icon for sending messages
+                                                <svg className="w-4 h-4 text-gray-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l4 2" />
+                                                </svg>
+                                            ) : msg.status === 'FAILED' ? (
+                                                // Warning icon for failed messages
+                                                <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            ) : msg.status === 'READ' || msg.isRead ? (
                                                 // Double blue ticks for read messages
                                                 <div className="flex -space-x-2">
                                                     <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -683,7 +744,7 @@ export default function ChatConversation() {
             </div>
 
             {/* Input Area */}
-           <div className="bg-gradient-to-t from-black/60 to-transparent px-4 py-4 pb-8 z-10 relative">
+            <div className="bg-gradient-to-t from-black/60 to-transparent px-4 py-4 pb-8 z-10 relative">
                 {/* Emoji Picker */}
                 {showEmojiPicker && !isRecording && !recordedAudio && (
                     <div ref={emojiPickerRef} className="absolute bottom-24 left-4 right-4 z-[15]">
@@ -698,7 +759,7 @@ export default function ChatConversation() {
                         />
                     </div>
                 )}
-                
+
                 <div className="flex items-center gap-2">
                     {/* Voice Preview Mode - WhatsApp style */}
                     {recordedAudio ? (
@@ -718,26 +779,26 @@ export default function ChatConversation() {
                             {/* Audio preview bar */}
                             <div className="flex-1 bg-white rounded-full px-4 py-2.5 flex items-center gap-3 shadow-lg">
                                 {/* Hidden audio element */}
-                                <audio 
+                                <audio
                                     ref={audioPreviewRef}
                                     src={recordedAudio.url}
                                     onEnded={() => setIsPlaying(false)}
                                     className="hidden"
                                 />
-                                
+
                                 {/* Play/Pause button */}
                                 <button
-                                    type="button" 
+                                    type="button"
                                     onClick={togglePlayPause}
                                     className="w-9 h-9 bg-[#00A884] rounded-full flex items-center justify-center flex-shrink-0 hover:bg-[#008c6f] transition-all"
                                 >
                                     {isPlaying ? (
                                         <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                                         </svg>
                                     ) : (
                                         <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                                            <path d="M8 5v14l11-7z"/>
+                                            <path d="M8 5v14l11-7z" />
                                         </svg>
                                     )}
                                 </button>
@@ -786,17 +847,17 @@ export default function ChatConversation() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
-                            
+
                             <div className="flex-1 bg-white/20 backdrop-blur-sm rounded-full px-4 py-3 flex items-center justify-center">
                                 <div className="flex items-center gap-3">
                                     {/* Recording indicator */}
                                     <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                                    
+
                                     {/* Timer */}
                                     <span className="text-white font-medium tabular-nums">
                                         {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
                                     </span>
-                                    
+
                                     {/* Waveform animation */}
                                     <div className="flex items-center gap-0.5 h-6">
                                         {[...Array(15)].map((_, i) => (
@@ -812,7 +873,7 @@ export default function ChatConversation() {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <button
                                 type="button"
                                 onClick={stopRecording}
@@ -835,7 +896,7 @@ export default function ChatConversation() {
                                     className="flex-1 bg-transparent text-gray-800 placeholder-gray-500 outline-none text-sm"
                                 />
                                 <button
-                                    type="button" 
+                                    type="button"
                                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                                     className="ml-2"
                                 >
@@ -857,7 +918,7 @@ export default function ChatConversation() {
                                 </button>
                             ) : (
                                 <button
-                                    type="button" 
+                                    type="button"
                                     onClick={startRecording}
                                     className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0"
                                 >
@@ -876,11 +937,11 @@ export default function ChatConversation() {
                         <div className="p-6">
                             <h3 className="text-xl font-semibold text-gray-800 mb-2">Delete message?</h3>
                             <p className="text-gray-600 text-sm mb-6">
-                                {selectedMessage.isSent 
+                                {selectedMessage.isSent
                                     ? 'Choose who you want to delete this message for'
                                     : 'This message will be deleted for you only'}
                             </p>
-                            
+
                             <div className="space-y-3">
                                 {selectedMessage.isSent && (
                                     <button

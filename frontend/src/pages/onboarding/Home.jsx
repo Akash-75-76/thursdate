@@ -5,7 +5,7 @@ import ExploreTab from "../tabs/ExploreTab";
 import MessagesTab from "../tabs/MessagesTab";
 import ProfileTab from "../tabs/ProfileTab";
 import GameTab from "../tabs/GameTab";
-import { userAPI } from "../../utils/api";
+import { userAPI, chatAPI } from "../../utils/api";
 import socketService from "../../utils/socket";
 
 const navOptions = [
@@ -22,6 +22,29 @@ export default function Home() {
 
   // The default selected tab is 'matches'
   const [selected, setSelected] = useState("matches");
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  // Get current user ID from token
+  const getCurrentUserId = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      return JSON.parse(atob(token.split('.')[1])).userId;
+    } catch {
+      return null;
+    }
+  };
+
+  // Load unread chat count (number of people with unread messages)
+  const loadUnreadCount = async () => {
+    try {
+      const conversations = await chatAPI.getConversations();
+      const unreadPeopleCount = conversations.filter(conv => (conv.unreadCount || 0) > 0).length;
+      setUnreadChatCount(unreadPeopleCount);
+    } catch (error) {
+      console.error('Failed to load unread count:', error);
+    }
+  };
 
   // EFFECT 1: Check if the user is approved to view this page
   useEffect(() => {
@@ -47,6 +70,26 @@ export default function Home() {
       socketService.connect(token);
     }
 
+    // Load initial unread count
+    loadUnreadCount();
+
+    // Listen for new messages to update unread count
+    socketService.onNewMessage(({ conversationId, message }) => {
+      const currentUserId = getCurrentUserId();
+      const isSent = message.senderId === currentUserId;
+
+      // If message is not sent by current user, increment unread count
+      if (!isSent) {
+        setUnreadChatCount(prev => prev + 1);
+      }
+    });
+
+    // Listen for messages being read
+    socketService.onMessagesRead(({ conversationId, messageIds }) => {
+      // Reload unread count when messages are read
+      loadUnreadCount();
+    });
+
     return () => {
       // Don't disconnect on unmount, keep socket alive
       // socketService.disconnect();
@@ -60,6 +103,13 @@ export default function Home() {
       setSelected(location.state.selectedTab);
     }
   }, [location.state]);
+
+  // EFFECT 4: Reload unread count when switching to chats tab
+  useEffect(() => {
+    if (selected === 'chats') {
+      loadUnreadCount();
+    }
+  }, [selected]);
 
   // Switch statement to determine which component to show based on the selected tab
   let ContentComponent;
@@ -93,13 +143,22 @@ export default function Home() {
       <nav className="fixed bottom-0 left-0 right-0 bg-black/40 backdrop-blur-xl border-t border-white/30 shadow-lg flex justify-around items-center h-24 px-2 rounded-t-3xl">
         {navOptions.map(opt => {
           const isActive = selected === opt.key;
+          const showBadge = opt.key === 'chats' && unreadChatCount > 0;
+
           return (
             <button
               key={opt.key}
-              className={`flex-1 flex flex-col items-center justify-center transition-all focus:outline-none px-2 py-2 rounded-2xl max-w-[80px] ${isActive ? "bg-white/40 backdrop-blur-md" : ""
+              className={`flex-1 flex flex-col items-center justify-center transition-all focus:outline-none px-2 py-2 rounded-2xl max-w-[80px] relative ${isActive ? "bg-white/40 backdrop-blur-md" : ""
                 }`}
               onClick={() => setSelected(opt.key)}
             >
+              {/* Unread Badge */}
+              {showBadge && (
+                <div className="absolute top-1 right-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-lg">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </div>
+              )}
+
               <img
                 src={opt.icon}
                 alt={opt.label}
