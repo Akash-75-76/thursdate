@@ -13,6 +13,8 @@ const normalizeUserIds = (userId1, userId2) => {
 };
 
 // Helper function to check if two users are mutually matched
+// This checks ONLY if both users liked each other
+// Does NOT check expiry - matches remain valid for chat even after 7 days
 const checkMutualMatch = async (userId1, userId2) => {
   const [matches] = await pool.execute(
     `SELECT 1 FROM user_actions a1

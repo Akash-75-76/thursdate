@@ -308,7 +308,7 @@ export default function MessagesTab() {
 
 
       {/* Filter Tabs */}
-      <div className="px-6 mb-4 -mt-2">
+      <div className="px-6 mb-4 -mt-1">
         <div className="flex gap-3">
           {['All', 'Unread'].map((filter) => (
             <button
