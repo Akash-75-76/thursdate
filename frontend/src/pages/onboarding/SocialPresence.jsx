@@ -68,6 +68,25 @@ export default function SocialPresence() {
         };
     }, [licenseFrontPreview, licenseBackPreview]);
 
+    // Check for LinkedIn OAuth callback
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('linkedin_verified') === 'true') {
+            const token = params.get('token');
+            const linkedinUrl = params.get('linkedin_url');
+            if (token) {
+                localStorage.setItem('token', token);
+                if (linkedinUrl) {
+                    setInstagram(linkedinUrl);
+                }
+                setCodeVerified(true);
+                setVerificationMethod('linkedin');
+                // Clean up URL
+                window.history.replaceState({}, '', '/social-presence');
+            }
+        }
+    }, []);
+
     // === HANDLERS ===
     const handleResendOTP = () => {
         setResendTimer(30);
@@ -83,9 +102,16 @@ export default function SocialPresence() {
         setInstaCode("");
     };
 
+    const handleLinkedInOAuth = () => {
+        // Redirect to backend OAuth endpoint
+        window.location.href = 'http://localhost:5000/auth/linkedin';
+    };
+
     const handleStartVerification = () => {
-        if (verificationMethod === "instagram" || verificationMethod === "linkedin") {
+        if (verificationMethod === "instagram") {
             setShowInstaConfirm(true);
+        } else if (verificationMethod === "linkedin") {
+            handleLinkedInOAuth();
         } else if (verificationMethod === "aadhaar" && instagram.length === 12) {
             handleGetOTP();
         }

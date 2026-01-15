@@ -2,6 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const cloudinary = require('../config/cloudinary');
 const auth = require('../middleware/auth');
+const { validateFacePhoto, verifyProfilePhoto } = require('../config/rekognition');
+const db = require('../config/db');
 const router = express.Router();
 
 // Configure multer for memory storage
@@ -162,13 +164,26 @@ router.post('/face-photo', auth, upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'File size too large. Maximum 20MB allowed.' });
     }
 
-    // Convert buffer to base64
+    // STEP 1: Validate face using AWS Rekognition
+    console.log('🔍 Validating face with AWS Rekognition...');
+    const validation = await validateFacePhoto(req.file.buffer);
+
+    if (!validation.valid) {
+      console.log('❌ Face validation failed:', validation.message);
+      return res.status(400).json({ 
+        error: validation.message,
+        faceValidation: false
+      });
+    }
+
+    console.log('✅ Face validated successfully! Confidence:', validation.confidence);
+
+    // STEP 2: Upload to Cloudinary
     const b64 = Buffer.from(req.file.buffer).toString('base64');
     const dataURI = `data:${req.file.mimetype};base64,${b64}`;
 
-    console.log('Uploading to Cloudinary...');
+    console.log('☁️ Uploading to Cloudinary...');
 
-    // Upload to Cloudinary
     const result = await cloudinary.uploader.upload(dataURI, {
       folder: 'luyona/face-photos',
       public_id: `user_${req.user.userId}_face_${Date.now()}`,
@@ -178,16 +193,26 @@ router.post('/face-photo', auth, upload.single('image'), async (req, res) => {
       ]
     });
 
-    console.log('Face photo upload successful:', {
+    console.log('✅ Face photo upload successful:', {
       url: result.secure_url,
       publicId: result.public_id,
       size: result.bytes
     });
 
+    // STEP 3: Save face photo URL to database
+    await db.query(
+      'UPDATE users SET face_photo_url = ? WHERE id = ?',
+      [result.secure_url, req.user.userId]
+    );
+
+    console.log('✅ Face photo URL saved to database');
+
     res.json({
-      message: 'Image uploaded successfully',
+      message: 'Face verified and uploaded successfully!',
       url: result.secure_url,
-      publicId: result.public_id
+      publicId: result.public_id,
+      faceValidation: true,
+      confidence: validation.confidence
     });
 
   } catch (error) {
@@ -195,6 +220,93 @@ router.post('/face-photo', auth, upload.single('image'), async (req, res) => {
     console.error('Error details:', error.message);
     console.error('Error stack:', error.stack);
     res.status(500).json({ error: 'Failed to upload image: ' + error.message });
+  }
+});
+
+// Verify and upload profile photo (compares with reference face photo)
+router.post('/profile-photo-verify', auth, upload.single('image'), async (req, res) => {
+  try {
+    console.log('Profile photo verification attempt for user ID:', req.user.userId);
+    
+    if (!req.file) {
+      console.log('No file received in request');
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    console.log('File received:', {
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+    });
+
+    // Validate file size
+    if (req.file.size > 20 * 1024 * 1024) {
+      return res.status(400).json({ error: 'File size too large. Maximum 20MB allowed.' });
+    }
+
+    // STEP 1: Get user's reference face photo from database
+    const [users] = await db.query(
+      'SELECT face_photo_url FROM users WHERE id = ?',
+      [req.user.userId]
+    );
+
+    if (!users || users.length === 0 || !users[0].face_photo_url) {
+      return res.status(400).json({ 
+        error: 'No reference face photo found. Please complete the verification step first.',
+        requiresReference: true
+      });
+    }
+
+    const referencePhotoUrl = users[0].face_photo_url;
+    console.log('📸 Reference photo URL:', referencePhotoUrl);
+
+    // STEP 2: Verify the profile photo against the reference
+    console.log('🔍 Verifying profile photo with AWS Rekognition...');
+    const verification = await verifyProfilePhoto(referencePhotoUrl, req.file.buffer);
+
+    if (!verification.valid) {
+      console.log('❌ Profile photo verification failed:', verification.message);
+      return res.status(400).json({ 
+        error: verification.message,
+        faceVerification: false
+      });
+    }
+
+    console.log('✅ Profile photo verified! Similarity:', verification.similarity);
+
+    // STEP 3: Upload to Cloudinary
+    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    const dataURI = `data:${req.file.mimetype};base64,${b64}`;
+
+    console.log('☁️ Uploading to Cloudinary...');
+
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: 'luyona/profile-pictures',
+      public_id: `user_${req.user.userId}_${Date.now()}`,
+      transformation: [
+        { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+        { quality: 'auto' }
+      ]
+    });
+
+    console.log('✅ Profile photo upload successful:', {
+      url: result.secure_url,
+      similarity: verification.similarity
+    });
+
+    res.json({
+      message: 'Profile photo verified and uploaded successfully!',
+      url: result.secure_url,
+      publicId: result.public_id,
+      faceVerification: true,
+      similarity: verification.similarity
+    });
+
+  } catch (error) {
+    console.error('Profile photo verification error:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to verify and upload photo: ' + error.message });
   }
 });
 

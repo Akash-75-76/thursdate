@@ -39,7 +39,7 @@ router.get('/profile', auth, async (req, res) => {
 
         const [users] = await pool.execute(
             // 🛑 FIX: is_private REMOVED from the SELECT query
-            'SELECT id, email, first_name, last_name, gender, dob, current_location, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin, face_photos FROM users WHERE id = ?',
+            'SELECT id, email, first_name, last_name, gender, dob, current_location, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, face_photo_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin, face_photos FROM users WHERE id = ?',
             [req.user.userId]
         );
         
@@ -62,6 +62,7 @@ router.get('/profile', auth, async (req, res) => {
             lastHolidayPlaces: safeJsonParse(user.last_holiday_places, []),
             favouritePlacesToGo: safeJsonParse(user.favourite_places_to_go, []),
             profilePicUrl: user.profile_pic_url || null,
+            faceVerificationUrl: user.face_photo_url || null,
             intent: safeJsonParse(user.intent, {}),
             onboardingComplete: !!user.onboarding_complete, // Ensure boolean
             approval: !!user.approval,                     // Ensure boolean
@@ -101,7 +102,7 @@ router.post('/profile', auth, async (req, res) => {
 
         const {
             firstName, lastName, gender, dob, currentLocation, favouriteTravelDestination,
-            lastHolidayPlaces, favouritePlacesToGo, profilePicUrl
+            lastHolidayPlaces, favouritePlacesToGo, profilePicUrl, faceVerificationUrl
         } = req.body;
         
         let formattedDob = dob ? new Date(dob).toISOString().split('T')[0] : null;
@@ -114,12 +115,20 @@ router.post('/profile', auth, async (req, res) => {
                 first_name = ?, last_name = ?, gender = ?, dob = ?, 
                 current_location = ?, favourite_travel_destination = ?, 
                 last_holiday_places = ?, favourite_places_to_go = ?, 
-                profile_pic_url = ?, approval = false
+                profile_pic_url = ?, face_photo_url = ?, approval = false
             WHERE id = ?`,
             [
-                firstName, lastName, gender, formattedDob, currentLocation, 
-                favouriteTravelDestination, lastHolidayPlacesJson, 
-                favouritePlacesToGoJson, profilePicUrl, req.user.userId
+                firstName || null, 
+                lastName || null, 
+                gender || null, 
+                formattedDob, 
+                currentLocation || null, 
+                favouriteTravelDestination || null, 
+                lastHolidayPlacesJson, 
+                favouritePlacesToGoJson, 
+                profilePicUrl || null, 
+                faceVerificationUrl || null,
+                req.user.userId
             ]
         );
         

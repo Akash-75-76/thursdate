@@ -72,6 +72,7 @@ app.use('/api/user', require('./routes/user'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/auth', require('./routes/linkedin-auth'));
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
