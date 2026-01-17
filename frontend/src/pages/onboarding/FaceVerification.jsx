@@ -108,7 +108,7 @@ const FaceVerification = () => {
         try {
             const result = await uploadAPI.uploadProfilePhotoVerify(photo);
             console.log('Profile photo verified and uploaded:', result);
-            
+
             // Show success modal
             setShowSuccess(true);
         } catch (error) {
@@ -310,11 +310,10 @@ const FaceVerification = () => {
 
                     {/* Next Button */}
                     <button
-                        className={`w-full max-w-md py-4 rounded-xl font-medium text-lg transition ${
-                            uploading ? "bg-white/40 text-white cursor-wait" : 
-                            photo ? "bg-white text-black hover:bg-white/90" : 
-                            "bg-white/20 text-white/60 cursor-not-allowed"
-                        }`}
+                        className={`w-full max-w-md py-4 rounded-xl font-medium text-lg transition ${uploading ? "bg-white/40 text-white cursor-wait" :
+                                photo ? "bg-white text-black hover:bg-white/90" :
+                                    "bg-white/20 text-white/60 cursor-not-allowed"
+                            }`}
                         disabled={!photo || uploading}
                         onClick={handleUploadPhoto}
                         style={{ marginTop: "auto" }}

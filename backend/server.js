@@ -4,6 +4,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const passport = require('passport');
 const cloudinary = require('./config/cloudinary');
 const { initializeSocketHandlers } = require('./config/socket');
 
@@ -21,6 +22,9 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+// Initialize Passport
+app.use(passport.initialize());
 
 // Debug environment variables
 console.log('Environment variables check:');
