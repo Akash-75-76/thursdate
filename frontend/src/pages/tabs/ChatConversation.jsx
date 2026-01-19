@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { chatAPI } from '../../utils/api';
 import socketService from '../../utils/socket';
+import LevelUpPopup from './LevelUpPopup';
+import Level2UnlockedPopup from './Level2UnlockedPopup';
 
 export default function ChatConversation() {
     const navigate = useNavigate();
@@ -20,9 +22,8 @@ export default function ChatConversation() {
     const [recordedAudio, setRecordedAudio] = useState(null);
     const [recordedDuration, setRecordedDuration] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [showClearChatDialog, setShowClearChatDialog] = useState(false);
     const [showUnmatchDialog, setShowUnmatchDialog] = useState(false);
-    const [showDeleteChatDialog, setShowDeleteChatDialog] = useState(false);
+    const [showBlockDialog, setShowBlockDialog] = useState(false);
     const menuRef = useRef(null);
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
@@ -31,6 +32,14 @@ export default function ChatConversation() {
     const recordingIntervalRef = useRef(null);
     const inputRef = useRef(null);
     const audioPreviewRef = useRef(null);
+
+    // ✅ Level system state
+    const [levelStatus, setLevelStatus] = useState(null);
+    const [showLevel2Popup, setShowLevel2Popup] = useState(false);
+    const [showLevel3Popup, setShowLevel3Popup] = useState(false);
+    const [showLevel2Unlocked, setShowLevel2Unlocked] = useState(false);
+    const [pendingLevel2Threshold, setPendingLevel2Threshold] = useState(false);
+    const [pendingLevel3Threshold, setPendingLevel3Threshold] = useState(false);
 
     // Normalize message timestamp - ensure createdAt exists
     const normalizeMessage = (msg) => {
@@ -143,6 +152,42 @@ export default function ChatConversation() {
             }
         });
 
+        // ✅ Listen for level threshold reached
+        socketService.on('level_threshold_reached', ({ conversationId: convId, threshold, partnerName }) => {
+            console.log('[Level] Threshold reached:', threshold, 'in conversation', convId);
+            if (convId === conversationId) {
+                if (threshold === 'LEVEL_2') {
+                    setPendingLevel2Threshold(true);
+                } else if (threshold === 'LEVEL_3') {
+                    setPendingLevel3Threshold(true);
+                }
+                // Reload level status
+                loadLevelStatus();
+            }
+        });
+
+        // ✅ Listen for Level 2 unlocked (both users completed)
+        socketService.on('level2_unlocked', ({ conversationId: convId }) => {
+            console.log('[Level] Level 2 unlocked in conversation', convId);
+            if (convId === conversationId) {
+                setShowLevel2Unlocked(true);
+                setShowLevel2Popup(false);
+                loadLevelStatus();
+            }
+        });
+
+        // ✅ Listen for Level 3 unlocked (both users consented)
+        socketService.on('level3_unlocked', ({ conversationId: convId }) => {
+            console.log('[Level] Level 3 unlocked in conversation', convId);
+            if (convId === conversationId) {
+                setShowLevel3Popup(false);
+                loadLevelStatus();
+            }
+        });
+
+        // ✅ Load initial level status
+        loadLevelStatus();
+
         return () => {
             socketService.leaveConversation(conversationId);
             socketService.off('new_message');
@@ -152,6 +197,9 @@ export default function ChatConversation() {
             socketService.off('user_status');
             socketService.off('message_deleted');
             socketService.off('conversation_unmatched');
+            socketService.off('level_threshold_reached');
+            socketService.off('level2_unlocked');
+            socketService.off('level3_unlocked');
 
             // Cleanup recorded audio if user navigates away
             if (recordedAudio) {
@@ -159,6 +207,20 @@ export default function ChatConversation() {
             }
         };
     }, [conversationId, otherUser, navigate, recordedAudio]);
+
+    // ✅ Reload level status when page becomes visible (e.g., returning from profile questions)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                console.log('[Level] Page visible, reloading status and messages...');
+                loadLevelStatus();
+                loadMessages(); // Also reload messages to ensure we have fresh data
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [conversationId]);
 
     const loadMessages = async () => {
         try {
@@ -180,6 +242,113 @@ export default function ChatConversation() {
         } finally {
             setLoading(false);
         }
+    };
+
+    // ✅ Load level status for this conversation
+    const loadLevelStatus = async () => {
+        try {
+            const status = await chatAPI.getLevelStatus(conversationId);
+            setLevelStatus(status);
+            console.log('[Level] Status loaded:', status);
+            
+            // ✅ CRITICAL: Do NOT show popups here!
+            // Popups should ONLY be triggered by level_threshold_reached socket event
+            // This function is called when returning from profile-questions or when page becomes visible
+            // Showing popups here would cause them to appear incorrectly
+        } catch (error) {
+            console.error('[Level] Failed to load status:', error);
+        }
+    };
+
+    // ✅ Check and show Level 2 popup when threshold reached
+    useEffect(() => {
+        if (pendingLevel2Threshold && levelStatus) {
+            // ✅ CRITICAL: Only show popup if backend says action is needed
+            const action = levelStatus.level2Action;
+            console.log('[Level2] Threshold reached, action:', action);
+            
+            if (action === 'FILL_INFORMATION' || action === 'ASK_CONSENT') {
+                setShowLevel2Popup(true);
+            }
+        }
+    }, [pendingLevel2Threshold, levelStatus]);
+
+    // ✅ Check and show Level 3 popup when threshold reached
+    useEffect(() => {
+        if (pendingLevel3Threshold && levelStatus) {
+            // ✅ CRITICAL: Only show popup if backend says action is needed
+            const action = levelStatus.level3Action;
+            console.log('[Level3] Threshold reached, action:', action);
+            
+            if (action === 'FILL_INFORMATION' || action === 'ASK_CONSENT') {
+                setShowLevel3Popup(true);
+            }
+        }
+    }, [pendingLevel3Threshold, levelStatus]);
+
+    // ✅ Handle Level 2 popup - redirect to questions based on action
+    const handleLevel2FillInfo = () => {
+        const action = levelStatus?.level2Action;
+        console.log('[Level2] Fill Info clicked, action:', action);
+        
+        // ✅ CRITICAL: Frontend ONLY redirects if backend says FILL_INFORMATION
+        if (action === 'FILL_INFORMATION') {
+            console.log('[Level2] Action is FILL_INFORMATION - navigating to profile-questions');
+            navigate('/profile-questions', { 
+                state: { 
+                    levelOnly: 2,
+                    returnTo: '/home',
+                    returnState: { 
+                        selectedTab: 'chats',
+                        openConversation: { conversationId, otherUser }
+                    }
+                } 
+            });
+        } else {
+            console.error('[Level2] Invalid action for Fill Info button:', action);
+        }
+    };
+
+    // ✅ Handle Level 2 consent - YES
+    const handleLevel2Yes = async () => {
+        try {
+            await chatAPI.setLevel2Consent(conversationId, true);
+            setShowLevel2Popup(false);
+            loadLevelStatus();
+        } catch (error) {
+            console.error('[Level] Failed to set Level 2 consent:', error);
+        }
+    };
+
+    // ✅ Handle Level 2 consent - NO  
+    const handleLevel2No = () => {
+        // Keep popup visible, user can change mind later
+        setShowLevel2Popup(false);
+    };
+
+    // ✅ Handle Level 3 popup - redirect to questions OR show consent
+    const handleLevel3FillInfo = () => {
+        // Level 3 questions don't exist yet (face photos feature missing)
+        // For now, just auto-consent
+        handleLevel3Yes();
+    };
+
+    // ✅ Handle Level 3 consent - YES
+    const handleLevel3Yes = async () => {
+        try {
+            await chatAPI.setLevel3Consent(conversationId, true);
+            setShowLevel3Popup(false);
+            loadLevelStatus();
+        } catch (error) {
+            console.error('[Level] Failed to set Level 3 consent:', error);
+        }
+    };
+
+    // ✅ Handle Level 3 consent - NO
+    const handleLevel3No = () => {
+        // Keep popup visible, user can change mind later
+        // Do not set consent to false, just dismiss UI
+        setShowLevel3Popup(false);
     };
 
     const scrollToBottom = () => {
@@ -447,7 +616,7 @@ export default function ChatConversation() {
         setShowDeleteDialog(true);
     };
 
-    const handleDeleteMessage = async (deleteType) => {
+    const handleUnsendMessage = async () => {
         if (!selectedMessage) return;
 
         try {
@@ -458,33 +627,42 @@ export default function ChatConversation() {
             setShowDeleteDialog(false);
             setSelectedMessage(null);
 
-            // Call API in background
-            await chatAPI.deleteMessage(messageIdToDelete, deleteType);
-            console.log('Message deleted successfully:', messageIdToDelete, 'deleteType:', deleteType);
+            // Call API to unsend (delete for everyone)
+            await chatAPI.deleteMessage(messageIdToDelete);
+            console.log('Message unsent successfully:', messageIdToDelete);
         } catch (error) {
-            console.error('Failed to delete message:', error);
-            alert('Failed to delete message. Please try again.');
+            console.error('Failed to unsend message:', error);
+            alert(error.message || 'Failed to unsend message. Please try again.');
             // Reload messages on error
             loadMessages();
         }
     };
 
-    const handleClearChat = async () => {
+    const canUnsendMessage = (msg) => {
+        if (!msg || !msg.isSent) return false;
+        
+        // Check if message is within 12 hours
+        const messageTime = new Date(msg.createdAt).getTime();
+        const now = Date.now();
+        const twelveHours = 12 * 60 * 60 * 1000;
+        
+        return (now - messageTime) <= twelveHours;
+    };
+
+    const handleBlock = async () => {
         try {
-            setShowClearChatDialog(false);
+            setShowBlockDialog(false);
             setShowMenu(false);
             
-            // Clear messages from UI immediately
-            setMessages([]);
+            // Call API to block user (also unmatches and deletes conversation)
+            await chatAPI.blockUser(conversationId);
+            console.log('User blocked successfully');
             
-            // Call API to delete all messages
-            await chatAPI.clearChat(conversationId);
-            console.log('Chat cleared successfully');
+            // Navigate back to messages tab immediately
+            navigate('/home', { state: { selectedTab: 'chats' } });
         } catch (error) {
-            console.error('Failed to clear chat:', error);
-            alert('Failed to clear chat. Please try again.');
-            // Reload messages on error
-            loadMessages();
+            console.error('Failed to block user:', error);
+            alert('Failed to block user. Please try again.');
         }
     };
 
@@ -493,7 +671,7 @@ export default function ChatConversation() {
             setShowUnmatchDialog(false);
             setShowMenu(false);
             
-            // Call API to unmatch
+            // Call API to unmatch (notifies both users)
             await chatAPI.unmatch(conversationId);
             console.log('Unmatched successfully');
             
@@ -502,23 +680,6 @@ export default function ChatConversation() {
         } catch (error) {
             console.error('Failed to unmatch:', error);
             alert('Failed to unmatch. Please try again.');
-        }
-    };
-
-    const handleDeleteChat = async () => {
-        try {
-            setShowDeleteChatDialog(false);
-            setShowMenu(false);
-            
-            // Call API to delete conversation
-            await chatAPI.deleteConversation(conversationId);
-            console.log('Chat deleted successfully');
-            
-            // Navigate back to messages tab
-            navigate('/home', { state: { selectedTab: 'chats' } });
-        } catch (error) {
-            console.error('Failed to delete chat:', error);
-            alert('Failed to delete chat. Please try again.');
         }
     };
 
@@ -584,7 +745,8 @@ export default function ChatConversation() {
                         <button
                             onClick={() => navigate('/user-profile-info', {
                                 state: {
-                                    userId: otherUser?.id
+                                    userId: otherUser?.id,
+                                    conversationId: conversationId
                                 }
                             })}
                             className="flex-shrink-0"
@@ -599,7 +761,8 @@ export default function ChatConversation() {
                         <button
                             onClick={() => navigate('/user-profile-info', {
                                 state: {
-                                    userId: otherUser?.id
+                                    userId: otherUser?.id,
+                                    conversationId: conversationId
                                 }
                             })}
                             className="flex-1 text-left"
@@ -631,13 +794,16 @@ export default function ChatConversation() {
                         {showMenu && (
                             <div className="absolute right-0 top-12 w-56 bg-white backdrop-blur-xl rounded-2xl shadow-lg overflow-hidden z-[60]">
                                 <button
-                                    onClick={() => setShowMenu(false)}
-                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-black/5 transition-colors text-left"
+                                    onClick={() => {
+                                        setShowMenu(false);
+                                        // Report is not implemented yet - show coming soon or do nothing
+                                    }}
+                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-black/5 transition-colors text-left opacity-50 cursor-not-allowed"
+                                    disabled
                                 >
-                                    <span className="text-gray-800 font-medium">Mute</span>
+                                    <span className="text-gray-800 font-medium">Report</span>
                                     <svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
                                 </button>
 
@@ -646,13 +812,13 @@ export default function ChatConversation() {
                                 <button
                                     onClick={() => {
                                         setShowMenu(false);
-                                        setShowClearChatDialog(true);
+                                        setShowBlockDialog(true);
                                     }}
-                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-black/5 transition-colors text-left"
+                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-red-50 transition-colors text-left"
                                 >
-                                    <span className="text-gray-800 font-medium">Clear chat</span>
-                                    <svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    <span className="text-red-500 font-medium">Block</span>
+                                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                     </svg>
                                 </button>
 
@@ -669,21 +835,6 @@ export default function ChatConversation() {
                                     <svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6" />
-                                    </svg>
-                                </button>
-
-                                <div className="h-px bg-gray-300" />
-
-                                <button
-                                    onClick={() => {
-                                        setShowMenu(false);
-                                        setShowDeleteChatDialog(true);
-                                    }}
-                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-red-50 transition-colors text-left"
-                                >
-                                    <span className="text-red-500 font-medium">Delete</span>
-                                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </button>
                             </div>
@@ -788,6 +939,32 @@ export default function ChatConversation() {
 
             {/* Input Area */}
             <div className="bg-gradient-to-t from-black/60 to-transparent px-4 py-4 pb-8 z-10 relative">
+                {/* ✅ Level Up Popups */}
+                <LevelUpPopup
+                    show={showLevel2Popup}
+                    type="LEVEL_2"
+                    action={levelStatus?.level2Action}
+                    partnerName={otherUser?.firstName || otherUser?.name || 'Your match'}
+                    onFillInfo={handleLevel2FillInfo}
+                    onYes={handleLevel2Yes}
+                    onNo={handleLevel2No}
+                />
+                
+                <LevelUpPopup
+                    show={showLevel3Popup}
+                    type="LEVEL_3"
+                    action={levelStatus?.level3Action}
+                    partnerName={otherUser?.firstName || otherUser?.name || 'Your match'}
+                    onFillInfo={handleLevel3FillInfo}
+                    onYes={handleLevel3Yes}
+                    onNo={handleLevel3No}
+                />
+                
+                <Level2UnlockedPopup
+                    show={showLevel2Unlocked}
+                    onDismiss={() => setShowLevel2Unlocked(false)}
+                />
+                
                 <div className="flex items-center gap-2">
                     {/* Voice Preview Mode - WhatsApp style */}
                     {recordedAudio ? (
@@ -981,33 +1158,27 @@ export default function ChatConversation() {
                 </div>
             </div>
 
-            {/* Delete Message Dialog */}
+            {/* Unsend Message Dialog */}
             {showDeleteDialog && selectedMessage && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
                     <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
                         <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Delete message?</h3>
+                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Unsend message?</h3>
                             <p className="text-gray-600 text-sm mb-6">
-                                {selectedMessage.isSent
-                                    ? 'Choose who you want to delete this message for'
-                                    : 'This message will be deleted for you only'}
+                                {canUnsendMessage(selectedMessage)
+                                    ? 'This message will be removed for both you and the recipient.'
+                                    : 'Messages can only be unsent within 12 hours of sending.'}
                             </p>
 
                             <div className="space-y-3">
-                                {selectedMessage.isSent && (
+                                {canUnsendMessage(selectedMessage) && (
                                     <button
-                                        onClick={() => handleDeleteMessage('for_everyone')}
+                                        onClick={handleUnsendMessage}
                                         className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
                                     >
-                                        Delete for everyone
+                                        Unsend
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => handleDeleteMessage('for_me')}
-                                    className="w-full py-3 px-4 bg-gray-200 text-gray-800 rounded-xl font-medium hover:bg-gray-300 transition-colors"
-                                >
-                                    Delete for me
-                                </button>
                                 <button
                                     onClick={() => {
                                         setShowDeleteDialog(false);
@@ -1023,25 +1194,25 @@ export default function ChatConversation() {
                 </div>
             )}
 
-            {/* Clear Chat Dialog */}
-            {showClearChatDialog && (
+            {/* Block Dialog */}
+            {showBlockDialog && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
                     <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
                         <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Clear this chat?</h3>
+                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Block {otherUser?.firstName || otherUser?.name}?</h3>
                             <p className="text-gray-600 text-sm mb-6">
-                                All messages will be deleted from this chat. The conversation will remain active.
+                                Blocked users won't be able to message you. This will also remove your match and conversation. This action cannot be undone.
                             </p>
 
                             <div className="space-y-3">
                                 <button
-                                    onClick={handleClearChat}
+                                    onClick={handleBlock}
                                     className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
                                 >
-                                    Clear chat
+                                    Block
                                 </button>
                                 <button
-                                    onClick={() => setShowClearChatDialog(false)}
+                                    onClick={() => setShowBlockDialog(false)}
                                     className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
                                 >
                                     Cancel
@@ -1057,9 +1228,9 @@ export default function ChatConversation() {
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
                     <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
                         <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Unmatch with {otherUser?.name}?</h3>
+                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Unmatch with {otherUser?.firstName || otherUser?.name}?</h3>
                             <p className="text-gray-600 text-sm mb-6">
-                                This will remove your match and delete all messages. This action cannot be undone.
+                                This will remove your match and delete all messages for both of you. This action cannot be undone.
                             </p>
 
                             <div className="space-y-3">
@@ -1071,35 +1242,6 @@ export default function ChatConversation() {
                                 </button>
                                 <button
                                     onClick={() => setShowUnmatchDialog(false)}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Delete Chat Dialog */}
-            {showDeleteChatDialog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Delete this chat?</h3>
-                            <p className="text-gray-600 text-sm mb-6">
-                                This chat will be removed from your messages. The other person can still see it.
-                            </p>
-
-                            <div className="space-y-3">
-                                <button
-                                    onClick={handleDeleteChat}
-                                    className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
-                                >
-                                    Delete
-                                </button>
-                                <button
-                                    onClick={() => setShowDeleteChatDialog(false)}
                                     className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
                                 >
                                     Cancel

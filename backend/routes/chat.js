@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/db');
 const auth = require('../middleware/auth');
 const matchExpiryService = require('../services/matchExpiry');
+const profileLevelService = require('../services/profileLevelService');
 const router = express.Router();
 
 // Helper function to normalize user IDs for conversation
@@ -27,12 +28,12 @@ const checkMutualMatch = async (userId1, userId2) => {
   return matches.length > 0;
 };
 
-// Get all conversations for the current user (only with matched users)
+// Get all conversations for the current user (only with matched users, excluding blocked)
 router.get('/conversations', auth, async (req, res) => {
   try {
     const userId = req.user.userId;
     
-    // Get all conversations with matched users, filtering out soft-deleted conversations
+    // Get all conversations with matched users, filtering out soft-deleted and blocked conversations
     const [conversations] = await pool.execute(
       `SELECT 
         c.id as conversationId,
@@ -80,8 +81,13 @@ router.get('/conversations', auth, async (req, res) => {
           (c.user_id_1 = ? AND c.deleted_by_user1 = FALSE) OR
           (c.user_id_2 = ? AND c.deleted_by_user2 = FALSE)
         )
+        AND NOT EXISTS (
+          SELECT 1 FROM blocks b 
+          WHERE (b.blocker_id = ? AND b.blocked_id = CASE WHEN c.user_id_1 = ? THEN c.user_id_2 ELSE c.user_id_1 END)
+             OR (b.blocker_id = CASE WHEN c.user_id_1 = ? THEN c.user_id_2 ELSE c.user_id_1 END AND b.blocked_id = ?)
+        )
       ORDER BY c.updated_at DESC`,
-      [userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId]
+      [userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId]
     );
     
     // Format the response
@@ -127,6 +133,16 @@ router.post('/conversations', auth, async (req, res) => {
       return res.status(400).json({ error: 'otherUserId is required' });
     }
     
+    // Check if either user has blocked the other
+    const [blockCheck] = await pool.execute(
+      `SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)`,
+      [userId, otherUserId, otherUserId, userId]
+    );
+    
+    if (blockCheck.length > 0) {
+      return res.status(403).json({ error: 'Cannot create conversation with this user' });
+    }
+    
     // Normalize user IDs
     const [user1Id, user2Id] = normalizeUserIds(userId, otherUserId);
     
@@ -141,13 +157,13 @@ router.post('/conversations', auth, async (req, res) => {
       const deleteColumn = user1Id === userId ? 'deleted_by_user1' : 'deleted_by_user2';
       const wasDeleted = user1Id === userId ? conversation.deleted_by_user1 : conversation.deleted_by_user2;
       
-      // If user had deleted this conversation, un-delete it (but messages stay deleted)
+      // If user had deleted this conversation, un-delete it but keep messages deleted (fresh start)
       if (wasDeleted) {
         await pool.execute(
           `UPDATE conversations SET ${deleteColumn} = FALSE WHERE id = ?`,
           [conversation.id]
         );
-        console.log(`[CREATE CONVERSATION] User ${userId} reopened deleted conversation ${conversation.id}`);
+        console.log(`[CREATE CONVERSATION] User ${userId} reopened deleted conversation ${conversation.id} - old messages remain deleted`);
       }
       
       return res.json({ conversationId: conversation.id, existed: true });
@@ -319,6 +335,21 @@ router.post('/conversations/:conversationId/messages', auth, async (req, res) =>
       return res.status(403).json({ error: 'Access denied to this conversation' });
     }
     
+    const conversation = convCheck[0];
+    const otherUserId = conversation.user_id_1 === userId ? conversation.user_id_2 : conversation.user_id_1;
+    
+    // Check if either user has blocked the other
+    const [blockCheck] = await pool.execute(
+      `SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)`,
+      [userId, otherUserId, otherUserId, userId]
+    );
+    
+    if (blockCheck.length > 0) {
+      // Fail silently - return error for blocked users
+      console.log(`[BLOCK] User ${userId} tried to message blocked user ${otherUserId}`);
+      return res.status(403).json({ error: 'Cannot send message' });
+    }
+    
     // Insert message
     const [result] = await pool.execute(
       `INSERT INTO messages (conversation_id, sender_id, type, content, duration) 
@@ -332,11 +363,15 @@ router.post('/conversations/:conversationId/messages', auth, async (req, res) =>
       [parseInt(conversationId)]
     );
     
+    // ✅ Track message count and check for level upgrades
+    const levelUpdate = await profileLevelService.incrementMessageCount(parseInt(conversationId));
+    
     // Track first message and replies for match expiry system
     const isFirstMessage = await matchExpiryService.recordFirstMessage(parseInt(conversationId), userId);
     const isReply = await matchExpiryService.recordReply(parseInt(conversationId), userId);
     
     console.log('[Chat] Message sent - isFirstMessage:', isFirstMessage, 'isReply:', isReply);
+    console.log('[Level] Message count:', levelUpdate.messageCount, 'Threshold reached:', levelUpdate.threshold);
     
     // If this was the first message or a reply, emit socket event to update matched profiles
     if (isFirstMessage || isReply) {
@@ -363,6 +398,33 @@ router.post('/conversations/:conversationId/messages', auth, async (req, res) =>
           otherUserId: userId
         });
       }
+    }
+    
+    // ✅ Notify both users if level threshold reached
+    if (levelUpdate.shouldNotify) {
+      const io = req.app.get('io');
+      const conversation = convCheck[0];
+      const otherUserId = conversation.user_id_1 === userId ? conversation.user_id_2 : conversation.user_id_1;
+      
+      // Get partner name for notification
+      const [partnerInfo] = await pool.execute(
+        'SELECT first_name FROM users WHERE id = ?',
+        [otherUserId]
+      );
+      const partnerName = partnerInfo[0]?.first_name || 'Your match';
+      
+      const levelEvent = {
+        conversationId: parseInt(conversationId),
+        threshold: levelUpdate.threshold,
+        messageCount: levelUpdate.messageCount,
+        partnerName
+      };
+      
+      // Emit to both users
+      io.to(`user:${userId}`).emit('level_threshold_reached', levelEvent);
+      io.to(`user:${otherUserId}`).emit('level_threshold_reached', levelEvent);
+      
+      console.log(`[Level] Threshold ${levelUpdate.threshold} reached for conversation ${conversationId}`);
     }
     
     // Get the created message with sender info
@@ -401,8 +463,7 @@ router.post('/conversations/:conversationId/messages', auth, async (req, res) =>
     // Emit socket event to the other user
     const io = req.app.get('io');
     const socketConfig = require('../config/socket');
-    const conversation = convCheck[0];
-    const otherUserId = conversation.user_id_1 === userId ? conversation.user_id_2 : conversation.user_id_1;
+    // conversation and otherUserId already declared above for block check
     
     // Check if recipient is online (from socket.js onlineUsers)
     const onlineUsers = socketConfig.getOnlineUsers();
@@ -478,12 +539,11 @@ router.put('/conversations/:conversationId/read', auth, async (req, res) => {
   }
 });
 
-// Delete message
+// Unsend message (delete for both users within 12 hours)
 router.delete('/messages/:messageId', auth, async (req, res) => {
   try {
     const userId = req.user.userId;
     const { messageId } = req.params;
-    const { deleteType } = req.body; // 'for_me' or 'for_everyone'
     
     const msgId = parseInt(messageId);
     if (isNaN(msgId)) {
@@ -529,119 +589,68 @@ router.delete('/messages/:messageId', auth, async (req, res) => {
     
     const isSender = message.sender_id === userId;
     
-    if (deleteType === 'for_everyone') {
-      // Only sender can delete for everyone
-      if (!isSender) {
-        return res.status(403).json({ error: 'Only sender can delete for everyone' });
-      }
-      
-      // Check if message was sent within last 48 hours (like WhatsApp)
-      const messageAge = Date.now() - new Date(message.created_at).getTime();
-      const maxAge = 48 * 60 * 60 * 1000; // 48 hours
-      
-      if (messageAge > maxAge) {
-        return res.status(400).json({ error: 'Message too old to delete for everyone' });
-      }
-      
-      // Mark as deleted for both users
-      try {
-        const [result] = await pool.execute(
+    // Only sender can unsend
+    if (!isSender) {
+      return res.status(403).json({ error: 'Only sender can unsend messages' });
+    }
+    
+    // Check if message was sent within last 12 hours
+    const messageAge = Date.now() - new Date(message.created_at).getTime();
+    const maxAge = 12 * 60 * 60 * 1000; // 12 hours
+    
+    if (messageAge > maxAge) {
+      return res.status(400).json({ error: 'Messages can only be unsent within 12 hours of sending' });
+    }
+    
+    // Mark as deleted for both users
+    try {
+      const [result] = await pool.execute(
+        `UPDATE messages 
+         SET deleted_for_sender = 1, deleted_for_recipient = 1, deleted_at = CURRENT_TIMESTAMP 
+         WHERE id = ?`,
+        [msgId]
+      );
+      console.log(`[UNSEND] Message ${msgId} unsent for both users (${result.affectedRows} rows updated)`);
+    } catch (dbError) {
+      console.error('Database error updating message:', dbError.message);
+      if (dbError.code === 'ECONNRESET' || dbError.code === 'PROTOCOL_CONNECTION_LOST') {
+        await pool.execute(
           `UPDATE messages 
            SET deleted_for_sender = 1, deleted_for_recipient = 1, deleted_at = CURRENT_TIMESTAMP 
            WHERE id = ?`,
           [msgId]
         );
-        console.log(`[DELETE FOR EVERYONE] Message ${msgId} deleted for both users (${result.affectedRows} rows updated)`);
-      } catch (dbError) {
-        console.error('Database error updating message:', dbError.message);
-        if (dbError.code === 'ECONNRESET' || dbError.code === 'PROTOCOL_CONNECTION_LOST') {
-          await pool.execute(
-            `UPDATE messages 
-             SET deleted_for_sender = 1, deleted_for_recipient = 1, deleted_at = CURRENT_TIMESTAMP 
-             WHERE id = ?`,
-            [msgId]
-          );
-        } else {
-          throw dbError;
-        }
-      }
-      
-      // Emit socket event for delete_for_everyone
-      const io = req.app.get('io');
-      if (io) {
-        const roomName = `conversation:${message.conversation_id}`;
-        const room = io.sockets.adapter.rooms.get(roomName);
-        const clientsInRoom = room ? Array.from(room) : [];
-        console.log('Emitting message_deleted to room:', roomName, 'messageId:', msgId);
-        console.log('Clients in room:', clientsInRoom.length, clientsInRoom);
-        io.to(roomName).emit('message_deleted', {
-          messageId: msgId,
-          conversationId: message.conversation_id,
-          deleteType: 'for_everyone'
-        });
       } else {
-        console.log('Socket.IO not available for message_deleted event');
+        throw dbError;
       }
-      
-      res.json({ success: true, deleteType: 'for_everyone' });
-    } else {
-      // Delete for me only
-      if (isSender) {
-        try {
-          const [result] = await pool.execute(
-            `UPDATE messages 
-             SET deleted_for_sender = 1, deleted_at = CURRENT_TIMESTAMP 
-             WHERE id = ?`,
-            [msgId]
-          );
-          console.log(`[DELETE FOR ME] Message ${msgId} deleted for sender ${userId} (${result.affectedRows} rows updated)`);
-        } catch (dbError) {
-          console.error('Database error updating message:', dbError.message);
-          if (dbError.code === 'ECONNRESET' || dbError.code === 'PROTOCOL_CONNECTION_LOST') {
-            await pool.execute(
-              `UPDATE messages 
-               SET deleted_for_sender = 1, deleted_at = CURRENT_TIMESTAMP 
-               WHERE id = ?`,
-              [msgId]
-            );
-          } else {
-            throw dbError;
-          }
-        }
-      } else {
-        try {
-          const [result] = await pool.execute(
-            `UPDATE messages 
-             SET deleted_for_recipient = 1, deleted_at = CURRENT_TIMESTAMP 
-             WHERE id = ?`,
-            [msgId]
-          );
-          console.log(`[DELETE FOR ME] Message ${msgId} deleted for recipient ${userId} (${result.affectedRows} rows updated)`);
-        } catch (dbError) {
-          console.error('Database error updating message:', dbError.message);
-          if (dbError.code === 'ECONNRESET' || dbError.code === 'PROTOCOL_CONNECTION_LOST') {
-            await pool.execute(
-              `UPDATE messages 
-               SET deleted_for_recipient = 1, deleted_at = CURRENT_TIMESTAMP 
-               WHERE id = ?`,
-              [msgId]
-            );
-          } else {
-            throw dbError;
-          }
-        }
-      }
-      
-      res.json({ success: true, deleteType: 'for_me' });
     }
+    
+    // Emit socket event for unsend
+    const io = req.app.get('io');
+    if (io) {
+      const roomName = `conversation:${message.conversation_id}`;
+      const room = io.sockets.adapter.rooms.get(roomName);
+      const clientsInRoom = room ? Array.from(room) : [];
+      console.log('Emitting message_deleted to room:', roomName, 'messageId:', msgId);
+      console.log('Clients in room:', clientsInRoom.length, clientsInRoom);
+      io.to(roomName).emit('message_deleted', {
+        messageId: msgId,
+        conversationId: message.conversation_id,
+        deleteType: 'for_everyone'
+      });
+    } else {
+      console.log('Socket.IO not available for message_deleted event');
+    }
+    
+    res.json({ success: true });
   } catch (error) {
-    console.error('Delete message error:', error);
-    res.status(500).json({ error: 'Failed to delete message' });
+    console.error('Unsend message error:', error);
+    res.status(500).json({ error: 'Failed to unsend message' });
   }
 });
 
-// Clear chat - Mark all messages as deleted for current user only (WhatsApp-like)
-router.post('/conversations/:conversationId/clear', auth, async (req, res) => {
+// Block user - One-sided block that also unmatches
+router.post('/conversations/:conversationId/block', auth, async (req, res) => {
   try {
     const userId = req.user.userId;
     const { conversationId } = req.params;
@@ -651,7 +660,7 @@ router.post('/conversations/:conversationId/clear', auth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid conversation ID' });
     }
     
-    // Verify user is part of this conversation
+    // Verify user is part of this conversation and get other user
     const [convCheck] = await pool.execute(
       'SELECT user_id_1, user_id_2 FROM conversations WHERE id = ? AND (user_id_1 = ? OR user_id_2 = ?)',
       [convId, userId, userId]
@@ -661,29 +670,49 @@ router.post('/conversations/:conversationId/clear', auth, async (req, res) => {
       return res.status(403).json({ error: 'Access denied to this conversation' });
     }
     
-    // Mark all messages as deleted for current user only
-    // Messages sent by user -> mark as deleted_for_sender
-    // Messages received by user -> mark as deleted_for_recipient
-    const [result] = await pool.execute(
-      `UPDATE messages 
-       SET deleted_for_sender = CASE WHEN sender_id = ? THEN 1 ELSE deleted_for_sender END,
-           deleted_for_recipient = CASE WHEN sender_id != ? THEN 1 ELSE deleted_for_recipient END,
-           deleted_at = CURRENT_TIMESTAMP
-       WHERE conversation_id = ?`,
-      [userId, userId, convId]
+    const conversation = convCheck[0];
+    const otherUserId = conversation.user_id_1 === userId ? conversation.user_id_2 : conversation.user_id_1;
+    
+    // Insert block record (ignore if already blocked)
+    await pool.execute(
+      `INSERT IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?, ?)`,
+      [userId, otherUserId]
     );
     
-    console.log(`[CLEAR CHAT] User ${userId} cleared conversation ${convId}`);
-    console.log(`[CLEAR CHAT] Marked ${result.affectedRows} messages as deleted for user ${userId}`);
-    console.log(`[CLEAR CHAT] This is a soft delete - other user will still see messages`);
+    // Delete the conversation (CASCADE will delete messages)
+    await pool.execute(
+      'DELETE FROM conversations WHERE id = ?',
+      [convId]
+    );
+    
+    // Remove the match from user_actions for both users
+    await pool.execute(
+      `UPDATE user_actions 
+       SET action_type = 'unmatch' 
+       WHERE ((user_id = ? AND target_user_id = ?) OR (user_id = ? AND target_user_id = ?))
+       AND action_type = 'like'`,
+      [userId, otherUserId, otherUserId, userId]
+    );
+    
+    // Emit socket event to blocker (chat disappears immediately)
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user:${userId}`).emit('user_blocked', {
+        conversationId: convId,
+        blockedUserId: otherUserId
+      });
+      console.log(`User ${userId} blocked user ${otherUserId}, conversation ${convId} deleted`);
+    }
+    
+    // Note: We do NOT notify the blocked user
     res.json({ success: true });
   } catch (error) {
-    console.error('Clear chat error:', error);
-    res.status(500).json({ error: 'Failed to clear chat' });
+    console.error('Block user error:', error);
+    res.status(500).json({ error: 'Failed to block user' });
   }
 });
 
-// Unmatch - Delete conversation and messages for both users
+// Unmatch - Delete conversation and messages for both users (notifies other user)
 router.delete('/conversations/:conversationId/unmatch', auth, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -713,7 +742,7 @@ router.delete('/conversations/:conversationId/unmatch', auth, async (req, res) =
       [convId]
     );
     
-    // Also remove the match from user_actions
+    // Remove the match from user_actions for both users
     await pool.execute(
       `UPDATE user_actions 
        SET action_type = 'unmatch' 
@@ -722,17 +751,20 @@ router.delete('/conversations/:conversationId/unmatch', auth, async (req, res) =
       [userId, otherUserId, otherUserId, userId]
     );
     
-    // Emit socket event to notify the other user
+    // Emit socket event to BOTH users
     const io = req.app.get('io');
     if (io) {
       io.to(`user:${otherUserId}`).emit('conversation_unmatched', {
         conversationId: convId,
         unmatchedBy: userId
       });
-      console.log(`Emitted unmatch event to user ${otherUserId} for conversation ${convId}`);
+      io.to(`user:${userId}`).emit('conversation_unmatched', {
+        conversationId: convId,
+        unmatchedBy: userId
+      });
+      console.log(`User ${userId} unmatched with user ${otherUserId}, conversation ${convId} deleted`);
     }
     
-    console.log(`User ${userId} unmatched with user ${otherUserId}, conversation ${convId} deleted`);
     res.json({ success: true });
   } catch (error) {
     console.error('Unmatch error:', error);
@@ -772,11 +804,191 @@ router.delete('/conversations/:conversationId', auth, async (req, res) => {
       [convId]
     );
     
-    console.log(`User ${userId} deleted conversation ${convId} from their view`);
+    // Mark all messages in this conversation as deleted for this user
+    // For messages sent by this user: mark deleted_for_sender
+    // For messages sent by the other user: mark deleted_for_recipient
+    const [senderResult] = await pool.execute(
+      `UPDATE messages SET deleted_for_sender = TRUE WHERE conversation_id = ? AND sender_id = ?`,
+      [convId, userId]
+    );
+    
+    const [recipientResult] = await pool.execute(
+      `UPDATE messages SET deleted_for_recipient = TRUE WHERE conversation_id = ? AND sender_id != ?`,
+      [convId, userId]
+    );
+    
+    console.log(`User ${userId} deleted conversation ${convId}:`);
+    console.log(`  - Marked ${senderResult.affectedRows} sent messages as deleted (deleted_for_sender)`);
+    console.log(`  - Marked ${recipientResult.affectedRows} received messages as deleted (deleted_for_recipient)`);
     res.json({ success: true });
   } catch (error) {
     console.error('Delete conversation error:', error);
     res.status(500).json({ error: 'Failed to delete conversation' });
+  }
+});
+
+// ✅ NEW: Get conversation level status
+router.get('/conversations/:conversationId/level-status', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { conversationId } = req.params;
+    const convId = parseInt(conversationId);
+    
+    if (isNaN(convId)) {
+      return res.status(400).json({ error: 'Invalid conversation ID' });
+    }
+    
+    // Verify user is part of this conversation
+    const [convCheck] = await pool.execute(
+      'SELECT 1 FROM conversations WHERE id = ? AND (user_id_1 = ? OR user_id_2 = ?)',
+      [convId, userId, userId]
+    );
+    
+    if (convCheck.length === 0) {
+      return res.status(403).json({ error: 'Access denied to this conversation' });
+    }
+    
+    const status = await profileLevelService.getConversationLevelStatus(convId, userId);
+    res.json(status);
+  } catch (error) {
+    console.error('Get level status error:', error);
+    res.status(500).json({ error: 'Failed to get level status' });
+  }
+});
+
+// ✅ NEW: Mark Level 2 as completed for user in conversation
+router.post('/conversations/:conversationId/complete-level2', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { conversationId } = req.params;
+    const convId = parseInt(conversationId);
+    
+    if (isNaN(convId)) {
+      return res.status(400).json({ error: 'Invalid conversation ID' });
+    }
+    
+    // Verify user is part of this conversation
+    const [convCheck] = await pool.execute(
+      'SELECT user_id_1, user_id_2 FROM conversations WHERE id = ? AND (user_id_1 = ? OR user_id_2 = ?)',
+      [convId, userId, userId]
+    );
+    
+    if (convCheck.length === 0) {
+      return res.status(403).json({ error: 'Access denied to this conversation' });
+    }
+    
+    const bothCompleted = await profileLevelService.markLevel2Completed(convId, userId);
+    
+    // ✅ Also set Level 2 consent when completing questions (first time)
+    await profileLevelService.setLevel2Consent(convId, userId, true);
+    
+    const io = req.app.get('io');
+    
+    if (bothCompleted) {
+      // Notify both users that Level 2 is now visible
+      const conversation = convCheck[0];
+      const otherUserId = conversation.user_id_1 === userId ? conversation.user_id_2 : conversation.user_id_1;
+      
+      io.to(`user:${userId}`).emit('level2_unlocked', { conversationId: convId });
+      io.to(`user:${otherUserId}`).emit('level2_unlocked', { conversationId: convId });
+      
+      console.log(`[Level] Level 2 unlocked for conversation ${convId}`);
+    }
+    
+    res.json({ bothCompleted });
+  } catch (error) {
+    console.error('Complete Level 2 error:', error);
+    res.status(500).json({ error: 'Failed to complete Level 2' });
+  }
+});
+
+// ✅ NEW: Set Level 2 consent
+router.post('/conversations/:conversationId/set-level2-consent', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { conversationId } = req.params;
+    const { consent } = req.body;
+    const convId = parseInt(conversationId);
+    
+    if (isNaN(convId)) {
+      return res.status(400).json({ error: 'Invalid conversation ID' });
+    }
+    
+    // Verify user is part of this conversation
+    const [convCheck] = await pool.execute(
+      'SELECT user_id_1, user_id_2 FROM conversations WHERE id = ? AND (user_id_1 = ? OR user_id_2 = ?)',
+      [convId, userId, userId]
+    );
+    
+    if (convCheck.length === 0) {
+      return res.status(403).json({ error: 'Access denied to this conversation' });
+    }
+    
+    const bothConsented = await profileLevelService.setLevel2Consent(convId, userId, consent);
+    const io = req.app.get('io');
+    
+    if (bothConsented) {
+      // Notify both users that Level 2 is now visible
+      const conversation = convCheck[0];
+      const otherUserId = conversation.user_id_1 === userId ? conversation.user_id_2 : conversation.user_id_1;
+      
+      io.to(`user:${userId}`).emit('level2_unlocked', { conversationId: convId });
+      io.to(`user:${otherUserId}`).emit('level2_unlocked', { conversationId: convId });
+      
+      console.log(`[Level 2 Consent] Both users consented for conversation ${convId}`);
+    }
+    
+    res.json({ bothConsented });
+  } catch (error) {
+    console.error('Set Level 2 consent error:', error);
+    res.status(500).json({ error: 'Failed to set Level 2 consent' });
+  }
+});
+
+// ✅ NEW: Set Level 3 consent
+router.post('/conversations/:conversationId/set-level3-consent', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { conversationId } = req.params;
+    const { consent } = req.body;
+    const convId = parseInt(conversationId);
+    
+    if (isNaN(convId)) {
+      return res.status(400).json({ error: 'Invalid conversation ID' });
+    }
+    
+    if (typeof consent !== 'boolean') {
+      return res.status(400).json({ error: 'Consent must be a boolean' });
+    }
+    
+    // Verify user is part of this conversation
+    const [convCheck] = await pool.execute(
+      'SELECT user_id_1, user_id_2 FROM conversations WHERE id = ? AND (user_id_1 = ? OR user_id_2 = ?)',
+      [convId, userId, userId]
+    );
+    
+    if (convCheck.length === 0) {
+      return res.status(403).json({ error: 'Access denied to this conversation' });
+    }
+    
+    const bothConsented = await profileLevelService.setLevel3Consent(convId, userId, consent);
+    const io = req.app.get('io');
+    
+    if (bothConsented) {
+      // Notify both users that Level 3 is now visible
+      const conversation = convCheck[0];
+      const otherUserId = conversation.user_id_1 === userId ? conversation.user_id_2 : conversation.user_id_1;
+      
+      io.to(`user:${userId}`).emit('level3_unlocked', { conversationId: convId });
+      io.to(`user:${otherUserId}`).emit('level3_unlocked', { conversationId: convId });
+      
+      console.log(`[Level] Level 3 unlocked for conversation ${convId}`);
+    }
+    
+    res.json({ bothConsented });
+  } catch (error) {
+    console.error('Set Level 3 consent error:', error);
+    res.status(500).json({ error: 'Failed to set Level 3 consent' });
   }
 });
 

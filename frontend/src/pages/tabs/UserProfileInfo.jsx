@@ -5,7 +5,7 @@ import { userAPI } from '../../utils/api';
 export default function UserProfileInfo() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { userId } = location.state || {};
+    const { userId, conversationId } = location.state || {};
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [bioMode, setBioMode] = useState('read');
@@ -17,16 +17,30 @@ export default function UserProfileInfo() {
         }
 
         // ALWAYS fetch fresh profile data from backend
-        // This ensures consistent, up-to-date information
+        // ✅ If conversationId provided, backend will filter by level
         loadUserProfile();
-    }, [userId, navigate]);
+    }, [userId, conversationId, navigate]);
+
+    // ✅ Reload profile when page becomes visible (e.g., returning from profile questions)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden && userId) {
+                console.log('[Profile] Page visible, reloading profile...');
+                loadUserProfile();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [userId, conversationId]);
 
     const loadUserProfile = async () => {
         try {
             setLoading(true);
-            // Fetch fresh data from users table (authoritative source)
-            const data = await userAPI.getUserProfile(userId);
+            // ✅ Fetch with conversationId to enable level-based filtering
+            const data = await userAPI.getUserProfile(userId, conversationId);
             setUser(data);
+            console.log('[Profile] Loaded profile, visibility level:', data.visibilityLevel);
         } catch (error) {
             console.error('Failed to load user profile:', error);
             navigate(-1);
@@ -220,6 +234,180 @@ export default function UserProfileInfo() {
                         ))}
                     </div>
                 </div>
+
+                {/* Level 2 Lifestyle & Preferences Section */}
+                {user.visibilityLevel >= 2 && (
+                    <div className="space-y-3">
+                        <h3 className="text-[#f2f2f2] text-base font-semibold">Lifestyle & Preferences</h3>
+                        <div className="bg-white/10 rounded-xl p-[18px] space-y-3">
+                            {user.pets && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Pets</span>
+                                    <span className="text-white text-sm font-medium">{user.pets}</span>
+                                </div>
+                            )}
+                            {user.drinking && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Drinking</span>
+                                    <span className="text-white text-sm font-medium">{user.drinking}</span>
+                                </div>
+                            )}
+                            {user.smoking && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Smoking</span>
+                                    <span className="text-white text-sm font-medium">{user.smoking}</span>
+                                </div>
+                            )}
+                            {user.height && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Height</span>
+                                    <span className="text-white text-sm font-medium">{user.height} cm</span>
+                                </div>
+                            )}
+                            {user.foodPreference && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Food</span>
+                                    <span className="text-white text-sm font-medium">{user.foodPreference}</span>
+                                </div>
+                            )}
+                            {user.religiousLevel && (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Religious Level</span>
+                                    <span className="text-white text-sm font-medium">{user.religiousLevel}</span>
+                                </div>
+                            )}
+                            
+                            {/* Level 2 Profile Questions */}
+                            {user.intent?.profileQuestions?.jobTitle && (
+                                <div className="flex justify-between items-center border-t border-white/10 pt-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Job Title</span>
+                                    <span className="text-white text-sm font-medium">{user.intent.profileQuestions.jobTitle}</span>
+                                </div>
+                            )}
+                            {user.intent?.profileQuestions?.companyName && (
+                                <div className="flex justify-between items-center border-t border-white/10 pt-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Company</span>
+                                    <span className="text-white text-sm font-medium">{user.intent.profileQuestions.companyName}</span>
+                                </div>
+                            )}
+                            {user.intent?.profileQuestions?.education && (
+                                <div className="flex justify-between items-center border-t border-white/10 pt-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Education</span>
+                                    <span className="text-white text-sm font-medium">
+                                        {user.intent.profileQuestions.education}
+                                        {user.intent.profileQuestions.educationDetail && 
+                                            ` - ${user.intent.profileQuestions.educationDetail}`}
+                                    </span>
+                                </div>
+                            )}
+                            {user.intent?.profileQuestions?.languages && user.intent.profileQuestions.languages.length > 0 && (
+                                <div className="flex justify-between items-center border-t border-white/10 pt-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Languages</span>
+                                    <span className="text-white text-sm font-medium">{user.intent.profileQuestions.languages.join(', ')}</span>
+                                </div>
+                            )}
+                            {user.intent?.profileQuestions?.sleepSchedule && (
+                                <div className="flex justify-between items-center border-t border-white/10 pt-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Sleep Schedule</span>
+                                    <span className="text-white text-sm font-medium">{user.intent.profileQuestions.sleepSchedule}</span>
+                                </div>
+                            )}
+                            {user.intent?.profileQuestions?.dateBill && (
+                                <div className="flex justify-between items-center border-t border-white/10 pt-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Date Bill Preference</span>
+                                    <span className="text-white text-sm font-medium">{user.intent.profileQuestions.dateBill}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Level 3 Personal & Deep Information Section */}
+                {user.visibilityLevel >= 3 && (
+                    <div className="space-y-3">
+                        <h3 className="text-[#f2f2f2] text-base font-semibold">Personal Information</h3>
+                        <div className="bg-white/10 rounded-xl p-[18px] space-y-3">
+                            {user.intent?.profileQuestions?.religion && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Religion</span>
+                                    <span className="text-white text-sm font-medium">{user.intent.profileQuestions.religion}</span>
+                                </div>
+                            )}
+                            {user.intent?.profileQuestions?.livingSituation && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Lives alone or with family?</span>
+                                    <span className="text-white text-sm font-medium">{user.intent.profileQuestions.livingSituation}</span>
+                                </div>
+                            )}
+                            {user.intent?.profileQuestions?.relationshipValues && user.intent.profileQuestions.relationshipValues.length > 0 && (
+                                <div className="border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Relationship Values</span>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {user.intent.profileQuestions.relationshipValues.map((value, idx) => (
+                                            <span key={idx} className="bg-white/10 rounded-full px-3 py-1 text-white text-xs">
+                                                {value}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {user.kidsPreference && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Kids Preference</span>
+                                    <span className="text-white text-sm font-medium">{user.kidsPreference}</span>
+                                </div>
+                            )}
+                            {user.favouriteTravelDestination && (
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Favorite holiday destination </span>
+                                    <span className="text-white text-sm font-medium">{user.favouriteTravelDestination}</span>
+                                </div>
+                            )}
+                            {user.lastHolidayPlaces && user.lastHolidayPlaces.length > 0 && (
+                                <div className="border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Last Holiday Places</span>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {user.lastHolidayPlaces.map((place, idx) => (
+                                            <span key={idx} className="bg-white/10 rounded-full px-3 py-1 text-white text-xs">
+                                                {typeof place === 'string' ? place : place?.name || place?.details || ''}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {user.favouritePlacesToGo && user.favouritePlacesToGo.length > 0 && (
+                                <div className="border-b border-white/10 pb-3">
+                                    <span className="text-[#f2f2f2]/70 text-sm">Favorite Places to Go</span>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {user.favouritePlacesToGo.map((place, idx) => (
+                                            <span key={idx} className="bg-white/10 rounded-full px-3 py-1 text-white text-xs">
+                                                {typeof place === 'string' ? place : place?.name || place?.details || ''}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Face Photos Section (Level 3) */}
+                {user.visibilityLevel >= 3 && facePhotos.length > 0 && (
+                    <div className="space-y-3">
+                        <h3 className="text-[#f2f2f2] text-base font-semibold">More Photos</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            {facePhotos.map((photo, idx) => (
+                                <div key={idx} className="aspect-square rounded-xl overflow-hidden bg-white/10">
+                                    <img 
+                                        src={photo} 
+                                        alt={`Face photo ${idx + 1}`}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Entertainment Section */}
                 {(watchlist.length > 0 || tvShows.length > 0 || movies.length > 0 || artistsBands.length > 0) && (

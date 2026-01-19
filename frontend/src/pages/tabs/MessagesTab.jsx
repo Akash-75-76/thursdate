@@ -116,6 +116,18 @@ export default function MessagesTab() {
     };
   }, []);
 
+  // Reload matches whenever component is visible (e.g., after navigating back from chat)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('Window focused, reloading matches...');
+      loadMutualMatches();
+      loadConversations();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   const loadConversations = async () => {
     try {
       setLoading(true);

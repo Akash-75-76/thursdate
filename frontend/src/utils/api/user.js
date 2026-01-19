@@ -146,7 +146,8 @@ export const userAPI = {
     },
 
     // Get another user's profile by ID (always fetches fresh data from backend)
-    getUserProfile: async (userId) => {
+    // ✅ If conversationId provided, backend filters by visibility level
+    getUserProfile: async (userId, conversationId = null) => {
         if (isMockMode()) {
             console.log(`MOCK MODE: Returning mock profile for user ${userId}`);
             // Return a mock profile with proper structure
@@ -164,6 +165,10 @@ export const userAPI = {
             };
         }
 
-        return authRequest(`/user/profile/${userId}`);
+        const url = conversationId 
+            ? `/user/profile/${userId}?conversationId=${conversationId}`
+            : `/user/profile/${userId}`;
+        
+        return authRequest(url);
     },
 };

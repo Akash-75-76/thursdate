@@ -176,6 +176,8 @@ async function getMatchedProfilesForUser(userId) {
       c.first_message_at,
       c.first_message_sender_id,
       c.reply_at,
+      c.deleted_by_user1,
+      c.deleted_by_user2,
       CASE 
         WHEN c.user_id_1 = ? THEN c.user_id_2 
         ELSE c.user_id_1 
@@ -199,9 +201,12 @@ async function getMatchedProfilesForUser(userId) {
         OR
         -- Other user sent first message, but current user hasn't replied
         (c.first_message_sender_id != ? AND c.reply_at IS NULL)
+        OR
+        -- Conversation was deleted by current user (show in horizontal list for re-messaging)
+        (CASE WHEN c.user_id_1 = ? THEN c.deleted_by_user1 ELSE c.deleted_by_user2 END = TRUE)
       )
     ORDER BY c.match_created_at DESC`,
-    [userId, userId, userId, userId, userId]
+    [userId, userId, userId, userId, userId, userId]
   );
   
   // Calculate age and format response

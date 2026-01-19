@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/db');
 const auth = require('../middleware/auth');
 const matchExpiryService = require('../services/matchExpiry');
+const profileLevelService = require('../services/profileLevelService');
 const router = express.Router();
 
 // Helper function to safely parse JSON
@@ -104,6 +105,9 @@ router.get('/profile/:userId', auth, async (req, res) => {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
+        // ✅ NEW: Check if conversationId is provided for level-based filtering
+        const { conversationId } = req.query;
+
         // Fetch complete user profile from users table (authoritative source)
         const [users] = await pool.execute(
             `SELECT id, first_name, last_name, gender, dob, current_location, 
@@ -134,7 +138,7 @@ router.get('/profile/:userId', auth, async (req, res) => {
             }
         }
         
-        // Return complete, fresh profile data
+        // Build complete profile data
         const profileData = {
             id: user.id,
             firstName: user.first_name || null,
@@ -165,6 +169,51 @@ router.get('/profile/:userId', auth, async (req, res) => {
             facePhotos: safeJsonParse(user.face_photos, []),
         };
         
+        // ✅ NEW: If conversationId provided, filter by visibility level
+        if (conversationId) {
+            const convId = parseInt(conversationId);
+            if (!isNaN(convId)) {
+                try {
+                    // Get visibility level
+                    const visibility = await profileLevelService.getVisibilityLevel(
+                        convId, 
+                        req.user.userId, 
+                        targetUserId
+                    );
+                    
+                    console.log(`[Profile Filter] User ${req.user.userId} viewing ${targetUserId} in conv ${convId}`, {
+                        level: visibility.level,
+                        canUpgrade: visibility.canUpgrade,
+                        nextLevelAt: visibility.nextLevelAt
+                    });
+                    
+                    // Filter profile based on level
+                    const filteredProfile = profileLevelService.filterProfileByLevel(profileData, visibility.level);
+                    
+                    console.log('[Profile Filter] Filtered fields:', Object.keys(filteredProfile));
+                    console.log('[Profile Filter] Level 2 fields present:', {
+                        pets: filteredProfile.pets,
+                        drinking: filteredProfile.drinking,
+                        smoking: filteredProfile.smoking,
+                        height: filteredProfile.height,
+                        foodPreference: filteredProfile.foodPreference,
+                        religiousLevel: filteredProfile.religiousLevel
+                    });
+                    
+                    // Add visibility metadata
+                    filteredProfile.visibilityLevel = visibility.level;
+                    filteredProfile.canUpgrade = visibility.canUpgrade;
+                    filteredProfile.nextLevelAt = visibility.nextLevelAt;
+                    
+                    return res.json(filteredProfile);
+                } catch (levelError) {
+                    console.error('Level filtering error:', levelError);
+                    // Fall through to return full profile if filtering fails
+                }
+            }
+        }
+        
+        // Return complete profile (for Discover tab or if filtering failed)
         res.json(profileData);
         
     } catch (error) {
@@ -302,6 +351,15 @@ router.put('/profile', auth, async (req, res) => {
             WHERE id = ?`,
             updateData 
         );
+
+        // ✅ Mark Level 3 completed if face photos are provided
+        if (facePhotos !== undefined && Array.isArray(facePhotos) && facePhotos.length >= 4) {
+            await pool.execute(
+                'UPDATE users SET level3_questions_completed = TRUE WHERE id = ?',
+                [req.user.userId]
+            );
+            console.log(`[Level 3] Marked as completed for user ${req.user.userId} (uploaded ${facePhotos.length} face photos)`);
+        }
         
         res.json({ message: 'Profile updated successfully' });
         
@@ -419,6 +477,7 @@ router.get('/matches/potential', auth, async (req, res) => {
         console.log('[DEBUG] Query params:', queryParams);
 
         // Get potential matches using dob BETWEEN (no YEAR function, no ORDER BY RAND)
+        // Exclude blocked users (both users who blocked current user and users blocked by current user)
         const [users] = await pool.execute(
             `SELECT id, email, first_name, last_name, gender, dob, current_location, 
                     favourite_travel_destination, profile_pic_url, intent, 
@@ -433,8 +492,13 @@ router.get('/matches/potential', auth, async (req, res) => {
                 AND CAST(dob AS CHAR) != '0000-00-00'
                 AND dob BETWEEN ? AND ?
                 ${genderClause}
+                AND NOT EXISTS (
+                  SELECT 1 FROM blocks b 
+                  WHERE (b.blocker_id = ? AND b.blocked_id = users.id)
+                     OR (b.blocker_id = users.id AND b.blocked_id = ?)
+                )
              LIMIT 20`,
-            queryParams
+            [...queryParams, userId, userId]
         );
 
         console.log('[DEBUG] Found users:', users.length, users.length > 0 ? users.map(u => ({ id: u.id, gender: u.gender, firstName: u.first_name })) : 'No users found');
@@ -586,7 +650,7 @@ router.get('/matches/mutual', auth, async (req, res) => {
 
         const userId = req.user.userId;
 
-        // Get all mutual matches using the view or direct query
+        // Get all mutual matches, excluding blocked users
         const [matches] = await pool.execute(
             `SELECT DISTINCT
                 u.id, u.email, u.first_name, u.last_name, u.gender, u.dob, 
@@ -601,8 +665,13 @@ router.get('/matches/mutual', auth, async (req, res) => {
              WHERE a1.user_id = ? 
                 AND a1.action_type = 'like' 
                 AND a2.action_type = 'like'
+                AND NOT EXISTS (
+                  SELECT 1 FROM blocks b 
+                  WHERE (b.blocker_id = ? AND b.blocked_id = u.id)
+                     OR (b.blocker_id = u.id AND b.blocked_id = ?)
+                )
              ORDER BY a2.created_at DESC`,
-            [userId]
+            [userId, userId, userId]
         );
 
         // Parse JSON fields and calculate age
