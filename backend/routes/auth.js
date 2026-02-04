@@ -3,6 +3,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 const auth = require('../middleware/auth');
+const emailService = require('../services/emailService');
+const otpManager = require('../utils/otpManager');
 const router = express.Router();
 
 // Register endpoint
@@ -97,6 +99,160 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ===== EMAIL OTP ENDPOINTS =====
+
+// Send Email OTP
+router.post('/send-email-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email || !/.+@.+\..+/.test(email)) {
+      return res.status(400).json({ error: 'Valid email address is required' });
+    }
+    
+    // Check rate limit
+    const rateLimit = otpManager.checkRateLimit(email);
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ 
+        error: `Too many requests. Please try again in ${rateLimit.waitTime} seconds.`,
+        waitTime: rateLimit.waitTime
+      });
+    }
+    
+    // Check if can resend
+    const canResend = otpManager.canResend(email);
+    if (!canResend.allowed) {
+      return res.status(429).json({ 
+        error: `Please wait ${canResend.waitTime} seconds before requesting a new code.`,
+        waitTime: canResend.waitTime
+      });
+    }
+    
+    // Generate OTP
+    const otp = otpManager.generateOTP();
+    
+    // Send email
+    const emailResult = await emailService.sendOTP(email, otp);
+    
+    if (!emailResult.success) {
+      return res.status(500).json({ error: 'Failed to send email. Please try again.' });
+    }
+    
+    // Store OTP
+    otpManager.storeOTP(email, otp);
+    
+    console.log(`OTP sent to ${email}: ${otp} (dev mode)`);
+    
+    res.json({
+      message: 'OTP sent successfully',
+      remaining: rateLimit.remaining,
+      // Only include OTP in development mode for testing
+      ...(process.env.NODE_ENV === 'development' && { otp })
+    });
+    
+  } catch (error) {
+    console.error('Send email OTP error:', error);
+    res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
+  }
+});
+
+// Verify Email OTP
+router.post('/verify-email-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and OTP are required' });
+    }
+    
+    if (otp.length !== 6) {
+      return res.status(400).json({ error: 'OTP must be 6 digits' });
+    }
+    
+    // Verify OTP
+    const result = otpManager.verifyOTP(email, otp);
+    
+    if (!result.valid) {
+      return res.status(400).json({ 
+        error: result.error,
+        attemptsRemaining: result.attemptsRemaining
+      });
+    }
+    
+    // OTP verified successfully
+    console.log(`Email verified successfully for: ${email}`);
+    
+    res.json({
+      message: 'Email verified successfully',
+      verified: true
+    });
+    
+  } catch (error) {
+    console.error('Verify email OTP error:', error);
+    res.status(500).json({ error: 'Failed to verify OTP. Please try again.' });
+  }
+});
+
+// Resend Email OTP
+router.post('/resend-email-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email || !/.+@.+\..+/.test(email)) {
+      return res.status(400).json({ error: 'Valid email address is required' });
+    }
+    
+    // Check if can resend
+    const canResend = otpManager.canResend(email);
+    if (!canResend.allowed) {
+      return res.status(429).json({ 
+        error: `Please wait ${canResend.waitTime} seconds before requesting a new code.`,
+        waitTime: canResend.waitTime
+      });
+    }
+    
+    // Check rate limit
+    const rateLimit = otpManager.checkRateLimit(email);
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ 
+        error: `Too many requests. Please try again in ${rateLimit.waitTime} seconds.`,
+        waitTime: rateLimit.waitTime
+      });
+    }
+    
+    // Clear old OTP
+    otpManager.clearOTP(email);
+    
+    // Generate new OTP
+    const otp = otpManager.generateOTP();
+    
+    // Send email
+    const emailResult = await emailService.sendOTP(email, otp);
+    
+    if (!emailResult.success) {
+      return res.status(500).json({ error: 'Failed to send email. Please try again.' });
+    }
+    
+    // Store new OTP
+    otpManager.storeOTP(email, otp);
+    
+    console.log(`OTP resent to ${email}: ${otp} (dev mode)`);
+    
+    res.json({
+      message: 'OTP resent successfully',
+      remaining: rateLimit.remaining,
+      // Only include OTP in development mode for testing
+      ...(process.env.NODE_ENV === 'development' && { otp })
+    });
+    
+  } catch (error) {
+    console.error('Resend email OTP error:', error);
+    res.status(500).json({ error: 'Failed to resend OTP. Please try again.' });
+  }
+});
+
+// ===== END EMAIL OTP ENDPOINTS =====
 
 // Store OTPs in memory (in production, use Redis or database)
 const otpStore = new Map();

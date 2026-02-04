@@ -97,4 +97,61 @@ export const authAPI = {
             method: 'DELETE',
         });
     },
+
+    // Send Email OTP
+    sendEmailOTP: async (email) => {
+        const response = await fetch(`${API_BASE_URL}/auth/send-email-otp`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to send OTP');
+        }
+
+        const data = await response.json();
+        return data;
+    },
+
+    // Verify Email OTP
+    verifyEmailOTP: async (email, otp) => {
+        const response = await fetch(`${API_BASE_URL}/auth/verify-email-otp`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, otp }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Invalid OTP');
+        }
+
+        const data = await response.json();
+        return data;
+    },
+
+    // Resend Email OTP
+    resendEmailOTP: async (email) => {
+        const response = await fetch(`${API_BASE_URL}/auth/resend-email-otp`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to resend OTP');
+        }
+
+        const data = await response.json();
+        return data;
+    },
 };

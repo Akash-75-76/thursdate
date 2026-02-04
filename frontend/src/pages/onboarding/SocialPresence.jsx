@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import emailConfirmIcon from "../../../public/email-confirm-icon.svg";
-import { userAPI } from '../../utils/api';
+import { userAPI, authAPI } from '../../utils/api';
 
 export default function SocialPresence() {
     const navigate = useNavigate();
@@ -101,37 +101,42 @@ export default function SocialPresence() {
 
     // === HANDLERS ===
     const handleSendEmailOTP = async () => {
+        console.log('🔵 handleSendEmailOTP called for email:', email);
         try {
-            // TODO: Call backend API to send OTP to email
-            // await userAPI.sendEmailOTP({ email });
-            console.log('Sending OTP to:', email);
+            console.log('🔵 Calling API...');
+            const result = await authAPI.sendEmailOTP(email);
+            console.log('✅ OTP sent successfully:', result.message);
             setShowConfirm(true);
             setEmailResendTimer(30);
             setEmailCanResend(false);
         } catch (err) {
-            console.error('Failed to send email OTP:', err);
-            alert('Failed to send OTP. Please try again.');
+            console.error('❌ Failed to send email OTP:', err);
+            alert(err.message || 'Failed to send OTP. Please try again.');
         }
     };
 
-    const handleResendEmailOTP = () => {
-        setEmailResendTimer(30);
-        setEmailCanResend(false);
-        setEmailOTP("");
-        // TODO: Call backend API to resend OTP
-        console.log('Resending OTP to:', email);
+    const handleResendEmailOTP = async () => {
+        try {
+            const result = await authAPI.resendEmailOTP(email);
+            console.log('OTP resent successfully:', result.message);
+            setEmailResendTimer(30);
+            setEmailCanResend(false);
+            setEmailOTP("");
+        } catch (err) {
+            console.error('Failed to resend email OTP:', err);
+            alert(err.message || 'Failed to resend OTP. Please try again.');
+        }
     };
 
     const handleVerifyEmailOTP = async () => {
         if (emailOTP.length === 6) {
             try {
-                // TODO: Call backend API to verify OTP
-                // await userAPI.verifyEmailOTP({ email, otp: emailOTP });
-                console.log('Verifying OTP:', emailOTP);
+                const result = await authAPI.verifyEmailOTP(email, emailOTP);
+                console.log('Email verified successfully:', result.message);
                 setEmailOTPVerified(true);
             } catch (err) {
                 console.error('Failed to verify email OTP:', err);
-                alert('Invalid OTP. Please try again.');
+                alert(err.message || 'Invalid OTP. Please try again.');
             }
         }
     };
