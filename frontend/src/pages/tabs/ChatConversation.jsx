@@ -462,8 +462,20 @@ export default function ChatConversation() {
         }
     };
 
-    const onEmojiClick = (emojiData) => {
+    const onEmojiClick = (emojiData, event) => {
+        // Prevent event from bubbling to close the picker immediately
+        if (event) {
+            event.stopPropagation();
+        }
+        
         setMessage(prev => prev + emojiData.emoji);
+        
+        // Close picker on mobile after selection for better UX
+        const isMobile = window.innerWidth < 768;
+        if (isMobile) {
+            setTimeout(() => setShowEmojiPicker(false), 100);
+        }
+        
         inputRef.current?.focus();
     };
 
