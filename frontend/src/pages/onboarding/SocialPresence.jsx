@@ -11,15 +11,14 @@ export default function SocialPresence() {
     const [showConfirm, setShowConfirm] = useState(false);
     const [emailOTP, setEmailOTP] = useState("");
     const [emailOTPVerified, setEmailOTPVerified] = useState(false);
-    const [step, setStep] = useState(1);
     const [instagram, setInstagram] = useState(""); // Reused for all inputs
     const [showInstaConfirm, setShowInstaConfirm] = useState(false);
     const [confirmInstagram, setConfirmInstagram] = useState("");
     const [showCodeInput, setShowCodeInput] = useState(false);
     const [instaCode, setInstaCode] = useState("");
     const [codeVerified, setCodeVerified] = useState(false);
-    const [showAltVerification, setShowAltVerification] = useState(false);
-    const [verificationMethod, setVerificationMethod] = useState("instagram");
+    const [showMethodSelection, setShowMethodSelection] = useState(true);
+    const [verificationMethod, setVerificationMethod] = useState(null);
     const [showUpload, setShowUpload] = useState(false);
     const [uploadStep, setUploadStep] = useState("front"); // 'front' or 'back'
     const [licenseFrontPreview, setLicenseFrontPreview] = useState(null);
@@ -27,8 +26,6 @@ export default function SocialPresence() {
     const [licenseVerified, setLicenseVerified] = useState(false);
 
     // OTP Timers
-    const [resendTimer, setResendTimer] = useState(30);
-    const [canResend, setCanResend] = useState(false);
     const [emailResendTimer, setEmailResendTimer] = useState(30);
     const [emailCanResend, setEmailCanResend] = useState(false);
 
@@ -45,22 +42,11 @@ export default function SocialPresence() {
 
     const isInputValid = () => {
         if (!instagram.trim()) return false;
-        if (verificationMethod === "aadhaar") return instagram.length === 12;
-        if (verificationMethod === "linkedin") return instagram.includes("linkedin.com/in/");
+        if (verificationMethod === "linkedin") return instagram.length > 0;
         return true;
     };
 
     const isConfirmInputValid = confirmInstagram.trim() === instagram;
-
-    // === TIMER LOGIC ===
-    useEffect(() => {
-        if (showCodeInput && verificationMethod === "aadhaar" && resendTimer > 0) {
-            const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
-            return () => clearTimeout(timer);
-        } else if (resendTimer === 0) {
-            setCanResend(true);
-        }
-    }, [resendTimer, showCodeInput, verificationMethod]);
 
     // Email OTP Timer
     useEffect(() => {
@@ -141,32 +127,14 @@ export default function SocialPresence() {
         }
     };
 
-    const handleResendOTP = () => {
-        setResendTimer(30);
-        setCanResend(false);
-        setInstaCode("");
-    };
-
-    const handleGetOTP = () => {
-        setShowInstaConfirm(true);
-        setShowCodeInput(true);
-        setResendTimer(30);
-        setCanResend(false);
-        setInstaCode("");
-    };
-
     const handleLinkedInOAuth = () => {
         // Redirect to backend OAuth endpoint
         window.location.href = 'http://localhost:5000/auth/linkedin';
     };
 
     const handleStartVerification = () => {
-        if (verificationMethod === "instagram") {
-            setShowInstaConfirm(true);
-        } else if (verificationMethod === "linkedin") {
+        if (verificationMethod === "linkedin") {
             handleLinkedInOAuth();
-        } else if (verificationMethod === "aadhaar" && instagram.length === 12) {
-            handleGetOTP();
         }
     };
 
@@ -175,22 +143,18 @@ export default function SocialPresence() {
     };
 
     const handleVerifyCode = async () => {
-        const requiredLength = verificationMethod === "aadhaar" ? 6 : 4;
-        if (instaCode.length === requiredLength) {
+        if (instaCode.length === 4) {
             setCodeVerified(true);
 
-            // Save Instagram/LinkedIn to database
-            if (verificationMethod === "instagram" || verificationMethod === "linkedin") {
+            // Save LinkedIn to database
+            if (verificationMethod === "linkedin") {
                 try {
-                    const updateData = {};
-                    if (verificationMethod === "instagram") {
-                        updateData.instagram = instagram.startsWith('@') ? instagram.substring(1) : instagram;
-                    } else if (verificationMethod === "linkedin") {
-                        updateData.linkedin = instagram; // Full URL or username
-                    }
+                    const updateData = {
+                        linkedin: instagram // Full URL or username
+                    };
                     await userAPI.updateProfile(updateData);
                 } catch (err) {
-                    console.error('Failed to save social profile:', err);
+                    console.error('Failed to save LinkedIn profile:', err);
                     // Continue anyway - don't block user
                 }
             }
@@ -210,11 +174,6 @@ export default function SocialPresence() {
             {/* Dark Overlay */}
             <div className="absolute inset-0 bg-black/30 z-0"></div>
 
-            {/* Dim Modal Background */}
-            {showAltVerification && (
-                <div className="fixed inset-0 bg-black/60 z-30 transition-opacity"></div>
-            )}
-
             {/* Main Content */}
             <div className="relative z-40 p-6 pt-10 flex flex-col flex-grow bg-white/10">
                 {/* Header */}
@@ -230,13 +189,74 @@ export default function SocialPresence() {
                 <div className="w-full bg-white/30 rounded-full h-1.5 mb-8">
                     <div
                         className="bg-white h-1.5 rounded-full transition-all duration-300 shadow-md"
-                        style={{ width: step === 1 ? "50%" : "100%" }}
+                        style={{ width: codeVerified || emailOTPVerified || licenseVerified ? "100%" : "50%" }}
                     ></div>
                 </div>
 
-                {/* === STEP 1: EMAIL === */}
-                {step === 1 && (
+                {/* === METHOD SELECTION === */}
+                {showMethodSelection && (
                     <div className="flex flex-col flex-grow">
+                        <h1 className="text-2xl font-normal mb-3 text-white drop-shadow-md">
+                            Choose your verification method
+                        </h1>
+                        <p className="text-white/80 text-sm mb-8 leading-relaxed">
+                            Select one option to verify your identity and continue.
+                        </p>
+
+                        <div className="flex flex-col gap-4 mb-auto">
+                            {/* Gmail Option */}
+                            <button
+                                className="w-full py-4 rounded-full font-medium text-lg transition bg-white text-black hover:bg-gray-200 flex items-center justify-between pl-6 pr-4"
+                                onClick={() => {
+                                    setVerificationMethod("gmail");
+                                    setShowMethodSelection(false);
+                                }}
+                            >
+                                <span>Verify with Gmail</span>
+                                <span className="text-black text-xl">&gt;</span>
+                            </button>
+
+                            {/* LinkedIn Option */}
+                            <button
+                                className="w-full py-4 rounded-full font-medium text-lg transition border border-white/40 text-white bg-black/30 hover:bg-black/50 flex items-center justify-between pl-6 pr-4"
+                                onClick={() => {
+                                    setVerificationMethod("linkedin");
+                                    setShowMethodSelection(false);
+                                }}
+                            >
+                                <span>Verify with LinkedIn</span>
+                                <span className="text-white text-xl">&gt;</span>
+                            </button>
+
+                            {/* Driver's License Option */}
+                            <button
+                                className="w-full py-4 rounded-full font-medium text-lg transition border border-white/40 text-white bg-black/30 hover:bg-black/50 flex items-center justify-between pl-6 pr-4"
+                                onClick={() => {
+                                    setVerificationMethod("license");
+                                    setShowMethodSelection(false);
+                                }}
+                            >
+                                <span>Verify with Driver's License</span>
+                                <span className="text-white text-xl">&gt;</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* === GMAIL VERIFICATION === */}
+                {!showMethodSelection && verificationMethod === "gmail" && (
+                    <div className="flex flex-col flex-grow">
+                        <button
+                            onClick={() => {
+                                setShowMethodSelection(true);
+                                setVerificationMethod(null);
+                                setEmail("");
+                                setShowConfirm(false);
+                            }}
+                            className="self-start mb-4 text-white/80 hover:text-white flex items-center gap-2"
+                        >
+                            <span>&lt;</span> Back
+                        </button>
                         <h1 className="text-xl font-normal mb-6 text-white drop-shadow-md">
                             What's your email?
                         </h1>
@@ -244,10 +264,10 @@ export default function SocialPresence() {
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            placeholder="Enter your email"
+                            placeholder="Enter your Gmail address"
                             className={`w-full px-4 py-4 border rounded-xl text-sm mb-auto transition ${INPUT_GLASS}`}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter" && isEmailValid) setShowConfirm(true);
+                                if (e.key === "Enter" && isEmailValid) handleSendEmailOTP();
                             }}
                         />
 
@@ -314,10 +334,7 @@ export default function SocialPresence() {
                                             </div>
                                             <button
                                                 className={`w-full py-4 rounded-xl font-medium text-lg transition ${BUTTON_GLASS_ACTIVE}`}
-                                                onClick={() => {
-                                                    setStep(2);
-                                                    setShowConfirm(false);
-                                                }}
+                                                onClick={() => navigate("/face-verification")}
                                             >
                                                 Continue
                                             </button>
@@ -329,10 +346,24 @@ export default function SocialPresence() {
                     </div>
                 )}
 
-                {/* === STEP 2: VERIFICATION === */}
-                {step === 2 && (
+                {/* === LINKEDIN & LICENSE VERIFICATION === */}
+                {!showMethodSelection && verificationMethod !== "gmail" && verificationMethod !== null && (
                     <div className="flex flex-col flex-grow justify-between">
                         <div>
+                            {/* Back Button */}
+                            <button
+                                onClick={() => {
+                                    setShowMethodSelection(true);
+                                    setVerificationMethod(null);
+                                    setInstagram("");
+                                    setShowUpload(false);
+                                    setUploadStep("front");
+                                }}
+                                className="mb-4 text-white/80 hover:text-white flex items-center gap-2"
+                            >
+                                <span>&lt;</span> Back
+                            </button>
+
                             {/* === DRIVING LICENSE SCREEN === */}
                             {verificationMethod === "license" ? (
                                 showUpload ? (
@@ -360,7 +391,6 @@ export default function SocialPresence() {
                                                             type="button"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                // remove preview and clear input
                                                                 try { URL.revokeObjectURL(licenseFrontPreview); } catch (err) { }
                                                                 setLicenseFrontPreview(null);
                                                                 const input = document.getElementById('license-upload-front');
@@ -418,17 +448,14 @@ export default function SocialPresence() {
                                                     onChange={(e) => {
                                                         const file = e.target.files?.[0];
                                                         if (file && file.size <= 10 * 1024 * 1024) {
-                                                            // create object URL and set preview for the correct step
                                                             const url = URL.createObjectURL(file);
                                                             if (uploadStep === 'front') {
-                                                                // revoke previous if any
                                                                 if (licenseFrontPreview) try { URL.revokeObjectURL(licenseFrontPreview); } catch (err) { }
                                                                 setLicenseFrontPreview(url);
                                                             } else {
                                                                 if (licenseBackPreview) try { URL.revokeObjectURL(licenseBackPreview); } catch (err) { }
                                                                 setLicenseBackPreview(url);
                                                             }
-                                                            // TODO: upload to backend if desired
                                                         } else if (file) {
                                                             alert("File too large. Max 10MB.");
                                                         }
@@ -437,15 +464,13 @@ export default function SocialPresence() {
                                             </label>
                                         </div>
 
-                                        {/* Continue Button (enabled even if no file is uploaded) */}
+                                        {/* Continue Button */}
                                         <button
                                             onClick={() => {
                                                 if (uploadStep === "front") {
                                                     setUploadStep("back");
                                                 } else {
-                                                    // mark as verified locally and show confirmation
                                                     setLicenseVerified(true);
-                                                    // keep the previews visible; user can continue after confirmation
                                                 }
                                             }}
                                             className={`w-full py-4 rounded-full font-medium text-lg mt-8 transition ${BUTTON_GLASS_ACTIVE}`}
@@ -494,48 +519,17 @@ export default function SocialPresence() {
                                 )
                             ) : (
                                 <>
-                                    {/* === INPUT SCREEN (Instagram / LinkedIn / Aadhaar) === */}
-                                    <h1 className="text-xl font-normal text-white mb-2 mt-2">
-                                        {verificationMethod === "instagram"
-                                            ? "Add your Instagram handle"
-                                            : verificationMethod === "linkedin"
-                                                ? "Enter your LinkedIn profile"
-                                                : "Verify with Aadhaar Card"}
-                                    </h1>
-                                    <p className="text-white/70 text-xs mb-6">
-                                        {verificationMethod === "instagram"
-                                            ? "This is only for verification and won't appear on your profile."
-                                            : verificationMethod === "linkedin"
-                                                ? "We’ll send a 4-digit code to your LinkedIn DM."
-                                                : "Enter your 12-digit Aadhaar number to receive an OTP."}
-                                    </p>
+                                    {/* === INPUT SCREEN (LinkedIn) === */}
+                                    <h1 className="text-xl font-normal text-white mb-2 mt-2">Enter your LinkedIn profile</h1>
+                                    <p className="text-white/70 text-xs mb-6">We'll verify your LinkedIn profile.</p>
                                     <div className="mb-8">
                                         <div className={`flex items-center border rounded-xl ${INPUT_GLASS}`}>
-                                            {verificationMethod === "instagram" && (
-                                                <span className="pl-4 pr-1 pb-1 text-white/70 text-lg">@</span>
-                                            )}
-                                            {verificationMethod === "linkedin" && (
-                                                <span className="pl-4 pr-1 text-white/70 text-sm">in/</span>
-                                            )}
+                                            <span className="pl-4 pr-1 text-white/70 text-sm">in/</span>
                                             <input
                                                 type="text"
-                                                inputMode={verificationMethod === "aadhaar" ? "numeric" : "text"}
-                                                maxLength={verificationMethod === "aadhaar" ? 12 : undefined}
                                                 value={instagram}
-                                                onChange={(e) => {
-                                                    const raw = e.target.value;
-                                                    const sanitized = verificationMethod === "aadhaar"
-                                                        ? raw.replace(/\D/g, "").slice(0, 12)
-                                                        : raw;
-                                                    setInstagram(sanitized);
-                                                }}
-                                                placeholder={
-                                                    verificationMethod === "instagram"
-                                                        ? "Enter your Instagram username"
-                                                        : verificationMethod === "linkedin"
-                                                            ? "yourname"
-                                                            : "Enter 12-digit Aadhaar number"
-                                                }
+                                                onChange={(e) => setInstagram(e.target.value)}
+                                                placeholder="yourname"
                                                 className="flex-1 pr-4 py-4 bg-transparent border-0 outline-none text-sm text-white placeholder-white/80"
                                                 onKeyDown={(e) => {
                                                     if (e.key === "Enter" && isInputValid()) {
@@ -551,52 +545,14 @@ export default function SocialPresence() {
 
                         {/* === BUTTON BAR === */}
                         <div className="flex flex-col gap-4 pb-2">
-                            {/* Instagram */}
-                            {verificationMethod === "instagram" && !showInstaConfirm && !showAltVerification && (
-                                <>
-                                    <button
-                                        disabled={!isInputValid()}
-                                        onClick={handleStartVerification}
-                                        className={`w-full py-4 rounded-full font-medium text-lg transition ${!isInputValid() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
-                                    >
-                                        Verify Instagram
-                                    </button>
-                                    <button
-                                        className="w-full py-4 rounded-full font-medium text-lg border border-white/40 text-white bg-black/30 hover:bg-black/50 transition"
-                                        onClick={() => setShowAltVerification(true)}
-                                    >
-                                        I don’t have Instagram
-                                    </button>
-                                </>
-                            )}
-
                             {/* LinkedIn */}
-                            {verificationMethod === "linkedin" && !showInstaConfirm && !showAltVerification && (
-                                <>
-                                    <button
-                                        disabled={!isInputValid()}
-                                        onClick={handleStartVerification}
-                                        className={`w-full py-4 rounded-full font-medium text-lg transition ${!isInputValid() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
-                                    >
-                                        Verify LinkedIn
-                                    </button>
-                                    <button
-                                        className="w-full py-4 rounded-full font-medium text-lg border border-white/40 text-white bg-black/30 hover:bg-black/50 transition"
-                                        onClick={() => setShowAltVerification(true)}
-                                    >
-                                        I don’t have LinkedIn
-                                    </button>
-                                </>
-                            )}
-
-                            {/* Aadhaar */}
-                            {verificationMethod === "aadhaar" && !showInstaConfirm && !showAltVerification && (
+                            {verificationMethod === "linkedin" && !showInstaConfirm && (
                                 <button
-                                    disabled={instagram.length !== 12}
-                                    onClick={handleGetOTP}
-                                    className={`w-full py-4 rounded-full font-medium text-lg transition ${instagram.length !== 12 ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
+                                    disabled={!isInputValid()}
+                                    onClick={handleStartVerification}
+                                    className={`w-full py-4 rounded-full font-medium text-lg transition ${!isInputValid() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
                                 >
-                                    Get OTP
+                                    Verify LinkedIn
                                 </button>
                             )}
 
@@ -608,56 +564,6 @@ export default function SocialPresence() {
                                 >
                                     Continue
                                 </button>
-                            )}
-
-                            {/* === ALTERNATE VERIFICATION MODAL === */}
-                            {showAltVerification && (
-                                <div className="w-full flex justify-center">
-                                    <div className="w-full max-w-sm bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-6 flex flex-col gap-4 border border-white/30">
-
-                                        {/* ---------- LINKEDIN (only when coming from Instagram) ---------- */}
-                                        {verificationMethod === "instagram" && (
-                                            <button
-                                                className="w-full py-4 rounded-full font-medium text-lg transition bg-white text-black hover:bg-gray-200"
-                                                onClick={() => {
-                                                    setVerificationMethod("linkedin");
-                                                    setShowAltVerification(false);
-                                                }}
-                                            >
-                                                Continue with LinkedIn
-                                            </button>
-                                        )}
-
-                                        {/* ---------- "or" separator (only when LinkedIn option is shown) ---------- */}
-                                        {verificationMethod === "instagram" && (
-                                            <div className="text-center text-white font-medium text-lg">or</div>
-                                        )}
-
-                                        {/* ---------- AADHAAR ---------- */}
-                                        <button
-                                            className="w-full py-4 rounded-full font-medium text-lg transition border border-white/40 text-white bg-black/30 hover:bg-black/50 flex items-center justify-between pl-6 pr-4"
-                                            onClick={() => {
-                                                setVerificationMethod("aadhaar");
-                                                setShowAltVerification(false);
-                                            }}
-                                        >
-                                            <span>Verify with Aadhaar Card</span>
-                                            <span className="text-white text-xl">&gt;</span>
-                                        </button>
-
-                                        {/* ---------- DRIVING LICENSE ---------- */}
-                                        <button
-                                            className="w-full py-4 rounded-full font-medium text-lg transition border border-white/40 text-white bg-black/30 hover:bg-black/50 flex items-center justify-between pl-6 pr-4"
-                                            onClick={() => {
-                                                setVerificationMethod("license");
-                                                setShowAltVerification(false);
-                                            }}
-                                        >
-                                            <span>Verify with Driving License</span>
-                                            <span className="text-white text-xl">&gt;</span>
-                                        </button>
-                                    </div>
-                                </div>
                             )}
 
                             {/* === LICENSE VERIFIED MODAL === */}
@@ -696,38 +602,22 @@ export default function SocialPresence() {
                             <div className="fixed inset-0 flex justify-center items-end pb-6 z-50 px-2">
                                 <div className="w-[95vw] max-w-sm mx-auto rounded-3xl bg-white/20 backdrop-blur-lg shadow-2xl p-6 flex flex-col items-center border border-white/30">
                                     {/* Icon & Title */}
-                                    {verificationMethod === "instagram" ? (
-                                        <>
-                                            <img src="/instagram-confirm-icon.svg" alt="Instagram" className="w-20 h-20 mb-2" />
-                                            <div className="text-white text-lg font-normal">Instagram Confirmation</div>
-                                        </>
-                                    ) : verificationMethod === "linkedin" ? (
-                                        <>
-                                            <img src="/linkedin-confirm-icon.svg" alt="LinkedIn" className="w-20 h-20 mb-2" />
-                                            <div className="text-white text-lg font-normal">LinkedIn Confirmation</div>
-                                        </>
-                                    ) : (
-                                        <div className="text-white text-lg font-normal">Aadhaar OTP</div>
-                                    )}
+                                    <img src="/linkedin-confirm-icon.svg" alt="LinkedIn" className="w-20 h-20 mb-2" />
+                                    <div className="text-white text-lg font-normal">LinkedIn Confirmation</div>
 
                                     {/* Re-enter Input */}
-                                    {(verificationMethod === "instagram" || verificationMethod === "linkedin") && !showCodeInput && !codeVerified && (
+                                    {!showCodeInput && !codeVerified && (
                                         <>
                                             <div className="text-[#ACACAC] text-sm mb-6 text-center">
-                                                Please confirm your {verificationMethod === "instagram" ? "Instagram username" : "LinkedIn profile"} for verification.
+                                                Please confirm your LinkedIn profile for verification.
                                             </div>
                                             <div className="w-full flex items-center bg-white/10 rounded-xl px-3 py-4 mb-4 border border-white/20">
-                                                {verificationMethod === "instagram" && (
-                                                    <span className="text-white/70 text-lg mr-2 pb-1">@</span>
-                                                )}
-                                                {verificationMethod === "linkedin" && (
-                                                    <span className="text-white/70 text-sm mr-2">in/</span>
-                                                )}
+                                                <span className="text-white/70 text-sm mr-2">in/</span>
                                                 <input
                                                     type="text"
                                                     value={confirmInstagram}
                                                     onChange={(e) => setConfirmInstagram(e.target.value)}
-                                                    placeholder={`Confirm your ${verificationMethod === "instagram" ? "username" : "profile"}`}
+                                                    placeholder="Confirm your profile"
                                                     className="flex-1 bg-transparent outline-none text-white placeholder-white/60 text-sm"
                                                 />
                                                 <button
@@ -753,40 +643,25 @@ export default function SocialPresence() {
                                     {showCodeInput && !codeVerified && (
                                         <div className="w-full flex flex-col items-center mt-2">
                                             <div className="text-white text-base mb-2 text-center">
-                                                {verificationMethod === "instagram"
-                                                    ? "Enter the 4-digit code sent to your Instagram DM"
-                                                    : verificationMethod === "linkedin"
-                                                        ? "Enter the 4-digit code sent to your LinkedIn DM"
-                                                        : "Enter the 6-digit OTP sent to your Aadhaar-linked mobile"}
+                                                Enter the 4-digit code sent to your LinkedIn DM
                                             </div>
                                             <input
                                                 type="text"
-                                                maxLength={verificationMethod === "aadhaar" ? 6 : 4}
+                                                maxLength={4}
                                                 value={instaCode}
                                                 onChange={(e) => {
                                                     const val = e.target.value.replace(/[^0-9]/g, "");
                                                     setInstaCode(val);
                                                 }}
-                                                placeholder={verificationMethod === "aadhaar" ? "6-digit OTP" : "4-digit code"}
+                                                placeholder="4-digit code"
                                                 className="w-full px-4 py-4 border rounded-xl text-sm mb-2 transition bg-white/20 backdrop-blur-sm text-white placeholder-white/80 border-white/30"
                                             />
-                                            {verificationMethod === "aadhaar" && (
-                                                <div className="text-white/60 text-xs mb-3">
-                                                    {canResend ? (
-                                                        <button onClick={handleResendOTP} className="text-white underline hover:text-white/80">
-                                                            Resend OTP
-                                                        </button>
-                                                    ) : (
-                                                        <span>Resend in {resendTimer}s</span>
-                                                    )}
-                                                </div>
-                                            )}
                                             <button
-                                                disabled={instaCode.length !== (verificationMethod === "aadhaar" ? 6 : 4)}
+                                                disabled={instaCode.length !== 4}
                                                 onClick={handleVerifyCode}
-                                                className={`w-full py-4 rounded-xl font-medium text-lg transition ${instaCode.length !== (verificationMethod === "aadhaar" ? 6 : 4) ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
+                                                className={`w-full py-4 rounded-xl font-medium text-lg transition ${instaCode.length !== 4 ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
                                             >
-                                                Verify {verificationMethod === "aadhaar" ? "OTP" : "Code"}
+                                                Verify Code
                                             </button>
                                         </div>
                                     )}
@@ -800,11 +675,7 @@ export default function SocialPresence() {
                                                 </span>
                                             </div>
                                             <div className="text-white text-center text-base font-semibold leading-tight mb-6">
-                                                {verificationMethod === "instagram"
-                                                    ? "Your Instagram has been verified successfully."
-                                                    : verificationMethod === "linkedin"
-                                                        ? "Your LinkedIn has been verified successfully."
-                                                        : "Aadhaar verified successfully."}
+                                                Your LinkedIn has been verified successfully.
                                             </div>
                                             <button
                                                 className={`w-full py-4 rounded-xl font-medium text-lg transition ${BUTTON_GLASS_ACTIVE}`}

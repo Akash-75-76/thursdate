@@ -6,19 +6,49 @@ export default function WaitlistStatus() {
   const navigate = useNavigate();
   const [isUserApproved, setIsUserApproved] = useState(null); // null = loading
   const [userName, setUserName] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchApproval = async () => {
+    try {
+      setIsRefreshing(true);
+      const userData = await userAPI.getProfile();
+      setIsUserApproved(!!userData.approval);
+      setUserName(userData.firstName || userData.email || 'User');
+    } catch (err) {
+      console.error('Failed to fetch approval status:', err);
+      setIsUserApproved(false);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchApproval = async () => {
-      try {
-        const userData = await userAPI.getProfile();
-        setIsUserApproved(!!userData.approval);
-        setUserName(userData.firstName || userData.email || 'User');
-      } catch {
-        setIsUserApproved(false);
-      }
-    };
     fetchApproval();
   }, []);
+
+  // Auto-refresh when page becomes visible (e.g., returning from admin panel)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isRefreshing) {
+        console.log('Page visible - refreshing approval status...');
+        fetchApproval();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isRefreshing]);
+
+  // Auto-navigate when approved (after showing success screen briefly)
+  useEffect(() => {
+    if (isUserApproved === true) {
+      console.log('User approved! Will auto-navigate in 2 seconds...');
+      const timer = setTimeout(() => {
+        navigate("/user-intent");
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isUserApproved, navigate]);
 
   return (
     <div className="h-screen bg-white px-6 pt-10 flex flex-col font-sans">
@@ -38,8 +68,10 @@ export default function WaitlistStatus() {
 
       {/* Main content area - centered */}
       <div className="flex flex-col flex-1 justify-center items-center text-center px-4">
-        {isUserApproved === null ? (
-          <div className="text-gray-500">Checking approval status...</div>
+        {isUserApproved === null || isRefreshing ? (
+          <div className="text-gray-500">
+            {isRefreshing ? 'Refreshing status...' : 'Checking approval status...'}
+          </div>
         ) : isUserApproved ? (
           // Approved Screen (without confetti)
           <>
@@ -70,9 +102,18 @@ export default function WaitlistStatus() {
               </div>
             </div>
             <h1 className="text-xl font-semibold mb-2">Hey {userName}, you're on the waitlist!</h1>
-            <p className="text-gray-500 mb-12">
+            <p className="text-gray-500 mb-8">
               Your application is in the hands of the pros. Sit tight, sip your favourite beverage, and let us work our magic—matches coming soon.
             </p>
+
+            {/* Refresh Status Button */}
+            <button
+              onClick={fetchApproval}
+              disabled={isRefreshing}
+              className="text-sm text-gray-600 hover:text-gray-800 underline disabled:opacity-50 mb-12"
+            >
+              {isRefreshing ? 'Checking...' : 'Check approval status'}
+            </button>
           </>
         )}
       </div>
