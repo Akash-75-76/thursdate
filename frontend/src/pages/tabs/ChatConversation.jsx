@@ -5,7 +5,6 @@ import socketService from '../../utils/socket';
 import LevelUpPopup from './LevelUpPopup';
 import Level2UnlockedPopup from './Level2UnlockedPopup';
 import ConsentReminderBanner from '../../components/ConsentReminderBanner';
-import EmojiPicker from 'emoji-picker-react';
 
 export default function ChatConversation() {
     const navigate = useNavigate();
@@ -29,10 +28,8 @@ export default function ChatConversation() {
     const [showReportDialog, setShowReportDialog] = useState(false);
     const [reportReason, setReportReason] = useState('');
     const [reportDescription, setReportDescription] = useState('');
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const menuRef = useRef(null);
     const messagesEndRef = useRef(null);
-    const emojiPickerRef = useRef(null);
     const typingTimeoutRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -462,11 +459,6 @@ export default function ChatConversation() {
         }
     };
 
-    const onEmojiClick = (emojiData) => {
-        setMessage(prev => prev + emojiData.emoji);
-        inputRef.current?.focus();
-    };
-
     const handleTyping = (e) => {
         setMessage(e.target.value);
 
@@ -798,29 +790,22 @@ export default function ChatConversation() {
 
 
 
-    // Close menu and emoji picker when clicking outside
+    // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (menuRef.current && !menuRef.current.contains(event.target)) {
                 setShowMenu(false);
             }
-            if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
-                // Don't close if clicking the emoji button itself
-                const emojiButton = event.target.closest('button');
-                if (!emojiButton || !emojiButton.querySelector('svg path[d*="M14.828"]')) {
-                    setShowEmojiPicker(false);
-                }
-            }
         };
 
-        if (showMenu || showEmojiPicker) {
+        if (showMenu) {
             document.addEventListener('mousedown', handleClickOutside);
         }
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showMenu, showEmojiPicker]);
+    }, [showMenu]);
 
 
 
@@ -832,13 +817,13 @@ export default function ChatConversation() {
             }}
         >
             {/* Header */}
-            <div className="bg-white/10  border-b border-white/20 pt-12 pb-4 px-4">
+            <div className="bg-white/10 backdrop-blur-sm border-b border-white/20 pt-safe pt-12 pb-3 px-safe px-4 sm:px-6">
                 <div className="flex items-center justify-between">
                     {/* Back button and profile */}
                     <div className="flex items-center gap-3 flex-1">
                         <button
                             onClick={() => navigate('/home', { state: { selectedTab: 'chats' } })}
-                            className="w-8 h-8 flex items-center justify-center"
+                            className="w-10 h-10 flex items-center justify-center -ml-2 active:scale-95 transition-transform"
                         >
                             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -852,12 +837,12 @@ export default function ChatConversation() {
                                     conversationId: conversationId
                                 }
                             })}
-                            className="flex-shrink-0"
+                            className="flex-shrink-0 active:scale-95 transition-transform"
                         >
                             <img
                                 src={otherUser?.profilePicUrl || '/chatperson.png'}
                                 alt={otherUser?.name || 'User'}
-                                className="w-10 h-10 rounded-full object-cover"
+                                className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover ring-2 ring-white/30"
                             />
                         </button>
 
@@ -868,14 +853,14 @@ export default function ChatConversation() {
                                     conversationId: conversationId
                                 }
                             })}
-                            className="flex-1 text-left"
+                            className="flex-1 text-left min-w-0"
                         >
-                            <h2 className="text-white font-semibold text-lg">{otherUser?.name || 'User'}</h2>
+                            <h2 className="text-white font-semibold text-base sm:text-lg truncate">{otherUser?.name || 'User'}</h2>
                             <div className="flex items-center gap-1.5">
                                 {isOnline && (
-                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                    <div className="w-2 h-2 rounded-full bg-green-400 ring-2 ring-green-400/30"></div>
                                 )}
-                                <p className="text-white/70 text-xs">
+                                <p className="text-white/80 text-sm sm:text-xs">
                                     {isTyping ? 'typing...' : isOnline ? 'Online' : 'Offline'}
                                 </p>
                             </div>
@@ -886,7 +871,7 @@ export default function ChatConversation() {
                     <div className="relative" ref={menuRef}>
                         <button
                             onClick={() => setShowMenu(!showMenu)}
-                            className="w-8 h-8 flex items-center justify-center"
+                            className="w-10 h-10 flex items-center justify-center active:scale-95 transition-transform"
                         >
                             <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
@@ -989,9 +974,9 @@ export default function ChatConversation() {
                             }}
                         >
                             <div
-                                className={`max-w-[75%] rounded-2xl px-4 py-3 overflow-hidden ${msg.isSent
+                                className={`max-w-[85%] sm:max-w-[75%] md:max-w-[60%] rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 overflow-hidden shadow-md ${msg.isSent
                                     ? 'bg-white text-gray-800 rounded-br-md'
-                                    : 'bg-[#3A3A3C] text-white rounded-bl-md'
+                                    : 'bg-gradient-to-br from-[#3A3A3C] to-[#2C2C2E] text-white rounded-bl-md'
                                     }`}
                             >
 
@@ -1006,10 +991,10 @@ export default function ChatConversation() {
                                         }}
                                     />
                                 ) : (
-                                    <p className="text-sm">{msg.content}</p>
+                                    <p className="text-[15px] sm:text-sm leading-relaxed break-words">{msg.content}</p>
                                 )}
-                                <div className={`flex items-center gap-1 mt-1 justify-end ${msg.isSent ? 'text-gray-500' : 'text-white/60'}`}>
-                                    <span className="text-xs">{formatTime(msg.createdAt)}</span>
+                                <div className={`flex items-center gap-1.5 mt-1.5 justify-end ${msg.isSent ? 'text-gray-500' : 'text-white/60'}`}>
+                                    <span className="text-[11px] sm:text-xs">{formatTime(msg.createdAt)}</span>
                                     {msg.isSent && (
                                         <div className="relative flex items-center ">
                                             {console.log('Rendering msg', msg.id, 'status:', msg.status, 'isRead:', msg.isRead)}
@@ -1061,7 +1046,7 @@ export default function ChatConversation() {
             </div>
 
             {/* Input Area */}
-            <div className="bg-gradient-to-t from-black/60 to-transparent px-4 py-4 pb-8 z-10 relative">
+            <div className="bg-gradient-to-t from-black/60 via-black/40 to-transparent px-safe px-3 sm:px-4 py-3 pb-safe pb-6 sm:pb-8 z-10 relative">
                 {/* ✅ Level Up Popups - Only show if NOT declined temporarily AND has valid action */}
                 <LevelUpPopup
                     show={
@@ -1221,51 +1206,16 @@ export default function ChatConversation() {
                             </button>
                         </>
                     ) : (
-                        /* Normal Mode with emoji picker */
+                        /* Normal Mode */
                         <>
-                            {/* Emoji Picker - WhatsApp Style */}
-                            {showEmojiPicker && (
-                                <div 
-                                    ref={emojiPickerRef}
-                                    className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-2xl overflow-hidden"
-                                    style={{ 
-                                        maxWidth: 'calc(100vw - 2rem)',
-                                        width: '350px'
-                                    }}
-                                >
-                                    <EmojiPicker
-                                        onEmojiClick={onEmojiClick}
-                                        width="100%"
-                                        height="400px"
-                                        theme="light"
-                                        searchPlaceHolder="Search emoji..."
-                                        previewConfig={{ showPreview: false }}
-                                        skinTonesDisabled
-                                        emojiStyle="apple"
-                                        lazyLoadEmojis={true}
-                                        categories={[
-                                            { category: 'suggested', name: 'Recently Used' },
-                                            { category: 'smileys_people', name: 'Smileys & People' },
-                                            { category: 'animals_nature', name: 'Animals & Nature' },
-                                            { category: 'food_drink', name: 'Food & Drink' },
-                                            { category: 'travel_places', name: 'Travel & Places' },
-                                            { category: 'activities', name: 'Activities' },
-                                            { category: 'objects', name: 'Objects' },
-                                            { category: 'symbols', name: 'Symbols' },
-                                            { category: 'flags', name: 'Flags' }
-                                        ]}
-                                    />
-                                </div>
-                            )}
-
-                            <div className="flex-1 bg-white rounded-full px-4 py-3 flex items-center gap-2">
-                                {/* Emoji Button */}
+                            <div className="flex-1 bg-white rounded-full px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 shadow-lg">
+                                {/* Emoji Button - Opens native keyboard */}
                                 <button
                                     type="button"
-                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                    className="flex-shrink-0 hover:scale-110 transition-transform"
+                                    onClick={() => inputRef.current?.focus()}
+                                    className="flex-shrink-0 active:scale-95 transition-transform p-1"
                                 >
-                                    <svg className="w-6 h-6 text-gray-500 hover:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-6 h-6 sm:w-5 sm:h-5 text-gray-500 active:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </button>
@@ -1278,7 +1228,7 @@ export default function ChatConversation() {
                                     onChange={handleTyping}
                                     onKeyPress={handleKeyPress}
                                     placeholder="Message"
-                                    className="flex-1 bg-transparent text-gray-800 placeholder-gray-500 outline-none text-sm"
+                                    className="flex-1 bg-transparent text-gray-800 placeholder-gray-400 outline-none text-[15px] sm:text-sm"
                                 />
                             </div>
 
@@ -1286,7 +1236,7 @@ export default function ChatConversation() {
                                 <button
                                     type="button"
                                     onClick={handleSendMessage}
-                                    className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0"
+                                    className="w-10 h-10 sm:w-9 sm:h-9 bg-white rounded-full flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform shadow-md"
                                 >
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -1318,7 +1268,7 @@ export default function ChatConversation() {
                                 <button
                                     type="button"
                                     onClick={startRecording}
-                                    className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0"
+                                    className="w-10 h-10 sm:w-9 sm:h-9 bg-white rounded-full flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform shadow-md"
                                 >
                                     <img src="/chatMic.svg" alt="Microphone" className="w-5 h-5" />
                                 </button>
@@ -1330,11 +1280,11 @@ export default function ChatConversation() {
 
             {/* Unsend Message Dialog */}
             {showDeleteDialog && selectedMessage && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Unsend message?</h3>
-                            <p className="text-gray-600 text-sm mb-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+                        <div className="p-5 sm:p-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Unsend message?</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 {canUnsendMessage(selectedMessage)
                                     ? 'This message will be removed for both you and the recipient.'
                                     : 'Messages can only be unsent within 12 hours of sending.'}
@@ -1344,7 +1294,7 @@ export default function ChatConversation() {
                                 {canUnsendMessage(selectedMessage) && (
                                     <button
                                         onClick={handleUnsendMessage}
-                                        className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
+                                        className="w-full py-3.5 px-4 bg-red-500 text-white rounded-xl sm:rounded-2xl font-medium active:bg-red-600 transition-colors text-[15px] sm:text-base"
                                     >
                                         Unsend
                                     </button>
@@ -1354,7 +1304,7 @@ export default function ChatConversation() {
                                         setShowDeleteDialog(false);
                                         setSelectedMessage(null);
                                     }}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
                                     Cancel
                                 </button>
@@ -1366,24 +1316,24 @@ export default function ChatConversation() {
 
             {/* Block Dialog */}
             {showBlockDialog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Block {otherUser?.firstName || otherUser?.name}?</h3>
-                            <p className="text-gray-600 text-sm mb-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+                        <div className="p-5 sm:p-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Block {otherUser?.firstName || otherUser?.name}?</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 Blocked users won't be able to message you. This will also remove your match and conversation. This action cannot be undone.
                             </p>
 
                             <div className="space-y-3">
                                 <button
                                     onClick={handleBlock}
-                                    className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-red-500 text-white rounded-xl sm:rounded-2xl font-medium active:bg-red-600 transition-colors text-[15px] sm:text-base"
                                 >
                                     Block
                                 </button>
                                 <button
                                     onClick={() => setShowBlockDialog(false)}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
                                     Cancel
                                 </button>
@@ -1395,18 +1345,18 @@ export default function ChatConversation() {
 
             {/* Report Dialog */}
             {showReportDialog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden max-h-[90vh] flex flex-col">
-                        <div className="p-6 overflow-y-auto">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Report {otherUser?.firstName || otherUser?.name}</h3>
-                            <p className="text-gray-600 text-sm mb-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden max-h-[85vh] sm:max-h-[90vh] flex flex-col shadow-2xl">
+                        <div className="p-5 sm:p-6 overflow-y-auto">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Report {otherUser?.firstName || otherUser?.name}</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 Help us understand what's wrong. Your report is anonymous and will be reviewed by our team.
                             </p>
 
                             {/* Reason Selection */}
                             <div className="space-y-2 mb-4">
-                                <label className="text-sm font-medium text-gray-700">Reason *</label>
-                                <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700 block">Reason *</label>
+                                <div className="space-y-2.5">
                                     {[
                                         { value: 'inappropriate_messages', label: 'Inappropriate messages' },
                                         { value: 'fake_profile', label: 'Fake profile' },
@@ -1416,7 +1366,7 @@ export default function ChatConversation() {
                                     ].map((option) => (
                                         <label 
                                             key={option.value}
-                                            className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
+                                            className="flex items-center gap-3 p-3.5 border-2 border-gray-200 rounded-xl active:bg-gray-50 cursor-pointer transition-colors"
                                         >
                                             <input
                                                 type="radio"
@@ -1424,17 +1374,17 @@ export default function ChatConversation() {
                                                 value={option.value}
                                                 checked={reportReason === option.value}
                                                 onChange={(e) => setReportReason(e.target.value)}
-                                                className="w-4 h-4 text-blue-600"
+                                                className="w-5 h-5 text-blue-600 flex-shrink-0"
                                             />
-                                            <span className="text-gray-800 text-sm">{option.label}</span>
+                                            <span className="text-gray-800 text-[15px] sm:text-sm">{option.label}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
 
                             {/* Description (Optional) */}
-                            <div className="space-y-2 mb-6">
-                                <label className="text-sm font-medium text-gray-700">
+                            <div className="space-y-2 mb-5 sm:mb-6">
+                                <label className="text-sm font-medium text-gray-700 block">
                                     Additional details (optional)
                                 </label>
                                 <textarea
@@ -1445,7 +1395,7 @@ export default function ChatConversation() {
                                         }
                                     }}
                                     placeholder="Provide any additional context..."
-                                    className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:outline-none focus:border-blue-500 transition-colors"
+                                    className="w-full p-3.5 border-2 border-gray-200 rounded-xl resize-none focus:outline-none focus:border-blue-500 transition-colors text-[15px] sm:text-sm"
                                     rows={4}
                                     maxLength={500}
                                 />
@@ -1458,9 +1408,9 @@ export default function ChatConversation() {
                                 <button
                                     onClick={handleReport}
                                     disabled={!reportReason}
-                                    className={`w-full py-3 px-4 rounded-xl font-medium transition-colors ${
+                                    className={`w-full py-3.5 px-4 rounded-xl sm:rounded-2xl font-medium transition-colors text-[15px] sm:text-base ${
                                         reportReason 
-                                            ? 'bg-red-500 text-white hover:bg-red-600' 
+                                            ? 'bg-red-500 text-white active:bg-red-600' 
                                             : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                     }`}
                                 >
@@ -1472,7 +1422,7 @@ export default function ChatConversation() {
                                         setReportReason('');
                                         setReportDescription('');
                                     }}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
                                     Cancel
                                 </button>
@@ -1484,24 +1434,24 @@ export default function ChatConversation() {
 
             {/* Unmatch Dialog */}
             {showUnmatchDialog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Unmatch with {otherUser?.firstName || otherUser?.name}?</h3>
-                            <p className="text-gray-600 text-sm mb-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+                        <div className="p-5 sm:p-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Unmatch with {otherUser?.firstName || otherUser?.name}?</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 This will remove your match and delete all messages for both of you. This action cannot be undone.
                             </p>
 
                             <div className="space-y-3">
                                 <button
                                     onClick={handleUnmatch}
-                                    className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-red-500 text-white rounded-xl sm:rounded-2xl font-medium active:bg-red-600 transition-colors text-[15px] sm:text-base"
                                 >
                                     Unmatch
                                 </button>
                                 <button
                                     onClick={() => setShowUnmatchDialog(false)}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
                                     Cancel
                                 </button>
