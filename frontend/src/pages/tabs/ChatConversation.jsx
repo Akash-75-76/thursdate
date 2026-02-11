@@ -5,6 +5,7 @@ import socketService from '../../utils/socket';
 import LevelUpPopup from './LevelUpPopup';
 import Level2UnlockedPopup from './Level2UnlockedPopup';
 import ConsentReminderBanner from '../../components/ConsentReminderBanner';
+import EmojiPicker from 'emoji-picker-react';
 
 export default function ChatConversation() {
     const navigate = useNavigate();
@@ -28,8 +29,10 @@ export default function ChatConversation() {
     const [showReportDialog, setShowReportDialog] = useState(false);
     const [reportReason, setReportReason] = useState('');
     const [reportDescription, setReportDescription] = useState('');
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const menuRef = useRef(null);
     const messagesEndRef = useRef(null);
+    const emojiPickerRef = useRef(null);
     const typingTimeoutRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -70,11 +73,26 @@ export default function ChatConversation() {
             socketService.connect(token);
         }
 
-        // Join conversation room (with slight delay to ensure socket is ready)
-        setTimeout(() => {
-            console.log('Joining conversation room:', conversationId, 'Socket connected:', socketService.isConnected());
-            socketService.joinConversation(conversationId);
-        }, 100);
+        // Wait for socket to be connected, then join and request status
+        const waitForConnection = () => {
+            if (socketService.isConnected()) {
+                console.log('✅ Socket connected, joining conversation:', conversationId);
+                socketService.joinConversation(conversationId);
+                // Request user status after socket is connected
+                socketService.requestUserStatus(otherUser.id);
+            } else {
+                console.log('⏳ Waiting for socket connection...');
+                setTimeout(waitForConnection, 200);
+            }
+        };
+        waitForConnection();
+
+        // Poll user status every 30 seconds to keep it fresh
+        const statusPollInterval = setInterval(() => {
+            if (socketService.isConnected()) {
+                socketService.requestUserStatus(otherUser.id);
+            }
+        }, 30000);
 
         // Listen for new messages
         socketService.onNewMessage(({ conversationId: msgConvId, message: newMsg }) => {
@@ -129,13 +147,18 @@ export default function ChatConversation() {
 
         // Listen for user status changes
         socketService.onUserStatus(({ userId, isOnline: online }) => {
+            console.log('👤 User status update:', userId, 'online:', online, '(otherUser:', otherUser.id, ')');
             if (userId === otherUser.id) {
                 setIsOnline(online);
             }
         });
 
-        // Request current status of other user
-        socketService.requestUserStatus(otherUser.id);
+        // Listen for socket reconnection to re-request status
+        socketService.on('connect', () => {
+            console.log('♻️ Socket reconnected, re-requesting user status');
+            socketService.joinConversation(conversationId);
+            socketService.requestUserStatus(otherUser.id);
+        });
 
         // Listen for message deletions
         socketService.on('message_deleted', (data) => {
@@ -185,14 +208,18 @@ export default function ChatConversation() {
                 loadLevelStatus();
             }
         });
-
-        // ✅ Load initial level status
-        loadLevelStatus();
-
-        return () => {
+// Clear status poll interval
+            clearInterval(statusPollInterval);
+            
             socketService.leaveConversation(conversationId);
             socketService.off('new_message');
             socketService.off('user_typing');
+            socketService.off('messages_read');
+            socketService.off('message_delivered');
+            socketService.off('user_status');
+            socketService.off('message_deleted');
+            socketService.off('conversation_unmatched');
+            socketService.off('connect
             socketService.off('messages_read');
             socketService.off('message_delivered');
             socketService.off('user_status');
@@ -406,9 +433,15 @@ export default function ChatConversation() {
             ));
         }
     };
+ && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
 
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter') {
+    const onEmojiClick = (emojiData) => {
+        setMessage(prev => prev + emojiData.emoji);
+        inputRef.current?.focus();f (e.key === 'Enter') {
             handleSendMessage();
         }
     };
@@ -744,22 +777,29 @@ export default function ChatConversation() {
 
 
 
-    // Close menu when clicking outside
+    // Close menu and emoji picker when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (menuRef.current && !menuRef.current.contains(event.target)) {
                 setShowMenu(false);
             }
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+                // Don't close if clicking the emoji button itself
+                const emojiButton = event.target.closest('button');
+                if (!emojiButton || !emojiButton.querySelector('svg path[d*="M14.828"]')) {
+                    setShowEmojiPicker(false);
+                }
+            }
         };
 
-        if (showMenu) {
+        if (showMenu || showEmojiPicker) {
             document.addEventListener('mousedown', handleClickOutside);
         }
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showMenu]);
+    }, [showMenu, showEmojiPicker]);
 
 
 
@@ -1001,11 +1041,12 @@ export default function ChatConversation() {
 
             {/* Input Area */}
             <div className="bg-gradient-to-t from-black/60 to-transparent px-4 py-4 pb-8 z-10 relative">
-                {/* ✅ Level Up Popups - Only show if NOT declined temporarily */}
+                {/* ✅ Level Up Popups - Only show if NOT declined temporarily AND has valid action */}
                 <LevelUpPopup
                     show={
                         levelStatus?.level2PopupPending === true && 
-                        levelStatus?.level2ConsentState !== 'DECLINED_TEMPORARY'
+                        levelStatus?.level2ConsentState !== 'DECLINED_TEMPORARY' &&
+                        (levelStatus?.level2Action === 'FILL_INFORMATION' || levelStatus?.level2Action === 'ASK_CONSENT')
                     }
                     type="LEVEL_2"
                     action={levelStatus?.level2Action}
@@ -1018,7 +1059,8 @@ export default function ChatConversation() {
                 <LevelUpPopup
                     show={
                         levelStatus?.level3PopupPending === true && 
-                        levelStatus?.level3ConsentState !== 'DECLINED_TEMPORARY'
+                        levelStatus?.level3ConsentState !== 'DECLINED_TEMPORARY' &&
+                        (levelStatus?.level3Action === 'FILL_INFORMATION' || levelStatus?.level3Action === 'ASK_CONSENT')
                     }
                     type="LEVEL_3"
                     action={levelStatus?.level3Action}
@@ -1150,15 +1192,42 @@ export default function ChatConversation() {
                             <button
                                 type="button"
                                 onClick={stopRecording}
-                                className="w-11 h-11 bg-[#00A884] rounded-full flex items-center justify-center flex-shrink-0 hover:bg-[#008c6f] transition-all shadow-lg"
-                            >
-                                <div className="w-4 h-4 bg-white rounded-sm"></div>
-                            </button>
-                        </>
-                    ) : (
-                        /* Normal Mode - Text Input */
-                        <>
-                            <div className="flex-1 bg-white rounded-full px-4 py-3 flex items-center">
+                            {/* Emoji Picker - WhatsApp Style */}
+                            {showEmojiPicker && (
+                                <div 
+                                    ref={emojiPickerRef}
+                                    className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-2xl overflow-hidden"
+                                    style={{ 
+                                        maxWidth: 'calc(100vw - 2rem)',
+                                        width: '350px'
+                                    }}
+                                >
+                                    <EmojiPicker
+                                        onEmojiClick={onEmojiClick}
+                                        width="100%"
+                                        height="400px"
+                                        theme="light"
+                                        searchPlaceHolder="Search emoji..."
+                                        previewConfig={{ showPreview: false }}
+                                        skinTonesDisabled
+                                        emojiStyle="native"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="flex-1 bg-white rounded-full px-4 py-3 flex items-center gap-2">
+                                {/* Emoji Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                    className="flex-shrink-0 hover:scale-110 transition-transform"
+                                >
+                                    <svg className="w-6 h-6 text-gray-500 hover:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </button>
+
+                                {/* Text Input */}
                                 <input
                                     ref={inputRef}
                                     type="text"
@@ -1167,8 +1236,7 @@ export default function ChatConversation() {
                                     onKeyPress={handleKeyPress}
                                     placeholder="Message"
                                     className="flex-1 bg-transparent text-gray-800 placeholder-gray-500 outline-none text-sm"
-                                />
-                                <button
+                                /
                                     type="button"
                                     onClick={() => inputRef.current?.focus()}
                                     className="ml-2"
