@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { authAPI } from "../../utils/api";
 
@@ -12,23 +12,66 @@ const CARD_BODY_INACTIVE = "text-white/80";
 
 export default function Signup() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState("email"); // 'email' | 'otp'
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(30);
+  const [canResend, setCanResend] = useState(false);
   const navigate = useNavigate();
 
-  const handleSignup = async (e) => {
+  // Timer for resend OTP
+  React.useEffect(() => {
+    if (step === "otp" && resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (resendTimer === 0) {
+      setCanResend(true);
+    }
+  }, [step, resendTimer]);
+
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     try {
-      // Register user with the backend
-      await authAPI.register(email, password);
+      await authAPI.sendEmailOTP(email);
+      setStep("otp");
+      setResendTimer(30);
+      setCanResend(false);
+    } catch (err) {
+      setError(err.message || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Navigate to user info to start onboarding
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      await authAPI.verifyEmailOTP(email, otp);
+      // Register user (no password)
+      await authAPI.register(email, "");
       navigate("/user-info");
     } catch (err) {
-      setError(err.message || 'Signup failed');
+      setError(err.message || 'Invalid OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await authAPI.resendEmailOTP(email);
+      setResendTimer(30);
+      setCanResend(false);
+      setOtp("");
+    } catch (err) {
+      setError(err.message || 'Failed to resend OTP');
     } finally {
       setLoading(false);
     }
@@ -52,52 +95,73 @@ export default function Signup() {
         Sundate
       </div>
 
-      <div
-        className={`relative z-10 w-full max-w-sm p-6 pt-10 pb-8 rounded-3xl ${CARD_GLASS_ACTIVE} flex flex-col items-center mt-28`}
-      >
-        <form className="w-full space-y-4" onSubmit={handleSignup}>
-          <h2 className="text-white text-2xl font-bold mb-6 text-center">
-            Sign Up
-          </h2>
-
-          <input
-            type="email"
-            placeholder="Email"
-            className={INPUT_GLASS}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-
-          <input
-            type="password"
-            placeholder="Password"
-            className={INPUT_GLASS}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-
-          {error && <div className="text-red-300 text-sm">{error}</div>}
-
-          <button
-            type="submit"
-            className={BUTTON_GLASS_ACTIVE_SOLID + " w-full py-4 rounded-xl mt-6"}
-            disabled={loading}
-          >
-            {loading ? "Signing up..." : "Sign Up"}
-          </button>
-
-          <div className="pt-4 text-center text-sm">
-            <span className={CARD_BODY_INACTIVE}>Already have an account?</span>
-            <Link
-              to="/login"
-              className="text-white font-medium hover:text-white/80 transition ml-1"
+      <div className={`relative z-10 w-full max-w-sm p-6 pt-10 pb-8 rounded-3xl ${CARD_GLASS_ACTIVE} flex flex-col items-center mt-28`}>
+        {step === "email" && (
+          <form className="w-full space-y-4" onSubmit={handleSendOTP}>
+            <h2 className="text-white text-2xl font-bold mb-6 text-center">Sign Up</h2>
+            <input
+              type="email"
+              placeholder="Email"
+              className={INPUT_GLASS}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            {error && <div className="text-red-300 text-sm">{error}</div>}
+            <button
+              type="submit"
+              className={BUTTON_GLASS_ACTIVE_SOLID + " w-full py-4 rounded-xl mt-6"}
+              disabled={loading}
             >
-              Login
-            </Link>
-          </div>
-        </form>
+              {loading ? "Sending OTP..." : "Send OTP"}
+            </button>
+            <div className="pt-4 text-center text-sm">
+              <span className={CARD_BODY_INACTIVE}>Already have an account?</span>
+              <Link
+                to="/login"
+                className="text-white font-medium hover:text-white/80 transition ml-1"
+              >
+                Login
+              </Link>
+            </div>
+          </form>
+        )}
+        {step === "otp" && (
+          <form className="w-full space-y-4" onSubmit={handleVerifyOTP}>
+            <h2 className="text-white text-2xl font-bold mb-6 text-center">Enter OTP</h2>
+            <div className="text-white/80 text-sm mb-2 text-center">Enter the 6-digit code sent to {email}</div>
+            <input
+              type="text"
+              maxLength={6}
+              placeholder="6-digit OTP"
+              className={INPUT_GLASS}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ""))}
+              required
+            />
+            <div className="text-white/60 text-xs mb-2 text-center">
+              {canResend ? (
+                <button type="button" onClick={handleResendOTP} className="text-white underline hover:text-white/80">Resend OTP</button>
+              ) : (
+                <span>Resend in {resendTimer}s</span>
+              )}
+            </div>
+            {error && <div className="text-red-300 text-sm">{error}</div>}
+            <button
+              type="submit"
+              className={BUTTON_GLASS_ACTIVE_SOLID + " w-full py-4 rounded-xl mt-6"}
+              disabled={loading || otp.length !== 6}
+            >
+              {loading ? "Verifying..." : "Verify & Sign Up"}
+            </button>
+            <div className="pt-4 text-center text-sm">
+              <span className={CARD_BODY_INACTIVE}>Entered wrong email?</span>
+              <button type="button" className="text-white font-medium hover:text-white/80 transition ml-1" onClick={() => { setStep("email"); setOtp(""); setError(""); }}>
+                Go Back
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

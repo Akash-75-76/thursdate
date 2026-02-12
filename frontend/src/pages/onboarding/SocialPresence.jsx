@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import emailConfirmIcon from "../../../public/email-confirm-icon.svg";
-import { userAPI, authAPI } from '../../utils/api';
+import { userAPI } from '../../utils/api';
 
 export default function SocialPresence() {
     const navigate = useNavigate();
 
     // === STATES ===
-    const [email, setEmail] = useState("");
-    const [showConfirm, setShowConfirm] = useState(false);
-    const [emailOTP, setEmailOTP] = useState("");
-    const [emailOTPVerified, setEmailOTPVerified] = useState(false);
+    // Removed email and OTP verification states
     const [instagram, setInstagram] = useState(""); // Reused for all inputs
     const [showInstaConfirm, setShowInstaConfirm] = useState(false);
     const [confirmInstagram, setConfirmInstagram] = useState("");
@@ -25,9 +21,7 @@ export default function SocialPresence() {
     const [licenseBackPreview, setLicenseBackPreview] = useState(null);
     const [licenseVerified, setLicenseVerified] = useState(false);
 
-    // OTP Timers
-    const [emailResendTimer, setEmailResendTimer] = useState(30);
-    const [emailCanResend, setEmailCanResend] = useState(false);
+    // Removed email OTP timers
 
     // === GLASS STYLES ===
     const INPUT_GLASS =
@@ -38,7 +32,7 @@ export default function SocialPresence() {
         "bg-white text-black cursor-not-allowed border border-white/20";
 
     // === VALIDATIONS ===
-    const isEmailValid = email.trim() && /.+@.+\..+/.test(email);
+    // Removed email validation
 
     const isInputValid = () => {
         if (!instagram.trim()) return false;
@@ -48,15 +42,7 @@ export default function SocialPresence() {
 
     const isConfirmInputValid = confirmInstagram.trim() === instagram;
 
-    // Email OTP Timer
-    useEffect(() => {
-        if (showConfirm && emailResendTimer > 0) {
-            const timer = setTimeout(() => setEmailResendTimer(emailResendTimer - 1), 1000);
-            return () => clearTimeout(timer);
-        } else if (emailResendTimer === 0) {
-            setEmailCanResend(true);
-        }
-    }, [emailResendTimer, showConfirm]);
+    // Removed email OTP timer effect
 
     // cleanup object URLs when component unmounts
     useEffect(() => {
@@ -78,7 +64,9 @@ export default function SocialPresence() {
                     setInstagram(linkedinUrl);
                 }
                 setCodeVerified(true);
+                setShowInstaConfirm(true); // Show the success modal
                 setVerificationMethod('linkedin');
+                setShowMethodSelection(false); // Hide method selection
                 // Clean up URL
                 window.history.replaceState({}, '', '/social-presence');
             }
@@ -86,46 +74,7 @@ export default function SocialPresence() {
     }, []);
 
     // === HANDLERS ===
-    const handleSendEmailOTP = async () => {
-        console.log('🔵 handleSendEmailOTP called for email:', email);
-        try {
-            console.log('🔵 Calling API...');
-            const result = await authAPI.sendEmailOTP(email);
-            console.log('✅ OTP sent successfully:', result.message);
-            setShowConfirm(true);
-            setEmailResendTimer(30);
-            setEmailCanResend(false);
-        } catch (err) {
-            console.error('❌ Failed to send email OTP:', err);
-            alert(err.message || 'Failed to send OTP. Please try again.');
-        }
-    };
-
-    const handleResendEmailOTP = async () => {
-        try {
-            const result = await authAPI.resendEmailOTP(email);
-            console.log('OTP resent successfully:', result.message);
-            setEmailResendTimer(30);
-            setEmailCanResend(false);
-            setEmailOTP("");
-        } catch (err) {
-            console.error('Failed to resend email OTP:', err);
-            alert(err.message || 'Failed to resend OTP. Please try again.');
-        }
-    };
-
-    const handleVerifyEmailOTP = async () => {
-        if (emailOTP.length === 6) {
-            try {
-                const result = await authAPI.verifyEmailOTP(email, emailOTP);
-                console.log('Email verified successfully:', result.message);
-                setEmailOTPVerified(true);
-            } catch (err) {
-                console.error('Failed to verify email OTP:', err);
-                alert(err.message || 'Invalid OTP. Please try again.');
-            }
-        }
-    };
+    // Removed email OTP handlers
 
     const handleLinkedInOAuth = () => {
         // Redirect to backend OAuth endpoint
@@ -189,7 +138,7 @@ export default function SocialPresence() {
                 <div className="w-full bg-white/30 rounded-full h-1.5 mb-8">
                     <div
                         className="bg-white h-1.5 rounded-full transition-all duration-300 shadow-md"
-                        style={{ width: codeVerified || emailOTPVerified || licenseVerified ? "100%" : "50%" }}
+                        style={{ width: codeVerified || licenseVerified ? "100%" : "50%" }}
                     ></div>
                 </div>
 
@@ -204,17 +153,6 @@ export default function SocialPresence() {
                         </p>
 
                         <div className="flex flex-col gap-4 mb-auto">
-                            {/* Gmail Option */}
-                            <button
-                                className="w-full py-4 rounded-full font-medium text-lg transition bg-white text-black hover:bg-gray-200 flex items-center justify-between pl-6 pr-4"
-                                onClick={() => {
-                                    setVerificationMethod("gmail");
-                                    setShowMethodSelection(false);
-                                }}
-                            >
-                                <span>Verify with Gmail</span>
-                                <span className="text-black text-xl">&gt;</span>
-                            </button>
 
                             {/* LinkedIn Option */}
                             <button
@@ -243,111 +181,8 @@ export default function SocialPresence() {
                     </div>
                 )}
 
-                {/* === GMAIL VERIFICATION === */}
-                {!showMethodSelection && verificationMethod === "gmail" && (
-                    <div className="flex flex-col flex-grow">
-                        <button
-                            onClick={() => {
-                                setShowMethodSelection(true);
-                                setVerificationMethod(null);
-                                setEmail("");
-                                setShowConfirm(false);
-                            }}
-                            className="self-start mb-4 text-white/80 hover:text-white flex items-center gap-2"
-                        >
-                            <span>&lt;</span> Back
-                        </button>
-                        <h1 className="text-xl font-normal mb-6 text-white drop-shadow-md">
-                            What's your email?
-                        </h1>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="Enter your Gmail address"
-                            className={`w-full px-4 py-4 border rounded-xl text-sm mb-auto transition ${INPUT_GLASS}`}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && isEmailValid) handleSendEmailOTP();
-                            }}
-                        />
-
-                        {!showConfirm && (
-                            <button
-                                disabled={!isEmailValid}
-                                onClick={handleSendEmailOTP}
-                                className={`w-full py-4 rounded-[9999px] font-medium text-lg mt-8 transition ${!isEmailValid ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
-                            >
-                                Next
-                            </button>
-                        )}
-
-                        {/* Email OTP Modal */}
-                        {showConfirm && (
-                            <div className="fixed left-0 right-0 bottom-0 flex justify-center items-end pb-6 z-50">
-                                <div className="w-full max-w-sm mx-auto rounded-3xl bg-white/20 backdrop-blur-lg shadow-2xl p-6 flex flex-col items-center border border-white/30">
-                                    {!emailOTPVerified ? (
-                                        <>
-                                            <img src={emailConfirmIcon} alt="Email" className="w-14 h-14 mb-4" />
-                                            <div className="text-white text-lg font-semibold mb-2">Email Verification</div>
-                                            <div className="text-white/80 text-sm mb-6 text-center">
-                                                Enter the 6-digit OTP sent to {email}
-                                            </div>
-                                            <input
-                                                type="text"
-                                                maxLength={6}
-                                                value={emailOTP}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/[^0-9]/g, "");
-                                                    setEmailOTP(val);
-                                                }}
-                                                placeholder="6-digit OTP"
-                                                className="w-full px-4 py-4 border rounded-xl text-sm mb-2 transition bg-white/20 backdrop-blur-sm text-white placeholder-white/80 border-white/30"
-                                            />
-                                            <div className="text-white/60 text-xs mb-4">
-                                                {emailCanResend ? (
-                                                    <button onClick={handleResendEmailOTP} className="text-white underline hover:text-white/80">
-                                                        Resend OTP
-                                                    </button>
-                                                ) : (
-                                                    <span>Resend in {emailResendTimer}s</span>
-                                                )}
-                                            </div>
-                                            <button
-                                                disabled={emailOTP.length !== 6}
-                                                onClick={handleVerifyEmailOTP}
-                                                className={`w-full py-4 rounded-xl font-medium text-lg transition ${emailOTP.length !== 6 ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
-                                            >
-                                                Verify OTP
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="flex items-center justify-center mb-4">
-                                                <span className="flex items-center justify-center w-20 h-20 rounded-full bg-[#4CAF50]">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 6L9 17l-5-5" />
-                                                    </svg>
-                                                </span>
-                                            </div>
-                                            <div className="text-white text-center text-base font-semibold leading-tight mb-6">
-                                                Your email has been verified successfully.
-                                            </div>
-                                            <button
-                                                className={`w-full py-4 rounded-xl font-medium text-lg transition ${BUTTON_GLASS_ACTIVE}`}
-                                                onClick={() => navigate("/face-verification")}
-                                            >
-                                                Continue
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-
                 {/* === LINKEDIN & LICENSE VERIFICATION === */}
-                {!showMethodSelection && verificationMethod !== "gmail" && verificationMethod !== null && (
+                {!showMethodSelection && verificationMethod !== null && (
                     <div className="flex flex-col flex-grow justify-between">
                         <div>
                             {/* Back Button */}
