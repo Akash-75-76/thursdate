@@ -1,35 +1,42 @@
-import { useNavigate } from 'react-router-dom';
-
 /**
  * LevelUpPopup Component
  * Displays above chat input when a level-up is triggered
  * Shows different UI based on action type
  */
 export default function LevelUpPopup({ 
+    show,
+    type,
     action, 
-    level, 
-    otherUserName,
+    partnerName,
     conversationId,
-    onConsent,
-    onDecline,
-    onClose
+    onFillInfo,
+    onYes,
+    onNo
 }) {
+    // Don't render if show is false or action is invalid
+    if (!show || (!action || (action !== 'FILL_INFORMATION' && action !== 'ASK_CONSENT'))) {
+        return null;
+    }
+    
+    const level = type === 'LEVEL_2' ? 2 : 3;
+    const otherUserName = partnerName;
     const navigate = useNavigate();
     
     const handleFillInformation = () => {
-        const mode = level === 2 ? 'level2' : 'level3';
-        navigate(`/profile-questions?mode=${mode}&conversationId=${conversationId}`);
+        if (onFillInfo) {
+            onFillInfo();
+        }
     };
     
     const handleYes = () => {
-        if (onConsent) {
-            onConsent(level);
+        if (onYes) {
+            onYes();
         }
     };
     
     const handleNo = () => {
-        if (onDecline) {
-            onDecline(level);
+        if (onNo) {
+            onNo();
         }
     };
     

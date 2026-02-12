@@ -46,11 +46,17 @@ export default function ChatConversation() {
     // const [pendingLevel2Threshold, setPendingLevel2Threshold] = useState(false);
     // const [pendingLevel3Threshold, setPendingLevel3Threshold] = useState(false);
 
-    // Normalize message timestamp - ensure createdAt exists
+    // Normalize message - ensure createdAt and isSent are set correctly
     const normalizeMessage = (msg) => {
+        // Get current user ID from token
+        const token = localStorage.getItem('token');
+        const currentUserId = token ? JSON.parse(atob(token.split('.')[1])).userId : null;
+        
         return {
             ...msg,
-            createdAt: msg.createdAt || msg.created_at || new Date().toISOString()
+            createdAt: msg.createdAt || msg.created_at || new Date().toISOString(),
+            // ✅ Always set isSent based on current user - critical for message alignment
+            isSent: msg.senderId === currentUserId
         };
     };
 
@@ -70,11 +76,26 @@ export default function ChatConversation() {
             socketService.connect(token);
         }
 
-        // Join conversation room (with slight delay to ensure socket is ready)
-        setTimeout(() => {
-            console.log('Joining conversation room:', conversationId, 'Socket connected:', socketService.isConnected());
-            socketService.joinConversation(conversationId);
-        }, 100);
+        // Wait for socket to be connected, then join and request status
+        const waitForConnection = () => {
+            if (socketService.isConnected()) {
+                console.log('✅ Socket connected, joining conversation:', conversationId);
+                socketService.joinConversation(conversationId);
+                // Request user status after socket is connected
+                socketService.requestUserStatus(otherUser.id);
+            } else {
+                console.log('⏳ Waiting for socket connection...');
+                setTimeout(waitForConnection, 200);
+            }
+        };
+        waitForConnection();
+
+        // Poll user status every 30 seconds to keep it fresh
+        const statusPollInterval = setInterval(() => {
+            if (socketService.isConnected()) {
+                socketService.requestUserStatus(otherUser.id);
+            }
+        }, 30000);
 
         // Listen for new messages
         socketService.onNewMessage(({ conversationId: msgConvId, message: newMsg }) => {
@@ -129,13 +150,18 @@ export default function ChatConversation() {
 
         // Listen for user status changes
         socketService.onUserStatus(({ userId, isOnline: online }) => {
+            console.log('👤 User status update:', userId, 'online:', online, '(otherUser:', otherUser.id, ')');
             if (userId === otherUser.id) {
                 setIsOnline(online);
             }
         });
 
-        // Request current status of other user
-        socketService.requestUserStatus(otherUser.id);
+        // Listen for socket reconnection to re-request status
+        socketService.on('connect', () => {
+            console.log('♻️ Socket reconnected, re-requesting user status');
+            socketService.joinConversation(conversationId);
+            socketService.requestUserStatus(otherUser.id);
+        });
 
         // Listen for message deletions
         socketService.on('message_deleted', (data) => {
@@ -190,6 +216,9 @@ export default function ChatConversation() {
         loadLevelStatus();
 
         return () => {
+            // Clear status poll interval
+            clearInterval(statusPollInterval);
+            
             socketService.leaveConversation(conversationId);
             socketService.off('new_message');
             socketService.off('user_typing');
@@ -198,6 +227,7 @@ export default function ChatConversation() {
             socketService.off('user_status');
             socketService.off('message_deleted');
             socketService.off('conversation_unmatched');
+            socketService.off('connect');
             socketService.off('level_threshold_reached');
             socketService.off('level2_unlocked');
             socketService.off('level3_unlocked');
@@ -390,8 +420,9 @@ export default function ChatConversation() {
         scrollToBottom();
 
         try {
-            const newMsg = await chatAPI.sendMessage(conversationId, 'text', textToSend);
-            console.log('Message sent, received response:', newMsg);
+            // Use Socket.IO for instant message delivery (faster than REST API)
+            const newMsg = await socketService.sendMessage(conversationId, 'text', textToSend);
+            console.log('✅ Message sent via socket, received response:', newMsg);
 
             // Replace optimistic message with real message
             const normalizedMsg = normalizeMessage(newMsg);
@@ -399,16 +430,31 @@ export default function ChatConversation() {
                 msg.id === tempId ? normalizedMsg : msg
             ));
         } catch (error) {
-            console.error('Failed to send message:', error);
-            // Mark message as failed
-            setMessages(prev => prev.map(msg =>
-                msg.id === tempId ? { ...msg, status: 'FAILED' } : msg
-            ));
+            console.error('❌ Failed to send message via socket:', error);
+            
+            // Fallback to REST API if socket fails
+            try {
+                console.log('🔄 Attempting fallback to REST API...');
+                const newMsg = await chatAPI.sendMessage(conversationId, 'text', textToSend);
+                console.log('✅ Message sent via REST API:', newMsg);
+
+                const normalizedMsg = normalizeMessage(newMsg);
+                setMessages(prev => prev.map(msg =>
+                    msg.id === tempId ? normalizedMsg : msg
+                ));
+            } catch (fallbackError) {
+                console.error('❌ Fallback also failed:', fallbackError);
+                // Mark message as failed
+                setMessages(prev => prev.map(msg =>
+                    msg.id === tempId ? { ...msg, status: 'FAILED' } : msg
+                ));
+            }
         }
     };
 
     const handleKeyPress = (e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
             handleSendMessage();
         }
     };
@@ -771,13 +817,13 @@ export default function ChatConversation() {
             }}
         >
             {/* Header */}
-            <div className="bg-white/10  border-b border-white/20 pt-12 pb-4 px-4">
+            <div className="bg-white/10 backdrop-blur-sm border-b border-white/20 pt-safe pt-12 pb-3 px-safe px-4 sm:px-6">
                 <div className="flex items-center justify-between">
                     {/* Back button and profile */}
                     <div className="flex items-center gap-3 flex-1">
                         <button
                             onClick={() => navigate('/home', { state: { selectedTab: 'chats' } })}
-                            className="w-8 h-8 flex items-center justify-center"
+                            className="w-10 h-10 flex items-center justify-center -ml-2 active:scale-95 transition-transform"
                         >
                             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -791,12 +837,12 @@ export default function ChatConversation() {
                                     conversationId: conversationId
                                 }
                             })}
-                            className="flex-shrink-0"
+                            className="flex-shrink-0 active:scale-95 transition-transform"
                         >
                             <img
                                 src={otherUser?.profilePicUrl || '/chatperson.png'}
                                 alt={otherUser?.name || 'User'}
-                                className="w-10 h-10 rounded-full object-cover"
+                                className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover ring-2 ring-white/30"
                             />
                         </button>
 
@@ -807,14 +853,14 @@ export default function ChatConversation() {
                                     conversationId: conversationId
                                 }
                             })}
-                            className="flex-1 text-left"
+                            className="flex-1 text-left min-w-0"
                         >
-                            <h2 className="text-white font-semibold text-lg">{otherUser?.name || 'User'}</h2>
+                            <h2 className="text-white font-semibold text-base sm:text-lg truncate">{otherUser?.name || 'User'}</h2>
                             <div className="flex items-center gap-1.5">
                                 {isOnline && (
-                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                    <div className="w-2 h-2 rounded-full bg-green-400 ring-2 ring-green-400/30"></div>
                                 )}
-                                <p className="text-white/70 text-xs">
+                                <p className="text-white/80 text-sm sm:text-xs">
                                     {isTyping ? 'typing...' : isOnline ? 'Online' : 'Offline'}
                                 </p>
                             </div>
@@ -825,7 +871,7 @@ export default function ChatConversation() {
                     <div className="relative" ref={menuRef}>
                         <button
                             onClick={() => setShowMenu(!showMenu)}
-                            className="w-8 h-8 flex items-center justify-center"
+                            className="w-10 h-10 flex items-center justify-center active:scale-95 transition-transform"
                         >
                             <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
@@ -928,9 +974,9 @@ export default function ChatConversation() {
                             }}
                         >
                             <div
-                                className={`max-w-[75%] rounded-2xl px-4 py-3 overflow-hidden ${msg.isSent
+                                className={`max-w-[85%] sm:max-w-[75%] md:max-w-[60%] rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 overflow-hidden shadow-md ${msg.isSent
                                     ? 'bg-white text-gray-800 rounded-br-md'
-                                    : 'bg-[#3A3A3C] text-white rounded-bl-md'
+                                    : 'bg-gradient-to-br from-[#3A3A3C] to-[#2C2C2E] text-white rounded-bl-md'
                                     }`}
                             >
 
@@ -945,10 +991,10 @@ export default function ChatConversation() {
                                         }}
                                     />
                                 ) : (
-                                    <p className="text-sm">{msg.content}</p>
+                                    <p className="text-[15px] sm:text-sm leading-relaxed break-words">{msg.content}</p>
                                 )}
-                                <div className={`flex items-center gap-1 mt-1 justify-end ${msg.isSent ? 'text-gray-500' : 'text-white/60'}`}>
-                                    <span className="text-xs">{formatTime(msg.createdAt)}</span>
+                                <div className={`flex items-center gap-1.5 mt-1.5 justify-end ${msg.isSent ? 'text-gray-500' : 'text-white/60'}`}>
+                                    <span className="text-[11px] sm:text-xs">{formatTime(msg.createdAt)}</span>
                                     {msg.isSent && (
                                         <div className="relative flex items-center ">
                                             {console.log('Rendering msg', msg.id, 'status:', msg.status, 'isRead:', msg.isRead)}
@@ -1000,12 +1046,13 @@ export default function ChatConversation() {
             </div>
 
             {/* Input Area */}
-            <div className="bg-gradient-to-t from-black/60 to-transparent px-4 py-4 pb-8 z-10 relative">
-                {/* ✅ Level Up Popups - Only show if NOT declined temporarily */}
+            <div className="bg-gradient-to-t from-black/60 via-black/40 to-transparent px-safe px-3 sm:px-4 py-3 pb-safe pb-6 sm:pb-8 z-10 relative">
+                {/* ✅ Level Up Popups - Only show if NOT declined temporarily AND has valid action */}
                 <LevelUpPopup
                     show={
                         levelStatus?.level2PopupPending === true && 
-                        levelStatus?.level2ConsentState !== 'DECLINED_TEMPORARY'
+                        levelStatus?.level2ConsentState !== 'DECLINED_TEMPORARY' &&
+                        (levelStatus?.level2Action === 'FILL_INFORMATION' || levelStatus?.level2Action === 'ASK_CONSENT')
                     }
                     type="LEVEL_2"
                     action={levelStatus?.level2Action}
@@ -1018,7 +1065,8 @@ export default function ChatConversation() {
                 <LevelUpPopup
                     show={
                         levelStatus?.level3PopupPending === true && 
-                        levelStatus?.level3ConsentState !== 'DECLINED_TEMPORARY'
+                        levelStatus?.level3ConsentState !== 'DECLINED_TEMPORARY' &&
+                        (levelStatus?.level3Action === 'FILL_INFORMATION' || levelStatus?.level3Action === 'ASK_CONSENT')
                     }
                     type="LEVEL_3"
                     action={levelStatus?.level3Action}
@@ -1152,13 +1200,27 @@ export default function ChatConversation() {
                                 onClick={stopRecording}
                                 className="w-11 h-11 bg-[#00A884] rounded-full flex items-center justify-center flex-shrink-0 hover:bg-[#008c6f] transition-all shadow-lg"
                             >
-                                <div className="w-4 h-4 bg-white rounded-sm"></div>
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
                             </button>
                         </>
                     ) : (
-                        /* Normal Mode - Text Input */
+                        /* Normal Mode */
                         <>
-                            <div className="flex-1 bg-white rounded-full px-4 py-3 flex items-center">
+                            <div className="flex-1 bg-white rounded-full px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 shadow-lg">
+                                {/* Emoji Button - Opens native keyboard */}
+                                <button
+                                    type="button"
+                                    onClick={() => inputRef.current?.focus()}
+                                    className="flex-shrink-0 active:scale-95 transition-transform p-1"
+                                >
+                                    <svg className="w-6 h-6 sm:w-5 sm:h-5 text-gray-500 active:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </button>
+
+                                {/* Text Input */}
                                 <input
                                     ref={inputRef}
                                     type="text"
@@ -1166,57 +1228,47 @@ export default function ChatConversation() {
                                     onChange={handleTyping}
                                     onKeyPress={handleKeyPress}
                                     placeholder="Message"
-                                    className="flex-1 bg-transparent text-gray-800 placeholder-gray-500 outline-none text-sm"
+                                    className="flex-1 bg-transparent text-gray-800 placeholder-gray-400 outline-none text-[15px] sm:text-sm"
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => inputRef.current?.focus()}
-                                    className="ml-2"
-                                >
-                                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </button>
                             </div>
 
                             {message.trim() ? (
-                              <button
-  type="button"
-  onClick={handleSendMessage}
-  className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0"
->
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="18"
-    height="18"
-    viewBox="0 0 18 18"
-    fill="none"
-  >
-    <path
-      d="M17.5158 2.01275C17.9478 0.81775 16.7898 -0.34025 15.5948 0.0927503L0.989804 5.37475C-0.209196 5.80875 -0.354196 7.44475 0.748804 8.08375L5.4108 10.7828L9.5738 6.61975C9.76241 6.43759 10.015 6.3368 10.2772 6.33908C10.5394 6.34135 10.7902 6.44652 10.9756 6.63193C11.161 6.81734 11.2662 7.06815 11.2685 7.33035C11.2708 7.59255 11.17 7.84515 10.9878 8.03375L6.8248 12.1968L9.5248 16.8587C10.1628 17.9618 11.7988 17.8158 12.2328 16.6178L17.5158 2.01275Z"
-      fill="url(#paint0_linear_3584_5867)"
-    />
-    <defs>
-      <linearGradient
-        id="paint0_linear_3584_5867"
-        x1="8.80409"
-        y1="0"
-        x2="8.80409"
-        y2="17.6072"
-        gradientUnits="userSpaceOnUse"
-      >
-        <stop stopColor="#DD9200" />
-        <stop offset="1" stopColor="#F9C900" />
-      </linearGradient>
-    </defs>
-  </svg>
-</button>
-
+                                <button
+                                    type="button"
+                                    onClick={handleSendMessage}
+                                    className="w-10 h-10 sm:w-9 sm:h-9 bg-white rounded-full flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform shadow-md"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 18 18"
+                                        fill="none"
+                                    >
+                                        <path
+                                            d="M17.5158 2.01275C17.9478 0.81775 16.7898 -0.34025 15.5948 0.0927503L0.989804 5.37475C-0.209196 5.80875 -0.354196 7.44475 0.748804 8.08375L5.4108 10.7828L9.5738 6.61975C9.76241 6.43759 10.015 6.3368 10.2772 6.33908C10.5394 6.34135 10.7902 6.44652 10.9756 6.63193C11.161 6.81734 11.2662 7.06815 11.2685 7.33035C11.2708 7.59255 11.17 7.84515 10.9878 8.03375L6.8248 12.1968L9.5248 16.8587C10.1628 17.9618 11.7988 17.8158 12.2328 16.6178L17.5158 2.01275Z"
+                                            fill="url(#paint0_linear_3584_5867)"
+                                        />
+                                        <defs>
+                                            <linearGradient
+                                                id="paint0_linear_3584_5867"
+                                                x1="8.80409"
+                                                y1="0"
+                                                x2="8.80409"
+                                                y2="17.6072"
+                                                gradientUnits="userSpaceOnUse"
+                                            >
+                                                <stop stopColor="#DD9200" />
+                                                <stop offset="1" stopColor="#F9C900" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                </button>
                             ) : (
                                 <button
                                     type="button"
                                     onClick={startRecording}
-                                    className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0"
+                                    className="w-10 h-10 sm:w-9 sm:h-9 bg-white rounded-full flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform shadow-md"
                                 >
                                     <img src="/chatMic.svg" alt="Microphone" className="w-5 h-5" />
                                 </button>
@@ -1228,11 +1280,11 @@ export default function ChatConversation() {
 
             {/* Unsend Message Dialog */}
             {showDeleteDialog && selectedMessage && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Unsend message?</h3>
-                            <p className="text-gray-600 text-sm mb-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+                        <div className="p-5 sm:p-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Unsend message?</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 {canUnsendMessage(selectedMessage)
                                     ? 'This message will be removed for both you and the recipient.'
                                     : 'Messages can only be unsent within 12 hours of sending.'}
@@ -1242,7 +1294,7 @@ export default function ChatConversation() {
                                 {canUnsendMessage(selectedMessage) && (
                                     <button
                                         onClick={handleUnsendMessage}
-                                        className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
+                                        className="w-full py-3.5 px-4 bg-red-500 text-white rounded-xl sm:rounded-2xl font-medium active:bg-red-600 transition-colors text-[15px] sm:text-base"
                                     >
                                         Unsend
                                     </button>
@@ -1252,7 +1304,7 @@ export default function ChatConversation() {
                                         setShowDeleteDialog(false);
                                         setSelectedMessage(null);
                                     }}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
                                     Cancel
                                 </button>
@@ -1264,24 +1316,24 @@ export default function ChatConversation() {
 
             {/* Block Dialog */}
             {showBlockDialog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Block {otherUser?.firstName || otherUser?.name}?</h3>
-                            <p className="text-gray-600 text-sm mb-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+                        <div className="p-5 sm:p-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Block {otherUser?.firstName || otherUser?.name}?</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 Blocked users won't be able to message you. This will also remove your match and conversation. This action cannot be undone.
                             </p>
 
                             <div className="space-y-3">
                                 <button
                                     onClick={handleBlock}
-                                    className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-red-500 text-white rounded-xl sm:rounded-2xl font-medium active:bg-red-600 transition-colors text-[15px] sm:text-base"
                                 >
                                     Block
                                 </button>
                                 <button
                                     onClick={() => setShowBlockDialog(false)}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
                                     Cancel
                                 </button>
@@ -1293,18 +1345,18 @@ export default function ChatConversation() {
 
             {/* Report Dialog */}
             {showReportDialog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden max-h-[90vh] flex flex-col">
-                        <div className="p-6 overflow-y-auto">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Report {otherUser?.firstName || otherUser?.name}</h3>
-                            <p className="text-gray-600 text-sm mb-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden max-h-[85vh] sm:max-h-[90vh] flex flex-col shadow-2xl">
+                        <div className="p-5 sm:p-6 overflow-y-auto">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Report {otherUser?.firstName || otherUser?.name}</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 Help us understand what's wrong. Your report is anonymous and will be reviewed by our team.
                             </p>
 
                             {/* Reason Selection */}
                             <div className="space-y-2 mb-4">
-                                <label className="text-sm font-medium text-gray-700">Reason *</label>
-                                <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700 block">Reason *</label>
+                                <div className="space-y-2.5">
                                     {[
                                         { value: 'inappropriate_messages', label: 'Inappropriate messages' },
                                         { value: 'fake_profile', label: 'Fake profile' },
@@ -1314,7 +1366,7 @@ export default function ChatConversation() {
                                     ].map((option) => (
                                         <label 
                                             key={option.value}
-                                            className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
+                                            className="flex items-center gap-3 p-3.5 border-2 border-gray-200 rounded-xl active:bg-gray-50 cursor-pointer transition-colors"
                                         >
                                             <input
                                                 type="radio"
@@ -1322,17 +1374,17 @@ export default function ChatConversation() {
                                                 value={option.value}
                                                 checked={reportReason === option.value}
                                                 onChange={(e) => setReportReason(e.target.value)}
-                                                className="w-4 h-4 text-blue-600"
+                                                className="w-5 h-5 text-blue-600 flex-shrink-0"
                                             />
-                                            <span className="text-gray-800 text-sm">{option.label}</span>
+                                            <span className="text-gray-800 text-[15px] sm:text-sm">{option.label}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
 
                             {/* Description (Optional) */}
-                            <div className="space-y-2 mb-6">
-                                <label className="text-sm font-medium text-gray-700">
+                            <div className="space-y-2 mb-5 sm:mb-6">
+                                <label className="text-sm font-medium text-gray-700 block">
                                     Additional details (optional)
                                 </label>
                                 <textarea
@@ -1343,7 +1395,7 @@ export default function ChatConversation() {
                                         }
                                     }}
                                     placeholder="Provide any additional context..."
-                                    className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:outline-none focus:border-blue-500 transition-colors"
+                                    className="w-full p-3.5 border-2 border-gray-200 rounded-xl resize-none focus:outline-none focus:border-blue-500 transition-colors text-[15px] sm:text-sm"
                                     rows={4}
                                     maxLength={500}
                                 />
@@ -1356,9 +1408,9 @@ export default function ChatConversation() {
                                 <button
                                     onClick={handleReport}
                                     disabled={!reportReason}
-                                    className={`w-full py-3 px-4 rounded-xl font-medium transition-colors ${
+                                    className={`w-full py-3.5 px-4 rounded-xl sm:rounded-2xl font-medium transition-colors text-[15px] sm:text-base ${
                                         reportReason 
-                                            ? 'bg-red-500 text-white hover:bg-red-600' 
+                                            ? 'bg-red-500 text-white active:bg-red-600' 
                                             : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                     }`}
                                 >
@@ -1370,7 +1422,7 @@ export default function ChatConversation() {
                                         setReportReason('');
                                         setReportDescription('');
                                     }}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
                                     Cancel
                                 </button>
@@ -1382,24 +1434,24 @@ export default function ChatConversation() {
 
             {/* Unmatch Dialog */}
             {showUnmatchDialog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[45] px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6">
-                            <h3 className="text-xl font-semibold text-gray-800 mb-2">Unmatch with {otherUser?.firstName || otherUser?.name}?</h3>
-                            <p className="text-gray-600 text-sm mb-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+                        <div className="p-5 sm:p-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Unmatch with {otherUser?.firstName || otherUser?.name}?</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 This will remove your match and delete all messages for both of you. This action cannot be undone.
                             </p>
 
                             <div className="space-y-3">
                                 <button
                                     onClick={handleUnmatch}
-                                    className="w-full py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-red-500 text-white rounded-xl sm:rounded-2xl font-medium active:bg-red-600 transition-colors text-[15px] sm:text-base"
                                 >
                                     Unmatch
                                 </button>
                                 <button
                                     onClick={() => setShowUnmatchDialog(false)}
-                                    className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                                    className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
                                     Cancel
                                 </button>

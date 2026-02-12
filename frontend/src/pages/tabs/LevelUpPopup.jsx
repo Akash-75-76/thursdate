@@ -16,6 +16,11 @@ export default function LevelUpPopup({ show, type, action, partnerName, onFillIn
     const isLevel2 = type === 'LEVEL_2';
     const isLevel3 = type === 'LEVEL_3';
     
+    // ✅ Don't render if action is invalid or NO_ACTION
+    if (!action || (action !== 'FILL_INFORMATION' && action !== 'ASK_CONSENT')) {
+        return null;
+    }
+    
     // ✅ CRITICAL: Frontend does NOT decide logic, only follows backend action
     const shouldShowFillInfo = action === 'FILL_INFORMATION';
     const shouldShowConsent = action === 'ASK_CONSENT';
@@ -85,14 +90,6 @@ export default function LevelUpPopup({ show, type, action, partnerName, onFillIn
                                     )}
                                 </div>
                             </>
-                        )}
-
-                        {/* ✅ NO_ACTION / Invalid - should not happen */}
-                        {!shouldShowFillInfo && !shouldShowConsent && (
-                            <div className="text-white text-sm text-center py-2">
-                                <p>⚠️ Debug: Invalid action</p>
-                                <p className="text-xs mt-1">Action: {action || 'undefined'}</p>
-                            </div>
                         )}
                     </div>
                 </motion.div>
