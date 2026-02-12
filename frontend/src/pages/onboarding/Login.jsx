@@ -53,8 +53,16 @@ export default function Login() {
     try {
       // Verify OTP - returns token and user data on success
       const response = await authAPI.verifyEmailOTP(email, otp);
-      // Get user profile to determine where to navigate
-      const userData = response.user || await userAPI.getProfile();
+      
+      // Use user data from response (no need for additional API call)
+      const userData = response.user;
+      
+      if (!userData) {
+        setError('Failed to get user data');
+        return;
+      }
+      
+      // Navigation logic based on approval and onboarding status
       if (userData.approval && userData.onboardingComplete) {
         navigate("/home");
         return;
