@@ -109,6 +109,16 @@ export default function SettingsTab() {
     return intent.interestedGender;
   };
 
+  const formatLocationPreference = (locationPreference) => {
+    if (!locationPreference) return "Same city";
+    const labels = {
+      'same_city': 'Same city',
+      'nearby_cities': 'Nearby cities',
+      'anywhere': 'Anywhere'
+    };
+    return labels[locationPreference] || 'Same city';
+  };
+
   const formatAccountPrivacy = (user) => {
     if (!user) return "Public"; // Default value
     return user.isPrivate ? "Private" : "Public";
@@ -199,6 +209,11 @@ export default function SettingsTab() {
               title="Interested in"
               value={formatInterestedIn(userInfo?.intent)}
               onClick={() => navigate("/settings/gender-preference")}
+            />
+            <SettingItem
+              title="Location preference"
+              value={formatLocationPreference(userInfo?.locationPreference)}
+              onClick={() => navigate("/settings/location-preference")}
             />
           </SettingsGroup>
 

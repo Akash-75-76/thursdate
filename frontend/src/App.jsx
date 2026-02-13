@@ -22,6 +22,7 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminReportDetails from "./pages/admin/AdminReportDetails";
 import AgePreference from "./pages/settings/AgePreferencePage";
 import GenderPreference from "./pages/settings/GenderPreferencePage";
+import LocationPreference from "./pages/settings/LocationPreferencePage";
 import DirectRequests from "./pages/settings/DirectRequestsPage";
 import PersonalImage from "./pages/settings/PersonalImagePage";
 import AccountPrivacy from "./pages/settings/AccountPrivacyPage";
@@ -79,6 +80,7 @@ export default function App() {
         {/* Settings Routes */}
         <Route path="/settings/age-preference" element={<AgePreference />} />
         <Route path="/settings/gender-preference" element={<GenderPreference />} />
+        <Route path="/settings/location-preference" element={<LocationPreference />} />
         <Route path="/settings/direct-requests" element={<DirectRequests />} />
         <Route path="/settings/personal-image" element={<PersonalImage />} />
         <Route path="/settings/account-privacy" element={<AccountPrivacy />} />

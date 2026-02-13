@@ -20,6 +20,29 @@ const safeJsonParse = (jsonString, defaultValue = null) => {
     }
 };
 
+// Helper function to extract city from location string
+// Examples: "Mumbai, India" -> "Mumbai", "New York, NY, USA" -> "New York"
+// Normalizes city names: "Pune District" -> "Pune", "Mumbai City" -> "Mumbai"
+const extractCity = (locationString) => {
+    if (!locationString || typeof locationString !== 'string') return null;
+    const parts = locationString.split(',').map(p => p.trim());
+    let cityName = parts[0] || null;
+    
+    if (!cityName) return null;
+    
+    // Normalize city name - remove common suffixes
+    cityName = cityName
+        .replace(/\s+District$/i, '')
+        .replace(/\s+City$/i, '')
+        .replace(/\s+Metropolitan$/i, '')
+        .replace(/\s+Metro$/i, '')
+        .replace(/\s+Urban$/i, '')
+        .replace(/\s+Area$/i, '')
+        .trim();
+    
+    return cityName;
+};
+
 // Helper function to validate database connection
 const validateConnection = async () => {
     try {
@@ -40,7 +63,7 @@ router.get('/profile', auth, async (req, res) => {
 
         const [users] = await pool.execute(
             // 🛑 FIX: is_private REMOVED from the SELECT query
-            'SELECT id, email, first_name, last_name, gender, dob, current_location, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, face_photo_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin, face_photos FROM users WHERE id = ?',
+            'SELECT id, email, first_name, last_name, gender, dob, current_location, city, location_preference, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, face_photo_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin, face_photos FROM users WHERE id = ?',
             [req.user.userId]
         );
         
@@ -59,6 +82,8 @@ router.get('/profile', auth, async (req, res) => {
             gender: user.gender || null,
             dob: user.dob || null,
             currentLocation: user.current_location || null,
+            city: user.city || null,
+            locationPreference: user.location_preference || 'same_city',
             favouriteTravelDestination: user.favourite_travel_destination || null,
             lastHolidayPlaces: safeJsonParse(user.last_holiday_places, []),
             favouritePlacesToGo: safeJsonParse(user.favourite_places_to_go, []),
@@ -240,11 +265,14 @@ router.post('/profile', auth, async (req, res) => {
         const lastHolidayPlacesJson = JSON.stringify(lastHolidayPlaces || []);
         const favouritePlacesToGoJson = JSON.stringify(favouritePlacesToGo || []);
         
+        // Extract city from currentLocation
+        const city = currentLocation ? extractCity(currentLocation) : null;
+        
         await pool.execute(
             // 🛑 is_private REMOVED from UPDATE query
             `UPDATE users SET 
                 first_name = ?, last_name = ?, gender = ?, dob = ?, 
-                current_location = ?, favourite_travel_destination = ?, 
+                current_location = ?, city = ?, favourite_travel_destination = ?, 
                 last_holiday_places = ?, favourite_places_to_go = ?, 
                 profile_pic_url = ?, face_photo_url = ?, approval = false
             WHERE id = ?`,
@@ -253,7 +281,8 @@ router.post('/profile', auth, async (req, res) => {
                 lastName || null, 
                 gender || null, 
                 formattedDob, 
-                currentLocation || null, 
+                currentLocation || null,
+                city,
                 favouriteTravelDestination || null, 
                 lastHolidayPlacesJson, 
                 favouritePlacesToGoJson, 
@@ -303,6 +332,7 @@ router.put('/profile', auth, async (req, res) => {
             firstName, lastName, gender, dob, currentLocation, favouriteTravelDestination,
             lastHolidayPlaces, favouritePlacesToGo, profilePicUrl, intent, onboardingComplete,
             isPrivate, // This is read, but won't be used in the SQL/updateData
+            locationPreference, // ✅ NEW: Location matching preference
             // ✅ NEW: Extract profile fields for hybrid storage
             interests, pets, drinking, smoking, height, religiousLevel, kidsPreference, 
             foodPreference, relationshipStatus, fromLocation, instagram, linkedin, facePhotos
@@ -313,6 +343,9 @@ router.put('/profile', auth, async (req, res) => {
         
         // Keep the current approval status - don't change it when onboarding completes
         let finalApprovalStatus = currentUser.approval;
+        
+        // Extract city from currentLocation if provided
+        const city = currentLocation !== undefined ? extractCity(currentLocation) : currentUser.city;
 
         const updateData = [
             firstName !== undefined ? firstName : currentUser.first_name,
@@ -320,6 +353,8 @@ router.put('/profile', auth, async (req, res) => {
             gender !== undefined ? gender : currentUser.gender,
             dob ? new Date(dob).toISOString().split('T')[0] : currentUser.dob, 
             currentLocation !== undefined ? currentLocation : currentUser.current_location,
+            city,
+            locationPreference !== undefined ? locationPreference : (currentUser.location_preference || 'same_city'),
             favouriteTravelDestination !== undefined ? favouriteTravelDestination : currentUser.favourite_travel_destination,
             JSON.stringify(lastHolidayPlaces !== undefined ? lastHolidayPlaces : safeJsonParse(currentUser.last_holiday_places, [])),
             JSON.stringify(favouritePlacesToGo !== undefined ? favouritePlacesToGo : safeJsonParse(currentUser.favourite_places_to_go, [])),
@@ -347,10 +382,10 @@ router.put('/profile', auth, async (req, res) => {
         
         await pool.execute(
             // 🛑 is_private REMOVED from UPDATE query
-            // ✅ NEW: Added profile columns for hybrid storage
+            // ✅ NEW: Added profile columns for hybrid storage + city & location_preference
             `UPDATE users SET 
                 first_name = ?, last_name = ?, gender = ?, dob = ?, 
-                current_location = ?, favourite_travel_destination = ?, 
+                current_location = ?, city = ?, location_preference = ?, favourite_travel_destination = ?, 
                 last_holiday_places = ?, favourite_places_to_go = ?, 
                 profile_pic_url = ?, intent = ?, onboarding_complete = ?,
                 approval = ?,
@@ -409,9 +444,9 @@ router.get('/matches/potential', auth, async (req, res) => {
             return res.status(500).json({ error: 'Database connection failed' });
         }
 
-        // Get current user's preferences
+        // Get current user's preferences including location
         const [currentUserData] = await pool.execute(
-            'SELECT intent FROM users WHERE id = ?',
+            'SELECT intent, city, location_preference FROM users WHERE id = ?',
             [userId]
         );
 
@@ -422,6 +457,8 @@ router.get('/matches/potential', auth, async (req, res) => {
         const currentUserIntent = safeJsonParse(currentUserData[0].intent, {});
         const preferredAgeRange = currentUserIntent.preferredAgeRange || [35, 85];
         const interestedGender = currentUserIntent.interestedGender;
+        const userCity = currentUserData[0].city;
+        const locationPreference = currentUserData[0].location_preference || 'same_city';
 
         // Validate age range
         const minAge = preferredAgeRange[0];
@@ -496,10 +533,26 @@ router.get('/matches/potential', auth, async (req, res) => {
 
         console.log('[DEBUG] Query params:', queryParams);
 
+        // Build location clause based on user preference
+        let locationClause = '';
+        if (locationPreference === 'same_city' && userCity) {
+            locationClause = ' AND city = ?';
+            queryParams.push(userCity);
+            console.log('[DEBUG] Filtering by same city:', userCity);
+        } else if (locationPreference === 'nearby_cities' && userCity) {
+            // For nearby cities, we'll match same city for now
+            // In future, you could add a cities mapping table for nearby cities
+            locationClause = ' AND city = ?';
+            queryParams.push(userCity);
+            console.log('[DEBUG] Filtering by nearby cities (currently same city):', userCity);
+        } else {
+            console.log('[DEBUG] No location filtering (showing anywhere)');
+        }
+
         // Get potential matches using dob BETWEEN (no YEAR function, no ORDER BY RAND)
         // Exclude blocked users (both users who blocked current user and users blocked by current user)
         const [users] = await pool.execute(
-            `SELECT id, email, first_name, last_name, gender, dob, current_location, 
+            `SELECT id, email, first_name, last_name, gender, dob, current_location, city,
                     favourite_travel_destination, profile_pic_url, intent, 
                     interests, pets, drinking, smoking, height, religious_level, 
                     kids_preference, food_preference, relationship_status, from_location, 
@@ -512,6 +565,7 @@ router.get('/matches/potential', auth, async (req, res) => {
                 AND CAST(dob AS CHAR) != '0000-00-00'
                 AND dob BETWEEN ? AND ?
                 ${genderClause}
+                ${locationClause}
                 AND NOT EXISTS (
                   SELECT 1 FROM blocks b 
                   WHERE (b.blocker_id = ? AND b.blocked_id = users.id)
@@ -545,6 +599,7 @@ router.get('/matches/potential', auth, async (req, res) => {
                     gender: user.gender,
                     dob: user.dob,
                     currentLocation: user.current_location,
+                    city: user.city,
                     fromLocation: user.from_location,
                     favouriteTravelDestination: user.favourite_travel_destination,
                     profilePicUrl: user.profile_pic_url,

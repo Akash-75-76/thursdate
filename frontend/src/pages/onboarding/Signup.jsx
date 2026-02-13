@@ -52,8 +52,8 @@ export default function Signup() {
     setError("");
     try {
       await authAPI.verifyEmailOTP(email, otp);
-      // Register user (no password)
-      await authAPI.register(email, "");
+      // Token is now automatically stored by verifyEmailOTP
+      // User account is created (if new) or logged in (if existing) by backend
       navigate("/user-info");
     } catch (err) {
       setError(err.message || 'Invalid OTP');

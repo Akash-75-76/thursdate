@@ -173,8 +173,14 @@ export default function UserIntent() {
     const trimmed = tvInput.trim();
     if (trimmed && !tvShows.includes(trimmed)) {
       setTvShows(prev => [...prev, trimmed]);
+      setTvInput('');
     }
-    setTvInput('');
+  };
+
+  const handleTvInputBlur = () => {
+    if (tvInput.trim()) {
+      addTvShow();
+    }
   };
 
   const removeTvShow = (item) => {
@@ -185,8 +191,14 @@ export default function UserIntent() {
     const trimmed = movieInput.trim();
     if (trimmed && !movies.includes(trimmed)) {
       setMovies(prev => [...prev, trimmed]);
+      setMovieInput('');
     }
-    setMovieInput('');
+  };
+
+  const handleMovieInputBlur = () => {
+    if (movieInput.trim()) {
+      addMovie();
+    }
   };
 
   const removeMovie = (item) => {
@@ -575,11 +587,20 @@ export default function UserIntent() {
                   value={tvInput}
                   onChange={e => setTvInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addTvShow()}
+                  onBlur={handleTvInputBlur}
                   placeholder="e.g. The Office"
                   className="flex-1 rounded-xl p-3 text-base"
                   style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
                 />
-
+                <button
+                  type="button"
+                  onClick={addTvShow}
+                  disabled={!tvInput.trim()}
+                  className="px-5 py-3 rounded-xl font-medium text-sm"
+                  style={tvInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+                >
+                  Add
+                </button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {tvShows.map((s, i) => (
@@ -599,11 +620,20 @@ export default function UserIntent() {
                   value={movieInput}
                   onChange={e => setMovieInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addMovie()}
+                  onBlur={handleMovieInputBlur}
                   placeholder="e.g. The Godfather"
                   className="flex-1 rounded-xl p-3 text-base"
                   style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
                 />
-
+                <button
+                  type="button"
+                  onClick={addMovie}
+                  disabled={!movieInput.trim()}
+                  className="px-5 py-3 rounded-xl font-medium text-sm"
+                  style={movieInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+                >
+                  Add
+                </button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {movies.map((m, i) => (

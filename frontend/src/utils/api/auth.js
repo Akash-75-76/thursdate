@@ -133,6 +133,15 @@ export const authAPI = {
         }
 
         const data = await response.json();
+        
+        // Store token if returned (passwordless login/signup)
+        if (data.token) {
+            localStorage.setItem('token', data.token);
+            if (data.userId) {
+                localStorage.setItem('userId', data.userId);
+            }
+        }
+        
         return data;
     },
 

@@ -76,13 +76,13 @@ router.get('/linkedin/callback', async (req, res) => {
             userId = existingUsers[0].id;
             // Update LinkedIn info for existing user
             await pool.execute(
-                'UPDATE users SET linkedin_url = ? WHERE id = ?',
+                'UPDATE users SET linkedin = ? WHERE id = ?',
                 [profileUrl, userId]
             );
         } else {
             // Create new user
             const [result] = await pool.execute(
-                'INSERT INTO users (email, linkedin_url, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
+                'INSERT INTO users (email, linkedin, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
                 [userInfo.email, profileUrl, false, false]
             );
             userId = result.insertId;

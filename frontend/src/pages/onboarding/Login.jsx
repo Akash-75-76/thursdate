@@ -52,8 +52,9 @@ export default function Login() {
     setError("");
     try {
       await authAPI.verifyEmailOTP(email, otp);
-      // Login (no password)
-      await authAPI.login(email, "");
+      // Token is now automatically stored by verifyEmailOTP
+      // User account is created (if new) or logged in (if existing) by backend
+
       // Get user profile to determine where to navigate
       const userData = await userAPI.getProfile();
       if (userData.approval && userData.onboardingComplete) {

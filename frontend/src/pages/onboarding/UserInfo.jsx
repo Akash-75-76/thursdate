@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   WheelPicker,
   WheelPickerWrapper,
@@ -12,12 +12,68 @@ const getDaysInMonth = (year, month) => {
   return new Date(year, month + 1, 0).getDate();
 };
 
-// List of popular locations for autocomplete
-const popularLocations = [
-  "Paris", "Tokyo", "New York", "London", "Sydney",
-  "Rome", "Barcelona", "Amsterdam", "Bangkok", "Cape Town",
-  "Dubai", "San Francisco", "Rio de Janeiro", "Kyoto", "Vancouver"
-];
+// Debounce helper for API calls
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+};
+
+// Location autocomplete using OpenStreetMap Nominatim API
+const fetchLocationSuggestions = async (query) => {
+  if (!query || query.length < 2) return [];
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'Sundate-Dating-App' // Nominatim requires a User-Agent
+        }
+      }
+    );
+    const data = await response.json();
+
+    // Map and normalize city names
+    const suggestions = data.map(item => {
+      const cityName = item.address?.city || item.address?.town || item.address?.village || '';
+      // Normalize: remove District, City, etc.
+      const normalizedCity = cityName
+        .replace(/\s+District$/i, '')
+        .replace(/\s+City$/i, '')
+        .replace(/\s+Metropolitan$/i, '')
+        .replace(/\s+Metro$/i, '')
+        .trim();
+
+      return {
+        name: item.display_name,
+        city: normalizedCity,
+        country: item.address?.country || '',
+        type: item.type
+      };
+    });
+
+    // Remove duplicates based on normalized city name + country
+    const uniqueSuggestions = [];
+    const seen = new Set();
+
+    for (const suggestion of suggestions) {
+      const key = `${suggestion.city.toLowerCase()}-${suggestion.country.toLowerCase()}`;
+      if (!seen.has(key) && suggestion.city) {
+        seen.add(key);
+        uniqueSuggestions.push(suggestion);
+      }
+    }
+
+    // Limit to 5 unique suggestions
+    return uniqueSuggestions.slice(0, 5);
+  } catch (error) {
+    console.error('Location fetch error:', error);
+    return [];
+  }
+};
 
 // --- Custom Tailwind/CSS Overrides for Glassmorphism ---
 const GLASS_BACKGROUND = 'bg-white/10';
@@ -45,7 +101,11 @@ export default function UserInfo() {
 
   // States for additional steps
   const [currentLocation, setCurrentLocation] = useState("");
+  const [currentLocationSuggestions, setCurrentLocationSuggestions] = useState([]);
+  const [loadingCurrentLocation, setLoadingCurrentLocation] = useState(false);
   const [favouriteTravelDestination, setFavouriteTravelDestination] = useState("");
+  const [favouriteDestinationSuggestions, setFavouriteDestinationSuggestions] = useState([]);
+  const [loadingFavouriteDestination, setLoadingFavouriteDestination] = useState(false);
 
   // States for tag-based inputs
   const [lastHolidayPlaces, setLastHolidayPlaces] = useState([]);
@@ -104,31 +164,59 @@ export default function UserInfo() {
     setPickerYear(String(initialDate.getFullYear()));
   }, [dob, showDatePicker]);
 
+  // Debounced values for API calls
+  const debouncedCurrentLocation = useDebounce(currentLocation, 500);
+  const debouncedFavouriteDestination = useDebounce(favouriteTravelDestination, 500);
+  const debouncedLastHolidayInput = useDebounce(currentLastHolidayPlaceInput, 500);
+  const debouncedFavouritePlaceInput = useDebounce(currentFavouritePlaceToGoInput, 500);
+
+  // Effect for current location autocomplete
+  useEffect(() => {
+    if (!debouncedCurrentLocation || debouncedCurrentLocation.length < 2) {
+      setCurrentLocationSuggestions([]);
+      return;
+    }
+    setLoadingCurrentLocation(true);
+    fetchLocationSuggestions(debouncedCurrentLocation).then(suggestions => {
+      setCurrentLocationSuggestions(suggestions);
+      setLoadingCurrentLocation(false);
+    });
+  }, [debouncedCurrentLocation]);
+
+  // Effect for favourite destination autocomplete
+  useEffect(() => {
+    if (!debouncedFavouriteDestination || debouncedFavouriteDestination.length < 2) {
+      setFavouriteDestinationSuggestions([]);
+      return;
+    }
+    setLoadingFavouriteDestination(true);
+    fetchLocationSuggestions(debouncedFavouriteDestination).then(suggestions => {
+      setFavouriteDestinationSuggestions(suggestions);
+      setLoadingFavouriteDestination(false);
+    });
+  }, [debouncedFavouriteDestination]);
+
   // Effect for autocomplete suggestions for Last Holiday Places
   useEffect(() => {
-    if (currentLastHolidayPlaceInput.trim() === "") {
+    if (!debouncedLastHolidayInput || debouncedLastHolidayInput.length < 2) {
       setLastHolidaySuggestions([]);
       return;
     }
-    const input = currentLastHolidayPlaceInput.toLowerCase();
-    const suggestions = popularLocations.filter(location =>
-      location.toLowerCase().startsWith(input)
-    );
-    setLastHolidaySuggestions(suggestions);
-  }, [currentLastHolidayPlaceInput]);
+    fetchLocationSuggestions(debouncedLastHolidayInput).then(suggestions => {
+      setLastHolidaySuggestions(suggestions.map(s => s.name));
+    });
+  }, [debouncedLastHolidayInput]);
 
   // Effect for autocomplete suggestions for Favourite Places to Go
   useEffect(() => {
-    if (currentFavouritePlaceToGoInput.trim() === "") {
+    if (!debouncedFavouritePlaceInput || debouncedFavouritePlaceInput.length < 2) {
       setFavouritePlaceSuggestions([]);
       return;
     }
-    const input = currentFavouritePlaceToGoInput.toLowerCase();
-    const suggestions = popularLocations.filter(location =>
-      location.toLowerCase().startsWith(input)
-    );
-    setFavouritePlaceSuggestions(suggestions);
-  }, [currentFavouritePlaceToGoInput]);
+    fetchLocationSuggestions(debouncedFavouritePlaceInput).then(suggestions => {
+      setFavouritePlaceSuggestions(suggestions.map(s => s.name));
+    });
+  }, [debouncedFavouritePlaceInput]);
 
   // Adjust pickerDay if month/year changes and the day becomes invalid
   const updatePickerDayBasedOnMonthYear = useCallback((year, month, day) => {
@@ -582,16 +670,42 @@ export default function UserInfo() {
                   type="text"
                   value={currentLocation}
                   onChange={(e) => setCurrentLocation(e.target.value)}
-                  placeholder="e.g., Andheri"
+                  placeholder="Start typing your city... (e.g., Mumbai, India)"
                   className={`w-full px-4 py-3 border rounded-xl text-sm pr-10 ${INPUT_GLASS}`}
+                  autoComplete="off"
                 />
-                {currentLocation && (
+                {loadingCurrentLocation && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  </div>
+                )}
+                {currentLocation && !loadingCurrentLocation && (
                   <button
-                    onClick={() => setCurrentLocation("")}
+                    onClick={() => {
+                      setCurrentLocation("");
+                      setCurrentLocationSuggestions([]);
+                    }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 text-lg transition"
                   >
                     ×
                   </button>
+                )}
+                {currentLocationSuggestions.length > 0 && (
+                  <ul className="absolute z-20 w-full bg-white/40 backdrop-blur-lg border border-white/40 rounded-xl mt-1 max-h-60 overflow-y-auto shadow-xl">
+                    {currentLocationSuggestions.map((suggestion, index) => (
+                      <li
+                        key={index}
+                        onClick={() => {
+                          setCurrentLocation(suggestion.city ? `${suggestion.city}, ${suggestion.country}` : suggestion.name);
+                          setCurrentLocationSuggestions([]);
+                        }}
+                        className="px-4 py-3 text-sm text-white hover:bg-white/20 cursor-pointer transition border-b border-white/10 last:border-b-0"
+                      >
+                        <div className="font-medium">{suggestion.city || suggestion.name.split(',')[0]}</div>
+                        <div className="text-xs text-white/70 truncate">{suggestion.name}</div>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
 
@@ -616,16 +730,42 @@ export default function UserInfo() {
                   type="text"
                   value={favouriteTravelDestination}
                   onChange={(e) => setFavouriteTravelDestination(e.target.value)}
-                  placeholder="e.g., Paris"
+                  placeholder="Start typing... (e.g., Paris, France)"
                   className={`w-full px-4 py-3 border rounded-xl text-sm pr-10 ${INPUT_GLASS}`}
+                  autoComplete="off"
                 />
-                {favouriteTravelDestination && (
+                {loadingFavouriteDestination && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  </div>
+                )}
+                {favouriteTravelDestination && !loadingFavouriteDestination && (
                   <button
-                    onClick={() => setFavouriteTravelDestination("")}
+                    onClick={() => {
+                      setFavouriteTravelDestination("");
+                      setFavouriteDestinationSuggestions([]);
+                    }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 text-lg transition"
                   >
                     ×
                   </button>
+                )}
+                {favouriteDestinationSuggestions.length > 0 && (
+                  <ul className="absolute z-20 w-full bg-white/40 backdrop-blur-lg border border-white/40 rounded-xl mt-1 max-h-60 overflow-y-auto shadow-xl">
+                    {favouriteDestinationSuggestions.map((suggestion, index) => (
+                      <li
+                        key={index}
+                        onClick={() => {
+                          setFavouriteTravelDestination(suggestion.city ? `${suggestion.city}, ${suggestion.country}` : suggestion.name);
+                          setFavouriteDestinationSuggestions([]);
+                        }}
+                        className="px-4 py-3 text-sm text-white hover:bg-white/20 cursor-pointer transition border-b border-white/10 last:border-b-0"
+                      >
+                        <div className="font-medium">{suggestion.city || suggestion.name.split(',')[0]}</div>
+                        <div className="text-xs text-white/70 truncate">{suggestion.name}</div>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
               <button

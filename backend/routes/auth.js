@@ -184,9 +184,41 @@ router.post('/verify-email-otp', async (req, res) => {
     // OTP verified successfully
     console.log(`Email verified successfully for: ${email}`);
     
+    // Check if user exists
+    const [users] = await pool.execute(
+      'SELECT id, email FROM users WHERE email = ?',
+      [email]
+    );
+    
+    let userId;
+    
+    if (users.length === 0) {
+      // New user - create account
+      const hashedPassword = await bcrypt.hash('otp-verified', 10);
+      const [result] = await pool.execute(
+        'INSERT INTO users (email, password, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
+        [email, hashedPassword, false, false]
+      );
+      userId = result.insertId;
+      console.log(`New user created via OTP: ${email}, userId: ${userId}`);
+    } else {
+      // Existing user
+      userId = users[0].id;
+      console.log(`Existing user logged in via OTP: ${email}, userId: ${userId}`);
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId, email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
     res.json({
       message: 'Email verified successfully',
-      verified: true
+      verified: true,
+      token,
+      userId
     });
     
   } catch (error) {
