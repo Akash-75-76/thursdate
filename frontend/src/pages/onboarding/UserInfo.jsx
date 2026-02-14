@@ -6,6 +6,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import backgroundImage from '/bgs/bg-1.png'; // Adjust path if the image is in a different folder (e.g., '../assets/image_dd0111.jpg')
 import { authAPI, userAPI, uploadAPI } from '../../utils/api';
+import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
 
 // Helper to get days in a month (handles leap years)
 const getDaysInMonth = (year, month) => {
@@ -124,7 +125,7 @@ export default function UserInfo() {
 
   const navigate = useNavigate();
 
-  // Load existing profile data
+  // Load existing profile data and saved onboarding state
   useEffect(() => {
     let mounted = true;
     const loadProfile = async () => {
@@ -148,6 +149,23 @@ export default function UserInfo() {
         if (userData.lastHolidayPlaces) setLastHolidayPlaces(userData.lastHolidayPlaces);
         if (userData.favouritePlacesToGo) setFavouritePlacesToGo(userData.favouritePlacesToGo);
         if (userData.faceVerificationUrl) setFaceVerificationUrl(userData.faceVerificationUrl);
+
+        // Load saved onboarding state from localStorage (overrides profile data)
+        const savedState = loadOnboardingState(STORAGE_KEYS.USER_INFO);
+        if (savedState) {
+          console.log('[UserInfo] Restoring saved onboarding state:', savedState.step);
+          if (savedState.step) setStep(savedState.step);
+          if (savedState.firstName) setFirstName(savedState.firstName);
+          if (savedState.lastName) setLastName(savedState.lastName);
+          if (savedState.gender) setGender(savedState.gender);
+          if (savedState.customGender) setCustomGender(savedState.customGender);
+          if (savedState.dob) setDob(savedState.dob);
+          if (savedState.currentLocation) setCurrentLocation(savedState.currentLocation);
+          if (savedState.favouriteTravelDestination) setFavouriteTravelDestination(savedState.favouriteTravelDestination);
+          if (savedState.lastHolidayPlaces) setLastHolidayPlaces(savedState.lastHolidayPlaces);
+          if (savedState.favouritePlacesToGo) setFavouritePlacesToGo(savedState.favouritePlacesToGo);
+          if (savedState.faceVerificationUrl) setFaceVerificationUrl(savedState.faceVerificationUrl);
+        }
       } catch (err) {
         console.error('Failed to load profile', err);
       }
@@ -218,6 +236,24 @@ export default function UserInfo() {
     });
   }, [debouncedFavouritePlaceInput]);
 
+  // Auto-save onboarding state to localStorage whenever key fields change
+  useEffect(() => {
+    const state = {
+      step,
+      firstName,
+      lastName,
+      gender,
+      customGender,
+      dob,
+      currentLocation,
+      favouriteTravelDestination,
+      lastHolidayPlaces,
+      favouritePlacesToGo,
+      faceVerificationUrl,
+    };
+    saveOnboardingState(STORAGE_KEYS.USER_INFO, state);
+  }, [step, firstName, lastName, gender, customGender, dob, currentLocation, favouriteTravelDestination, lastHolidayPlaces, favouritePlacesToGo, faceVerificationUrl]);
+
   // Adjust pickerDay if month/year changes and the day becomes invalid
   const updatePickerDayBasedOnMonthYear = useCallback((year, month, day) => {
     const maxDays = getDaysInMonth(Number(year), Number(month) - 1);
@@ -246,6 +282,8 @@ export default function UserInfo() {
           favouritePlacesToGo,
           faceVerificationUrl, // Stored for later face matching verification
         });
+        // Clear saved onboarding state on successful completion
+        clearOnboardingState(STORAGE_KEYS.USER_INFO);
         navigate('/social-presence');
       } catch (err) {
         alert("Failed to save user info: " + err.message);
