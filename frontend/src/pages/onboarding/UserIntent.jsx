@@ -369,7 +369,7 @@ export default function UserIntent() {
           artistsBands,
           lifestyleImageUrls,
         },
-        profileImageUrl,
+        profilePicUrl: profileImageUrl,  // ✅ FIX: Changed from profileImageUrl to profilePicUrl to match backend
         onboardingComplete: true, // ✅ Onboarding complete - navigate to Home
       });
       // Clear saved onboarding state on successful completion

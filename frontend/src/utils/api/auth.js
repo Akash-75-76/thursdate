@@ -37,21 +37,23 @@ export const authAPI = {
 
     // Login user (MOCK or LIVE)
     login: async (email, password) => {
-        // --- MOCK ADMIN LOGIN INTERCEPTION (New) ---
-        if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-            console.warn("MOCK ADMIN LOGIN: Bypassing backend for mock admin account.");
-            const mockToken = MOCK_TOKEN_PREFIX + 'ADMIN_' + Date.now();
-            setToken(mockToken);
-            return { message: "Mock Admin Login Success", token: mockToken };
-        }
-        // -------------------------------------------
+        // ✅ Only allow mock bypass in development
+        if (process.env.NODE_ENV !== 'production') {
+            // --- MOCK ADMIN LOGIN INTERCEPTION (Dev only) ---
+            if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+                console.warn("MOCK ADMIN LOGIN: Bypassing backend for mock admin account.");
+                const mockToken = MOCK_TOKEN_PREFIX + 'ADMIN_' + Date.now();
+                setToken(mockToken);
+                return { message: "Mock Admin Login Success", token: mockToken };
+            }
 
-        // --- MOCK USER LOGIN INTERCEPTION (Existing) ---
-        if (email === DUMMY_EMAIL && password === DUMMY_PASSWORD) {
-            console.warn("MOCK LOGIN: Bypassing backend for dummy account.");
-            const mockToken = MOCK_TOKEN_PREFIX + Date.now();
-            setToken(mockToken);
-            return { message: "Mock Login Success", token: mockToken };
+            // --- MOCK USER LOGIN INTERCEPTION (Dev only) ---
+            if (email === DUMMY_EMAIL && password === DUMMY_PASSWORD) {
+                console.warn("MOCK LOGIN: Bypassing backend for dummy account.");
+                const mockToken = MOCK_TOKEN_PREFIX + Date.now();
+                setToken(mockToken);
+                return { message: "Mock Login Success", token: mockToken };
+            }
         }
         // --------------------------------
 
