@@ -158,7 +158,15 @@ export default function UserInfo() {
         // Load saved onboarding state from localStorage (overrides profile data)
         const savedState = loadOnboardingState(STORAGE_KEYS.USER_INFO);
         if (savedState) {
-          console.log('[UserInfo] Restoring saved onboarding state:', savedState.step);
+          console.log('[UserInfo] Restoring saved onboarding state:', {
+            step: savedState.step,
+            firstName: savedState.firstName,
+            lastName: savedState.lastName,
+            gender: savedState.gender,
+            currentLocation: savedState.currentLocation,
+            fromLocation: savedState.fromLocation,
+            travelDestCount: savedState.favouriteTravelDestination?.length || 0
+          });
           if (savedState.step) setStep(savedState.step);
           if (savedState.firstName) setFirstName(savedState.firstName);
           if (savedState.lastName) setLastName(savedState.lastName);
@@ -171,11 +179,16 @@ export default function UserInfo() {
           if (savedState.favouriteTravelDestination) setFavouriteTravelDestination(savedState.favouriteTravelDestination);
           if (savedState.lastHolidayPlaces) setLastHolidayPlaces(savedState.lastHolidayPlaces);
           if (savedState.faceVerificationUrl) setFaceVerificationUrl(savedState.faceVerificationUrl);
+        } else {
+          console.log('[UserInfo] No saved state found in localStorage');
         }
       } catch (err) {
         console.error('Failed to load profile', err);
       } finally {
-        if (mounted) setInitialLoading(false);
+        if (mounted) {
+          console.log('[UserInfo] Initial loading complete, enabling auto-save');
+          setInitialLoading(false);
+        }
       }
     };
     loadProfile();
@@ -241,7 +254,10 @@ export default function UserInfo() {
   // Auto-save onboarding state to localStorage whenever key fields change
   // ✅ FIX: Only save after initial loading is complete to avoid race condition
   useEffect(() => {
-    if (initialLoading) return; // Don't save during initial load
+    if (initialLoading) {
+      console.log('[UserInfo] Skipping save - still loading...');
+      return; // Don't save during initial load
+    }
 
     const state = {
       step,
@@ -256,7 +272,16 @@ export default function UserInfo() {
       lastHolidayPlaces,
       faceVerificationUrl,
     };
-    console.log('[UserInfo] Auto-saving state:', { step, hasData: !!firstName || !!lastName });
+    console.log('[UserInfo] Auto-saving state:', { 
+      step, 
+      firstName, 
+      lastName, 
+      gender,
+      currentLocation,
+      fromLocation,
+      travelDestCount: favouriteTravelDestination?.length || 0,
+      hasData: !!firstName || !!lastName 
+    });
     saveOnboardingState(STORAGE_KEYS.USER_INFO, state);
   }, [initialLoading, step, firstName, lastName, gender, customGender, dob, currentLocation, fromLocation, favouriteTravelDestination, lastHolidayPlaces, faceVerificationUrl]);
 
