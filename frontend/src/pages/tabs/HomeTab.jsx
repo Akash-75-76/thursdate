@@ -35,6 +35,10 @@ export default function HomeTab() {
   const [showMatchNotification, setShowMatchNotification] = useState(false);
   const [matchedUser, setMatchedUser] = useState(null);
 
+  // Match first prompt state
+  const [showMatchFirstPrompt, setShowMatchFirstPrompt] = useState(false);
+  const [promptCandidate, setPromptCandidate] = useState(null);
+
   // Daily game popup state
   const [showDailyGame, setShowDailyGame] = useState(false);
 
@@ -305,29 +309,40 @@ export default function HomeTab() {
   };
 
   const handleGoToChat = async () => {
-    if (!matchedUser) return;
+    // If this is called from the match notification popup
+    if (matchedUser) {
+      try {
+        // Get conversation with matched user (already created during match)
+        const { conversationId } = await chatAPI.createConversation(matchedUser.userId);
 
-    try {
-      // Get conversation with matched user (already created during match)
-      const { conversationId } = await chatAPI.createConversation(matchedUser.userId);
-
-      // Navigate to chat conversation
-      navigate('/chat-conversation', {
-        state: {
-          conversationId,
-          otherUser: {
-            id: matchedUser.userId,
-            name: `${matchedUser.firstName} ${matchedUser.lastName}`,
-            firstName: matchedUser.firstName,
-            lastName: matchedUser.lastName,
-            profilePicUrl: matchedUser.profilePicUrl,
-            location: matchedUser.currentLocation
+        // Navigate to chat conversation
+        navigate('/chat-conversation', {
+          state: {
+            conversationId,
+            otherUser: {
+              id: matchedUser.userId,
+              name: `${matchedUser.firstName} ${matchedUser.lastName}`,
+              firstName: matchedUser.firstName,
+              lastName: matchedUser.lastName,
+              profilePicUrl: matchedUser.profilePicUrl,
+              location: matchedUser.currentLocation
+            }
           }
-        }
-      });
-    } catch (error) {
-      console.error('Error navigating to chat:', error);
+        });
+      } catch (error) {
+        console.error('Error navigating to chat:', error);
+      }
+      return;
     }
+
+    // If called from the floating button in discover mode
+    // These are potential matches, not confirmed matches yet
+    const candidate = candidates[currentCandidateIndex];
+    if (!candidate) return;
+
+    // Show custom prompt that they need to match first
+    setPromptCandidate(candidate);
+    setShowMatchFirstPrompt(true);
   };
 
   return (
@@ -678,6 +693,30 @@ export default function HomeTab() {
           </>
         )}
       </div>
+
+      {/* Match First Prompt Modal */}
+      {showMatchFirstPrompt && promptCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md">
+          <div className="bg-gradient-to-br from-pink-500 to-purple-600 rounded-3xl p-8 mx-6 max-w-sm shadow-2xl">
+            <div className="text-center">
+              <div className="text-6xl mb-4">❤️</div>
+              <h2 className="text-white text-2xl font-bold mb-2">Match First!</h2>
+              <p className="text-white/90 text-base mb-6">
+                You need to like {promptCandidate.firstName}'s profile to match and start chatting. If they like you back, you'll match and can send messages!
+              </p>
+              <button
+                onClick={() => {
+                  setShowMatchFirstPrompt(false);
+                  setPromptCandidate(null);
+                }}
+                className="w-full px-6 py-3 bg-white text-purple-600 rounded-full font-semibold hover:bg-white/90 transition-all"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Match Notification Modal */}
       {showMatchNotification && matchedUser && (
