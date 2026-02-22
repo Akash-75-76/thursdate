@@ -133,7 +133,7 @@ export default function MembershipPage() {
           <div className="flex items-center gap-4">
             <img src={userInfo?.profilePicUrl || 'https://via.placeholder.com/50'} alt="Profile" className="w-12 h-12 rounded-full object-cover" />
             <div>
-              <p className="font-bold text-lg text-white">{userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : 'User Name'}</p>
+              <p className="font-bold text-lg text-white">{userInfo?.firstName || 'User Name'}</p>
               <button onClick={() => navigate('/home', { state: { selectedTab: 'profile' } })} className="text-sm text-white/80">My Profile &gt;</button>
             </div>
           </div>

@@ -295,7 +295,7 @@ export default function MessagesTab() {
                       conversationId,
                       otherUser: {
                         id: match.id,
-                        name: `${match.firstName} ${match.lastName}`,
+                        name: match.firstName,
                         profilePicUrl: match.profilePicUrl
                       }
                     }
@@ -309,7 +309,7 @@ export default function MessagesTab() {
             <div className="relative flex flex-col items-center">
               <img
                 src={match.profilePicUrl || "/chatperson.png"}
-                alt={`${match.firstName} ${match.lastName}`}
+                alt={match.firstName}
                 className="w-14 h-14 rounded-[14px] object-cover"
               />
 

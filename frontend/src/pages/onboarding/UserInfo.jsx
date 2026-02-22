@@ -383,6 +383,7 @@ export default function UserInfo() {
   // ✅ SWAPPED: Handlers for Favourite Travel Destination (Step 5) - Now array with 3+ items
   const handleAddFavouriteDestination = (e) => {
     if (e.key === 'Enter' && currentFavouriteDestinationInput.trim() !== '') {
+      e.preventDefault();
       const { name, details } = parsePlaceInput(currentFavouriteDestinationInput);
       setFavouriteTravelDestination(prev => [...prev, { id: Date.now(), name, details }]);
       setCurrentFavouriteDestinationInput("");
@@ -837,23 +838,31 @@ export default function UserInfo() {
               </p>
 
               {/* Input for new tags - manual entry only */}
-              <div className="relative mb-4">
+              <div className="flex gap-2 mb-4">
                 <input
                   type="text"
                   value={currentFavouriteDestinationInput}
                   onChange={(e) => setCurrentFavouriteDestinationInput(e.target.value)}
                   onKeyDown={handleAddFavouriteDestination}
-                  placeholder="Type a destination & press Enter (e.g., Paris, France)"
-                  className={`w-full px-4 py-3 border rounded-xl text-sm pr-10 ${INPUT_GLASS}`}
+                  placeholder="Type a destination (e.g., Paris, France)"
+                  className={`flex-1 px-4 py-3 border rounded-xl text-sm ${INPUT_GLASS}`}
                 />
-                {currentFavouriteDestinationInput && (
-                  <button
-                    onClick={() => setCurrentFavouriteDestinationInput("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 text-lg transition"
-                  >
-                    ×
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentFavouriteDestinationInput.trim()) {
+                      const { name, details } = parsePlaceInput(currentFavouriteDestinationInput);
+                      setFavouriteTravelDestination(prev => [...prev, { id: Date.now(), name, details }]);
+                      setCurrentFavouriteDestinationInput("");
+                    }
+                  }}
+                  disabled={!currentFavouriteDestinationInput.trim()}
+                  className="px-5 py-3 rounded-xl font-medium text-sm"
+                  style={currentFavouriteDestinationInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+                >
+                  Add
+                </button>
               </div>
 
               {/* Display existing tags - MOVED BELOW INPUT */}

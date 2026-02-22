@@ -90,7 +90,7 @@ router.get('/profile', auth, async (req, res) => {
             dob: user.dob || null,
             currentLocation: user.current_location || null,
             city: user.city || null,
-            locationPreference: user.location_preference || 'same_city',
+            locationPreference: user.location_preference || 'anywhere',
             // ✅ SWAPPED: favouriteTravelDestination is now JSON array
             favouriteTravelDestination: safeJsonParse(user.favourite_travel_destination, []),
             // ✅ SWAPPED: lastHolidayPlaces is now a string
@@ -246,13 +246,21 @@ router.get('/profile/:userId', auth, async (req, res) => {
                     return res.json(filteredProfile);
                 } catch (levelError) {
                     console.error('Level filtering error:', levelError);
-                    // Fall through to return full profile if filtering fails
+                    // Fall through to return basic profile if filtering fails
                 }
             }
         }
         
-        // Return complete profile (for Discover tab or if filtering failed)
-        res.json(profileData);
+        // ✅ SECURITY FIX: If no conversationId (e.g., Discover tab or error), filter to Level 1 only
+        // Never expose personal photos (facePhotos) or Level 2/3 data without a conversation context
+        console.log(`[Profile Filter] No valid conversationId - returning Level 1 profile only`);
+        const basicProfile = profileLevelService.filterProfileByLevel(profileData, 1);
+        basicProfile.visibilityLevel = 1;
+        basicProfile.canUpgrade = false;
+        basicProfile.nextLevelAt = null;
+        basicProfile.personalTabUnlocked = false; // ✅ Personal tab always locked without conversation
+        
+        res.json(basicProfile);
         
     } catch (error) {
         console.error('Get user profile by ID error:', error);
@@ -374,7 +382,7 @@ router.put('/profile', auth, async (req, res) => {
             dob ? new Date(dob).toISOString().split('T')[0] : currentUser.dob, 
             currentLocation !== undefined ? currentLocation : currentUser.current_location,
             city,
-            locationPreference !== undefined ? locationPreference : (currentUser.location_preference || 'same_city'),
+            locationPreference !== undefined ? locationPreference : (currentUser.location_preference || 'anywhere'),
             // ✅ SWAPPED: favouriteTravelDestination is now JSON array
             JSON.stringify(favouriteTravelDestination !== undefined ? favouriteTravelDestination : safeJsonParse(currentUser.favourite_travel_destination, [])),
             // ✅ SWAPPED: lastHolidayPlaces is now a string
@@ -483,7 +491,7 @@ router.get('/matches/potential', auth, async (req, res) => {
         const preferredAgeRange = currentUserIntent.preferredAgeRange || [35, 85];
         const interestedGender = currentUserIntent.interestedGender;
         const userCity = currentUserData[0].city;
-        const locationPreference = currentUserData[0].location_preference || 'same_city';
+        const locationPreference = currentUserData[0].location_preference || 'anywhere';
 
         // Validate age range
         const minAge = preferredAgeRange[0];
@@ -597,7 +605,7 @@ router.get('/matches/potential', auth, async (req, res) => {
                     favourite_travel_destination, profile_pic_url, intent, 
                     interests, pets, drinking, smoking, height, religious_level, 
                     kids_preference, food_preference, relationship_status, from_location, 
-                    instagram, linkedin, face_photos
+                    instagram, linkedin
              FROM users 
              WHERE approval = true 
                 AND id != ? 
@@ -662,7 +670,7 @@ router.get('/matches/potential', auth, async (req, res) => {
                     instagram: user.instagram,
                     linkedin: user.linkedin,
                     interests: safeJsonParse(user.interests, []),
-                    facePhotos: safeJsonParse(user.face_photos, []),
+                    // ✅ SECURITY: Never expose facePhotos in Discover - only visible at Level 3 after matching
                     intent: safeJsonParse(user.intent, {})
                 };
             })
