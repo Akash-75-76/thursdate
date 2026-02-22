@@ -18,7 +18,6 @@ export default function HomeTab() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const [touchStart, setTouchStart] = useState(0);
-  const [viewMode, setViewMode] = useState("lifestyle"); // "lifestyle" or "personal"
   const [currentLifestyleImageIndex, setCurrentLifestyleImageIndex] = useState(0);
 
   // Candidates state
@@ -87,47 +86,49 @@ export default function HomeTab() {
     checkDailyGame();
   }, []);
 
+  // Fetch potential matches function (extracted for reusability)
+  const fetchMatches = async () => {
+    try {
+      setLoading(true);
+      const response = await userAPI.getPotentialMatches();
+
+      // Transform backend data to match frontend structure
+      const transformedCandidates = (response.candidates || []).map(user => ({
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        age: user.age,
+        profilePicUrl: user.profilePicUrl || '/chatperson.png',
+        jobTitle: user.intent?.profileQuestions?.jobTitle || 'Not specified',
+        fromLocation: user.fromLocation,
+        currentLocation: user.currentLocation,
+        gender: user.gender,
+        height: user.height ? `${Math.floor(user.height / 30.48)}'${Math.round((user.height % 30.48) / 2.54)}"` : 'N/A',
+        relationshipStatus: user.relationshipStatus,
+        bio: user.intent?.bio || '',
+        lifestyleImages: user.intent?.lifestyleImageUrls || [],
+        // ✅ SECURITY: Don't store personal photos in Discover - only for matched profiles
+        interests: user.interests || [],
+        entertainment: {
+          movies: user.intent?.movies || [],
+          tvShows: user.intent?.tvShows || [],
+          music: user.intent?.artistsBands || []
+        }
+      }));
+
+      setCandidates(transformedCandidates);
+      setCurrentCandidateIndex(0); // Reset to first candidate
+      setError("");
+    } catch (err) {
+      console.error('Error fetching matches:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch potential matches on component mount
   useEffect(() => {
-    const fetchMatches = async () => {
-      try {
-        setLoading(true);
-        const response = await userAPI.getPotentialMatches();
-
-        // Transform backend data to match frontend structure
-        const transformedCandidates = (response.candidates || []).map(user => ({
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          age: user.age,
-          profilePicUrl: user.profilePicUrl || '/chatperson.png',
-          jobTitle: user.intent?.profileQuestions?.jobTitle || 'Not specified',
-          fromLocation: user.fromLocation,
-          currentLocation: user.currentLocation,
-          gender: user.gender,
-          height: user.height ? `${Math.floor(user.height / 30.48)}'${Math.round((user.height % 30.48) / 2.54)}"` : 'N/A',
-          relationshipStatus: user.relationshipStatus,
-          bio: user.intent?.bio || '',
-          lifestyleImages: user.intent?.lifestyleImageUrls || [],
-          personalImages: user.facePhotos || [],
-          interests: user.interests || [],
-          entertainment: {
-            movies: user.intent?.movies || [],
-            tvShows: user.intent?.tvShows || [],
-            music: user.intent?.artistsBands || []
-          }
-        }));
-
-        setCandidates(transformedCandidates);
-        setError("");
-      } catch (err) {
-        console.error('Error fetching matches:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchMatches();
   }, []);
 
@@ -137,11 +138,6 @@ export default function HomeTab() {
   useEffect(() => {
     setCurrentLifestyleImageIndex(0);
   }, [currentCandidateIndex]);
-
-  // Reset image index when view mode changes
-  useEffect(() => {
-    setCurrentLifestyleImageIndex(0);
-  }, [viewMode]);
 
   const handleScroll = (e) => {
     const scrollPosition = e.target.scrollTop;
@@ -295,10 +291,8 @@ export default function HomeTab() {
     if (!isMinimized) return;
     if (!currentCandidate) return;
 
-    // Get current images based on view mode
-    const currentImages = viewMode === "lifestyle"
-      ? currentCandidate.lifestyleImages
-      : currentCandidate.personalImages;
+    // ✅ SECURITY: Only cycle lifestyle images in Discover (no personal photos before matching)
+    const currentImages = currentCandidate.lifestyleImages;
 
     if (!currentImages || currentImages.length === 0) return;
 
@@ -321,9 +315,8 @@ export default function HomeTab() {
             conversationId,
             otherUser: {
               id: matchedUser.userId,
-              name: `${matchedUser.firstName} ${matchedUser.lastName}`,
+              name: matchedUser.firstName,
               firstName: matchedUser.firstName,
-              lastName: matchedUser.lastName,
               profilePicUrl: matchedUser.profilePicUrl,
               location: matchedUser.currentLocation
             }
@@ -359,9 +352,8 @@ export default function HomeTab() {
         style={{
           backgroundImage: (() => {
             if (!currentCandidate) return 'url(/bgs/matchesbg.jpg)';
-            const currentImages = viewMode === "lifestyle"
-              ? currentCandidate.lifestyleImages
-              : currentCandidate.personalImages;
+            // ✅ SECURITY: Only show lifestyle images in Discover (no personal photos)
+            const currentImages = currentCandidate.lifestyleImages;
             return currentImages && currentImages.length > 0
               ? `url(${currentImages[currentLifestyleImageIndex]})`
               : 'url(/bgs/matchesbg.jpg)';
@@ -423,7 +415,7 @@ export default function HomeTab() {
 
                 {/* Refresh Button */}
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={fetchMatches}
                   className="w-full bg-white/20 text-white font-semibold py-3 px-6 rounded-full hover:bg-white/30 transition flex items-center justify-center gap-2 backdrop-blur-md border border-white/30"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -440,11 +432,10 @@ export default function HomeTab() {
           </div>
         ) : (
           <>
-            {/* Lifestyle/Personal Image Indicators */}
+            {/* Lifestyle Image Indicators */}
             {(() => {
-              const currentImages = viewMode === "lifestyle"
-                ? currentCandidate.lifestyleImages
-                : currentCandidate.personalImages;
+              // ✅ SECURITY: Only show lifestyle images in Discover
+              const currentImages = currentCandidate.lifestyleImages;
               return currentImages && currentImages.length > 1 && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
                   {currentImages.map((_, idx) => (
@@ -465,30 +456,8 @@ export default function HomeTab() {
             <div className="flex items-center justify-between px-6 pt-10 pb-4">
               <div style={{ width: 40 }}></div>
               {isMinimized ? (
-                // Lifestyle/Personal Switch Buttons
-                <div className="flex items-center gap-3 rounded-full p-1" style={{ backgroundColor: '#76768080' }}>
-                  <button
-                    onClick={() => setViewMode("lifestyle")}
-                    className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${viewMode === "lifestyle"
-                      ? "bg-white text-black"
-                      : "text-white"
-                      }`}
-                  >
-                    Lifestyle
-                  </button>
-                  <button
-                    onClick={() => setViewMode("personal")}
-                    className={`px-6 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1 ${viewMode === "personal"
-                      ? "bg-white text-black"
-                      : "text-white"
-                      }`}
-                  >
-                    Personal
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
+                // ✅ SECURITY: Removed Personal tab from Discover - only show Lifestyle
+                <div className="text-white text-base font-medium">Lifestyle Photos</div>
               ) : (
                 <div className="text-white text-xl font-semibold"></div>
               )}
@@ -568,7 +537,7 @@ export default function HomeTab() {
 
                   <div className="flex-1">
                     <div className="text-white text-lg font-semibold">
-                      {currentCandidate.firstName} {currentCandidate.lastName}, {currentCandidate.age}
+                      {currentCandidate.firstName}, {currentCandidate.age}
                     </div>
                     <div className="text-white/70 text-sm">
                       {currentCandidate.jobTitle}
@@ -726,7 +695,7 @@ export default function HomeTab() {
               <div className="text-6xl mb-4">🎉</div>
               <h2 className="text-white text-2xl font-bold mb-2">It's a Match!</h2>
               <p className="text-white/90 text-base mb-6">
-                You and {matchedUser.firstName} {matchedUser.lastName} liked each other
+                You and {matchedUser.firstName} liked each other
               </p>
               <div className="flex gap-3 justify-center">
                 <button

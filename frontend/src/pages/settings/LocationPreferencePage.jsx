@@ -27,7 +27,7 @@ const RadioOption = ({ label, description, checked, onClick }) => (
 
 export default function LocationPreferencePage() {
     const navigate = useNavigate();
-    const [locationPreference, setLocationPreference] = useState('same_city');
+    const [locationPreference, setLocationPreference] = useState('anywhere');
     const [initialLoading, setInitialLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');

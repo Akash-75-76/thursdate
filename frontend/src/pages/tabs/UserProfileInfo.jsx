@@ -136,9 +136,10 @@ export default function UserProfileInfo() {
 
     // Tap background to cycle through images based on current tab
     const handleBackgroundTap = () => {
+        // ✅ SECURITY: Only allow cycling personal photos if explicitly unlocked
         if (viewMode === 'lifestyle' && lifestyleImages.length > 0) {
             setCurrentLifestyleImageIndex((prev) => (prev + 1) % lifestyleImages.length);
-        } else if (viewMode === 'personal' && user?.personalTabUnlocked && user?.facePhotos && user.facePhotos.length > 0) {
+        } else if (viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 0) {
             setCurrentPersonalImageIndex((prev) => (prev + 1) % user.facePhotos.length);
         }
     };
@@ -150,15 +151,15 @@ export default function UserProfileInfo() {
             style={{
                 backgroundImage: viewMode === 'lifestyle' && lifestyleImages.length > 0
                     ? `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url(${lifestyleImages[currentLifestyleImageIndex]})`
-                    : viewMode === 'personal' && user?.personalTabUnlocked && user?.facePhotos && user.facePhotos.length > 0
+                    : viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 0
                     ? `linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15)), url(${user.facePhotos[currentPersonalImageIndex]})`
                     : `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url('/bgs/faceverifybg.png')`,
-                backgroundSize: viewMode === 'personal' && user?.personalTabUnlocked && user?.facePhotos && user.facePhotos.length > 0 ? 'contain' : 'cover',
+                backgroundSize: viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 0 ? 'contain' : 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
                 transition: 'background-image 0.3s ease-in-out',
                 cursor: (viewMode === 'lifestyle' && lifestyleImages.length > 0) || 
-                        (viewMode === 'personal' && user?.personalTabUnlocked && user?.facePhotos && user.facePhotos.length > 0)
+                        (viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 0)
                         ? 'pointer' : 'default'
             }}
         >
@@ -185,7 +186,7 @@ export default function UserProfileInfo() {
                                 }`}
                         >
                             Personal
-                            {!user?.personalTabUnlocked && (
+                            {user?.personalTabUnlocked !== true && (
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                                 </svg>
@@ -213,7 +214,7 @@ export default function UserProfileInfo() {
                     ))}
                 </div>
             )}
-            {viewMode === 'personal' && user?.personalTabUnlocked && user?.facePhotos && user.facePhotos.length > 1 && (
+            {viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 1 && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
                     {user.facePhotos.map((_, idx) => (
                         <div
@@ -274,7 +275,7 @@ export default function UserProfileInfo() {
                             </div>
                             <div className="flex flex-col items-start" style={{ width: '174.463px' }}>
                                 <div className="flex gap-[2.977px] items-center font-['Poppins'] text-[19.847px] leading-[1.33]">
-                                    <span className="text-white">{user.firstName || user.name},</span>
+                                    <span className="text-white">{user.firstName},</span>
                                     <span className="text-white/70">{user.age || calculateAge(user.dob)}</span>
                                 </div>
                                 <p className="font-['Poppins'] text-[11.908px] leading-[1.5] text-white">
@@ -740,7 +741,7 @@ export default function UserProfileInfo() {
                     ) : (
                         /* PERSONAL TAB CONTENT */
                         <div className="w-full">
-                            {user?.personalTabUnlocked ? (
+                            {user?.personalTabUnlocked === true ? (
                                 /* UNLOCKED: Photos shown as background - just show message */
                                 <div className="flex flex-col gap-4 w-full py-8">
                                     <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/30 text-center">

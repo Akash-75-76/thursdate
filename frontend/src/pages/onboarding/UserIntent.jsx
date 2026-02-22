@@ -456,7 +456,7 @@ export default function UserIntent() {
         return (
           <>
             <h1 className="text-white text-[22px] font-semibold mb-2">What are you excited about?</h1>
-            <p className="text-white/70 text-sm leading-snug">Type and press enter to add, or select from suggestions.</p>
+            <p className="text-white/70 text-sm leading-snug">Type your interests and click "Add" or press Enter.</p>
           </>
         );
       case 7:
@@ -499,9 +499,8 @@ export default function UserIntent() {
         return (
           <div>
             <RadioOption label="Date" description="Open to exploring and seeing where things go." checked={purpose === 'Date'} onClick={() => setPurpose('Date')} />
-            <RadioOption label="Seriously Date" description="Seeking a meaningful, long-term relationship." checked={purpose === 'Seriously Date'} onClick={() => setPurpose('Seriously Date')} />
+            <RadioOption label="Serious Dating & Marriage" description="Looking for a meaningful, long-term relationship that could lead to marriage." checked={purpose === 'Seriously Date' || purpose === 'Marriage'} onClick={() => setPurpose('Seriously Date')} />
             <RadioOption label="Companionship" description="Wanting someone to share life and experiences with." checked={purpose === 'Companionship'} onClick={() => setPurpose('Companionship')} />
-            <RadioOption label="Marriage" description="Looking for a life partner to build a future with." checked={purpose === 'Marriage'} onClick={() => setPurpose('Marriage')} />
             <RadioOption label="Friends" description="Here to connect and build genuine friendships." checked={purpose === 'Friends'} onClick={() => setPurpose('Friends')} />
           </div>
         );
@@ -524,38 +523,60 @@ export default function UserIntent() {
         );
       case 4:
         return (
-          <div className="flex flex-col gap-3 mt-2">
-            <div className="flex gap-3">
+          <div className="flex flex-col gap-6 mt-4">
+            {/* Display selected range */}
+            <div className="text-center">
+              <div className="text-white text-3xl font-semibold mb-2">
+                {ageRange[0]} - {ageRange[1]} years
+              </div>
+              <div className="text-white/60 text-sm">
+                Drag the sliders to adjust your preferred age range
+              </div>
+            </div>
+
+            {/* Minimum age slider */}
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-center">
+                <label className="text-white/80 text-sm font-medium">Minimum Age</label>
+                <span className="text-white text-base font-semibold">{ageRange[0]}</span>
+              </div>
               <input
-                type="number"
+                type="range"
                 min={minAge}
-                max={maxAge}
+                max={ageRange[1] - 1}
                 value={ageRange[0]}
                 onChange={e => {
-                  const raw = parseInt(e.target.value, 10);
-                  const clamped = Number.isNaN(raw) ? minAge : Math.max(minAge, Math.min(raw, ageRange[1] - 1));
-                  setAgeRange([clamped, ageRange[1]]);
+                  const newMin = parseInt(e.target.value, 10);
+                  setAgeRange([newMin, ageRange[1]]);
                 }}
-                className="w-1/2 rounded-xl p-3 text-base"
-                style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)' }}
-                aria-label="Minimum age"
+                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, white 0%, white ${((ageRange[0] - minAge) / (ageRange[1] - 1 - minAge)) * 100}%, rgba(255,255,255,0.2) ${((ageRange[0] - minAge) / (ageRange[1] - 1 - minAge)) * 100}%, rgba(255,255,255,0.2) 100%)`
+                }}
               />
+            </div>
+
+            {/* Maximum age slider */}
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-center">
+                <label className="text-white/80 text-sm font-medium">Maximum Age</label>
+                <span className="text-white text-base font-semibold">{ageRange[1]}</span>
+              </div>
               <input
-                type="number"
-                min={minAge}
+                type="range"
+                min={ageRange[0] + 1}
                 max={maxAge}
                 value={ageRange[1]}
                 onChange={e => {
-                  const raw = parseInt(e.target.value, 10);
-                  const clamped = Number.isNaN(raw) ? maxAge : Math.min(maxAge, Math.max(raw, ageRange[0] + 1));
-                  setAgeRange([ageRange[0], clamped]);
+                  const newMax = parseInt(e.target.value, 10);
+                  setAgeRange([ageRange[0], newMax]);
                 }}
-                className="w-1/2 rounded-xl p-3 text-base"
-                style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)' }}
-                aria-label="Maximum age"
+                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, white 0%, white ${((ageRange[1] - ageRange[0] - 1) / (maxAge - ageRange[0] - 1)) * 100}%, rgba(255,255,255,0.2) ${((ageRange[1] - ageRange[0] - 1) / (maxAge - ageRange[0] - 1)) * 100}%, rgba(255,255,255,0.2) 100%)`
+                }}
               />
             </div>
-            <div className="text-white/70 text-sm">Enter preferred age range between {minAge} and {maxAge}.</div>
           </div>
         );
       case 5:
@@ -614,14 +635,33 @@ export default function UserIntent() {
       case 6:
         return (
           <>
-            <input
-              value={interestInput}
-              onChange={e => setInterestInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addInterest(interestInput); }}
-              placeholder="Add an interest..."
-              className="w-full rounded-xl p-3 text-base"
-              style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-            />
+            <div className="flex gap-2 mb-3">
+              <input
+                value={interestInput}
+                onChange={e => setInterestInput(e.target.value)}
+                onKeyDown={e => { 
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addInterest(interestInput);
+                  }
+                }}
+                placeholder="Add an interest..."
+                className="flex-1 rounded-xl p-3 text-base"
+                style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  addInterest(interestInput);
+                }}
+                disabled={!interestInput.trim()}
+                className="px-5 py-3 rounded-xl font-medium text-sm"
+                style={interestInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+              >
+                Add
+              </button>
+            </div>
             <div className="flex flex-wrap gap-3 mt-3">
               {interests.map((t, i) => (
                 <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ background: 'white', color: 'black' }}>
@@ -642,7 +682,12 @@ export default function UserIntent() {
                 <input
                   value={tvInput}
                   onChange={e => setTvInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addTvShow()}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTvShow();
+                    }
+                  }}
                   onBlur={handleTvInputBlur}
                   placeholder="e.g. The Office"
                   className="flex-1 rounded-xl p-3 text-base"
@@ -650,7 +695,10 @@ export default function UserIntent() {
                 />
                 <button
                   type="button"
-                  onClick={addTvShow}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    addTvShow();
+                  }}
                   disabled={!tvInput.trim()}
                   className="px-5 py-3 rounded-xl font-medium text-sm"
                   style={tvInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
@@ -675,7 +723,12 @@ export default function UserIntent() {
                 <input
                   value={movieInput}
                   onChange={e => setMovieInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addMovie()}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addMovie();
+                    }
+                  }}
                   onBlur={handleMovieInputBlur}
                   placeholder="e.g. The Godfather"
                   className="flex-1 rounded-xl p-3 text-base"
@@ -683,7 +736,10 @@ export default function UserIntent() {
                 />
                 <button
                   type="button"
-                  onClick={addMovie}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    addMovie();
+                  }}
                   disabled={!movieInput.trim()}
                   className="px-5 py-3 rounded-xl font-medium text-sm"
                   style={movieInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
@@ -705,14 +761,33 @@ export default function UserIntent() {
       case 8:
         return (
           <>
-            <input
-              value={watchInput}
-              onChange={e => setWatchInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addWatchItem()}
-              placeholder="e.g. The Bear, Succession, Oppenheimer"
-              className="w-full rounded-xl p-3 text-base"
-              style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-            />
+            <div className="flex gap-2 mb-3">
+              <input
+                value={watchInput}
+                onChange={e => setWatchInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addWatchItem();
+                  }
+                }}
+                placeholder="e.g. The Bear, Succession, Oppenheimer"
+                className="flex-1 rounded-xl p-3 text-base"
+                style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  addWatchItem();
+                }}
+                disabled={!watchInput.trim()}
+                className="px-5 py-3 rounded-xl font-medium text-sm"
+                style={watchInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+              >
+                Add
+              </button>
+            </div>
             <div className="flex flex-wrap gap-3 mt-3">
               {watchList.map((w, i) => (
                 <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ background: 'white', color: 'black' }}>
@@ -726,14 +801,33 @@ export default function UserIntent() {
       case 9:
         return (
           <>
-            <input
-              value={artistBandInput}
-              onChange={e => setArtistBandInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addArtistBand(); }}
-              placeholder="Add an artist/band..."
-              className="w-full rounded-xl p-3 text-base"
-              style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-            />
+            <div className="flex gap-2 mb-3">
+              <input
+                value={artistBandInput}
+                onChange={e => setArtistBandInput(e.target.value)}
+                onKeyDown={e => { 
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addArtistBand();
+                  }
+                }}
+                placeholder="Add an artist/band..."
+                className="flex-1 rounded-xl p-3 text-base"
+                style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  addArtistBand();
+                }}
+                disabled={!artistBandInput.trim()}
+                className="px-5 py-3 rounded-xl font-medium text-sm"
+                style={artistBandInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+              >
+                Add
+              </button>
+            </div>
             <div className="flex flex-wrap gap-3 mt-3">
               {artistsBands.map((b, i) => (
                 <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ background: 'white', color: 'black' }}>

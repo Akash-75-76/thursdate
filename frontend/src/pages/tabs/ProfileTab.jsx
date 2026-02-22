@@ -608,7 +608,7 @@ export default function ProfileTab() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-white text-lg font-semibold">
-                        {userInfo?.firstName || ''} {userInfo?.lastName || ''}, {userInfo?.dob ? getAge(userInfo.dob) : ''}
+                        {userInfo?.firstName || ''}, {userInfo?.dob ? getAge(userInfo.dob) : ''}
                       </div>
                       <div className="text-white/70 text-sm">
                         {userInfo?.intent?.profileQuestions?.jobTitle || 'Not specified'}

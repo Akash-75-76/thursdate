@@ -5,7 +5,7 @@
 -- Add city column to extract from current_location
 ALTER TABLE users 
 ADD COLUMN city VARCHAR(100) COMMENT 'City extracted from current_location for matching',
-ADD COLUMN location_preference VARCHAR(50) DEFAULT 'same_city' COMMENT 'Location matching preference: same_city, nearby_cities, anywhere';
+ADD COLUMN location_preference VARCHAR(50) DEFAULT 'anywhere' COMMENT 'Location matching preference: same_city, nearby_cities, anywhere';
 
 -- Create index for fast city-based matching
 CREATE INDEX idx_city ON users(city);

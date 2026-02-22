@@ -47,7 +47,7 @@ const testUsers = [
     currentLocation: 'Pune, India',
     city: 'Pune',
     intent: {
-      purpose: 'Marriage',
+      purpose: 'Seriously Date',
       relationshipVibe: 'Divorced',
       interestedGender: 'Women',
       preferredAgeRange: [35, 50]
@@ -133,7 +133,7 @@ const testUsers = [
     currentLocation: 'Bangalore, Karnataka, India',
     city: 'Bangalore',
     intent: {
-      purpose: 'Marriage',
+      purpose: 'Seriously Date',
       relationshipVibe: 'Divorced',
       interestedGender: 'Women',
       preferredAgeRange: [33, 48]
