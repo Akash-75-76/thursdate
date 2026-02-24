@@ -191,7 +191,8 @@ router.get('/linkedin/callback', async (req, res) => {
         const tokenResponse = await axios.post(LINKEDIN_TOKEN_URL, formData, {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
-            }
+            },
+            timeout: 15000 // 15 second timeout
         });
         
         const tokenEndTime = Date.now();
@@ -203,7 +204,8 @@ router.get('/linkedin/callback', async (req, res) => {
         const userInfoResponse = await axios.get(LINKEDIN_USERINFO_URL, {
             headers: {
                 'Authorization': `Bearer ${access_token}`
-            }
+            },
+            timeout: 10000 // 10 second timeout
         });
         
         const userInfo = userInfoResponse.data;
@@ -215,30 +217,49 @@ router.get('/linkedin/callback', async (req, res) => {
         
         // Find or create user in database
         console.log('🔄 Checking database for existing user...');
-        const [existingUsers] = await pool.execute(
-            'SELECT id FROM users WHERE email = ?',
-            [userInfo.email]
-        );
-        
         let userId;
-        if (existingUsers.length > 0) {
-            userId = existingUsers[0].id;
-            console.log('✅ Found existing user:', userId);
-            // Update LinkedIn info for existing user
-            await pool.execute(
-                'UPDATE users SET linkedin = ? WHERE id = ?',
-                [profileUrl, userId]
+        
+        try {
+            const [existingUsers] = await pool.execute(
+                'SELECT id FROM users WHERE email = ?',
+                [userInfo.email]
             );
-            console.log('✅ Updated LinkedIn URL for existing user');
-        } else {
-            console.log('🔄 Creating new user...');
-            // Create new user
-            const [result] = await pool.execute(
-                'INSERT INTO users (email, linkedin, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
-                [userInfo.email, profileUrl, false, false]
-            );
-            userId = result.insertId;
-            console.log('✅ Created new user:', userId);
+            
+            if (existingUsers.length > 0) {
+                userId = existingUsers[0].id;
+                console.log('✅ Found existing user:', userId);
+                // Update LinkedIn info for existing user
+                try {
+                    await pool.execute(
+                        'UPDATE users SET linkedin = ? WHERE id = ?',
+                        [profileUrl, userId]
+                    );
+                    console.log('✅ Updated LinkedIn URL for existing user');
+                } catch (updateError) {
+                    console.error('❌ Failed to update LinkedIn URL:', updateError.message);
+                    throw new Error(`DATABASE_UPDATE_FAILED: ${updateError.message}`);
+                }
+            } else {
+                console.log('🔄 Creating new user...');
+                // Create new user
+                try {
+                    const [result] = await pool.execute(
+                        'INSERT INTO users (email, linkedin, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
+                        [userInfo.email, profileUrl, false, false]
+                    );
+                    userId = result.insertId;
+                    console.log('✅ Created new user:', userId);
+                } catch (insertError) {
+                    console.error('❌ Failed to create user:', insertError.message);
+                    throw new Error(`DATABASE_INSERT_FAILED: ${insertError.message}`);
+                }
+            }
+        } catch (dbError) {
+            console.error('❌ Database operation failed:', dbError.message);
+            if (dbError.message.includes('DATABASE_')) {
+                throw dbError;
+            }
+            throw new Error(`DATABASE_ERROR: ${dbError.message}`);
         }
         
         // Generate JWT token for your app with userId
