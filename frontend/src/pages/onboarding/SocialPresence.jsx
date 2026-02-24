@@ -20,6 +20,12 @@ export default function SocialPresence() {
     const [licenseFrontPreview, setLicenseFrontPreview] = useState(null);
     const [licenseBackPreview, setLicenseBackPreview] = useState(null);
     const [licenseVerified, setLicenseVerified] = useState(false);
+    
+    // OAuth Loading & Error states
+    const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+    const [oauthError, setOauthError] = useState(null);
+    const [oauthErrorCode, setOauthErrorCode] = useState(null);
+    const [oauthDebugInfo, setOauthDebugInfo] = useState(null);
 
     // Removed email OTP timers
 
@@ -55,21 +61,88 @@ export default function SocialPresence() {
     // Check for LinkedIn OAuth callback
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
+        
+        // Handle success
         if (params.get('linkedin_verified') === 'true') {
             const token = params.get('token');
             const linkedinUrl = params.get('linkedin_url');
+            
+            console.log('✅ LinkedIn OAuth Success');
+            console.log('Token received:', !!token);
+            console.log('LinkedIn URL:', linkedinUrl);
+            
             if (token) {
                 localStorage.setItem('token', token);
                 if (linkedinUrl) {
                     setInstagram(linkedinUrl);
                 }
                 setCodeVerified(true);
-                setShowInstaConfirm(true); // Show the success modal
+                setShowInstaConfirm(true);
                 setVerificationMethod('linkedin');
-                setShowMethodSelection(false); // Hide method selection
+                setShowMethodSelection(false);
+                setIsOAuthLoading(false);
+                setOauthError(null);
+                
                 // Clean up URL
                 window.history.replaceState({}, '', '/social-presence');
             }
+        }
+        // Handle errors
+        else if (params.get('error')) {
+            const errorType = params.get('error');
+            const errorCode = params.get('error_code');
+            const errorMessage = params.get('error_message');
+            const requestId = params.get('request_id');
+            const debugData = params.get('debug');
+            
+            console.error('❌ LinkedIn OAuth Error:', {
+                error: errorType,
+                code: errorCode,
+                message: errorMessage,
+                requestId: requestId,
+                debug: debugData
+            });
+            
+            setIsOAuthLoading(false);
+            setOauthErrorCode(errorCode || errorType);
+            
+            // User-friendly error messages
+            const errorMessages = {
+                'INVALID_REQUEST': 'LinkedIn verification failed due to a configuration issue. Please try again or contact support.',
+                'INVALID_GRANT': 'Your verification code expired. Please try again.',
+                'INVALID_CLIENT': 'LinkedIn authentication is not properly configured. Please contact support.',
+                'LINKEDIN_UNAUTHORIZED': 'LinkedIn credentials are invalid. Please contact support.',
+                'LINKEDIN_FORBIDDEN': 'Access denied by LinkedIn. Please try again.',
+                'RATE_LIMIT_EXCEEDED': 'Too many attempts. Please wait a few minutes and try again.',
+                'LINKEDIN_SERVER_ERROR': 'LinkedIn is experiencing issues. Please try again later.',
+                'NETWORK_ERROR': 'Could not connect to LinkedIn. Please check your internet connection.',
+                'TIMEOUT': 'The request took too long. Please try again.',
+                'DATABASE_ERROR': 'Could not save your information. Please try again.',
+                'DATABASE_DUPLICATE': 'This account is already registered.',
+                'UNKNOWN_ERROR': 'An unexpected error occurred. Please try again.',
+                'linkedin_auth_failed': 'LinkedIn authorization failed. Please try again.',
+                'linkedin_no_code': 'No verification code received. Please try again.',
+                'linkedin_callback_failed': errorMessage || 'Verification failed. Please try again.',
+                'linkedin_state_invalid': 'Verification session expired. Please try again.'
+            };
+            
+            setOauthError(errorMessages[errorCode] || errorMessages[errorType] || 'Verification failed. Please try again.');
+            
+            // Parse debug info if available
+            if (debugData) {
+                try {
+                    setOauthDebugInfo(JSON.parse(debugData));
+                } catch (e) {
+                    console.error('Failed to parse debug data:', e);
+                }
+            }
+            
+            // Show error and allow retry
+            setVerificationMethod('linkedin');
+            setShowMethodSelection(false);
+            
+            // Clean up URL
+            window.history.replaceState({}, '', '/social-presence');
         }
     }, []);
 
@@ -78,8 +151,25 @@ export default function SocialPresence() {
 
     const handleLinkedInOAuth = () => {
         // Redirect to backend OAuth endpoint (uses env variable for production)
-        const backendUrl = import.meta.env.VITE_BACKEND_API_URL.replace('/api', '');
+        // Fallback to production URL if env variable is not set
+        const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://sundate-backend.onrender.com/api';
+        const backendUrl = backendApiUrl.replace('/api', '');
+        
+        console.log('🔗 LinkedIn OAuth - Redirecting to:', `${backendUrl}/auth/linkedin`);
+        
+        // Set loading state and clear previous errors
+        setIsOAuthLoading(true);
+        setOauthError(null);
+        setOauthErrorCode(null);
+        setOauthDebugInfo(null);
+        
+        // Redirect to OAuth
         window.location.href = `${backendUrl}/auth/linkedin`;
+    };
+    
+    const handleRetryOAuth = () => {
+        console.log('🔄 Retrying LinkedIn OAuth...');
+        handleLinkedInOAuth();
     };
 
     const handleStartVerification = () => {
@@ -381,15 +471,74 @@ export default function SocialPresence() {
 
                         {/* === BUTTON BAR === */}
                         <div className="flex flex-col gap-4 pb-2">
+                            {/* LinkedIn OAuth Error Display */}
+                            {verificationMethod === "linkedin" && oauthError && (
+                                <div className="w-full p-4 rounded-2xl bg-red-500/20 border border-red-500/40 backdrop-blur-sm">
+                                    <div className="flex items-start gap-3">
+                                        <svg 
+                                            xmlns="http://www.w3.org/2000/svg" 
+                                            className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" 
+                                            fill="none" 
+                                            viewBox="0 0 24 24" 
+                                            stroke="currentColor"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <div className="flex-1">
+                                            <p className="text-white font-semibold text-sm mb-1">Verification Failed</p>
+                                            <p className="text-white/90 text-sm leading-relaxed">{oauthError}</p>
+                                            {(oauthErrorCode && oauthErrorCode !== 'linkedin_callback_failed') && (
+                                                <p className="text-white/60 text-xs mt-2">Error Code: {oauthErrorCode}</p>
+                                            )}
+                                            {oauthDebugInfo && (
+                                                <details className="mt-2">
+                                                    <summary className="text-white/70 text-xs cursor-pointer hover:text-white">Show debug info</summary>
+                                                    <pre className="text-white/60 text-xs mt-1 overflow-x-auto">{JSON.stringify(oauthDebugInfo, null, 2)}</pre>
+                                                </details>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* LinkedIn OAuth Loading State */}
+                            {verificationMethod === "linkedin" && isOAuthLoading && (
+                                <div className="w-full p-4 rounded-2xl bg-white/10 border border-white/30 backdrop-blur-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent"></div>
+                                        <div>
+                                            <p className="text-white font-semibold text-sm">Verifying with LinkedIn...</p>
+                                            <p className="text-white/70 text-xs">Please wait, redirecting to LinkedIn</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
                             {/* LinkedIn */}
                             {verificationMethod === "linkedin" && !showInstaConfirm && (
-                                <button
-                                    disabled={!isInputValid()}
-                                    onClick={handleStartVerification}
-                                    className={`w-full py-4 rounded-full font-medium text-lg transition ${!isInputValid() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
-                                >
-                                    Verify LinkedIn
-                                </button>
+                                <>
+                                    <button
+                                        disabled={!isInputValid() || isOAuthLoading}
+                                        onClick={oauthError ? handleRetryOAuth : handleStartVerification}
+                                        className={`w-full py-4 rounded-full font-medium text-lg transition ${(!isInputValid() || isOAuthLoading) ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE}`}
+                                    >
+                                        {isOAuthLoading ? 'Redirecting...' : oauthError ? 'Retry Verification' : 'Verify LinkedIn'}
+                                    </button>
+                                    {oauthError && (
+                                        <button
+                                            onClick={() => {
+                                                setShowMethodSelection(true);
+                                                setVerificationMethod(null);
+                                                setOauthError(null);
+                                                setOauthErrorCode(null);
+                                                setOauthDebugInfo(null);
+                                            }}
+                                            className="w-full py-3 rounded-full font-medium text-sm text-white/80 bg-white/10 border border-white/20 hover:bg-white/20 transition"
+                                        >
+                                            Try Another Method
+                                        </button>
+                                    )}
+                                </>
                             )}
 
                             {/* Driving License Continue */}
