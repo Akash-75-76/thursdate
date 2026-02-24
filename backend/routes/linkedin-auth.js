@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const pool = require('../config/db');
 const router = express.Router();
 
@@ -12,6 +13,21 @@ const LINKEDIN_USERINFO_URL = 'https://api.linkedin.com/v2/userinfo';
 // Track used authorization codes to prevent double-use
 const usedCodes = new Set();
 const CODE_EXPIRY_MS = 60000; // 1 minute
+
+// PKCE storage (code_verifier per state)
+const pkceStore = new Map();
+
+// Generate PKCE challenge
+function generateCodeVerifier() {
+    return crypto.randomBytes(32).toString('base64url');
+}
+
+function generateCodeChallenge(verifier) {
+    return crypto
+        .createHash('sha256')
+        .update(verifier)
+        .digest('base64url');
+}
 
 // Initiate OAuth flow
 router.get('/linkedin', (req, res) => {
@@ -35,17 +51,34 @@ router.get('/linkedin', (req, res) => {
     }
     
     const redirectUri = process.env.LINKEDIN_CALLBACK_URL;
+    
+    // Generate PKCE parameters
+    const codeVerifier = generateCodeVerifier();
+    const codeChallenge = generateCodeChallenge(codeVerifier);
+    const state = crypto.randomBytes(16).toString('hex');
+    
+    // Store code_verifier with state for later retrieval
+    pkceStore.set(state, codeVerifier);
+    setTimeout(() => {
+        pkceStore.delete(state);
+        console.log(`🗑️  Cleaned up PKCE state ${state}`);
+    }, CODE_EXPIRY_MS);
+    
     const params = new URLSearchParams({
         response_type: 'code',
         client_id: process.env.LINKEDIN_CLIENT_ID,
         redirect_uri: redirectUri,
         scope: 'openid profile email',
-        state: timestamp // Add state parameter to track requests
+        state: state,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256'
     });
     
     const authUrl = `${LINKEDIN_AUTH_URL}?${params.toString()}`;
     console.log('🔗 Full Authorization URL:', authUrl);
     console.log('📍 Exact redirect_uri sent to LinkedIn:', redirectUri);
+    console.log('🔐 PKCE enabled - code_challenge:', codeChallenge.substring(0, 20) + '...');
+    console.log('🔑 State:', state);
     res.redirect(authUrl);
 });
 
@@ -67,6 +100,15 @@ router.get('/linkedin/callback', async (req, res) => {
     const { code, error, state } = req.query;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const redirectUri = process.env.LINKEDIN_CALLBACK_URL;
+    
+    // Retrieve code_verifier from PKCE store
+    const codeVerifier = pkceStore.get(state);
+    if (!codeVerifier) {
+        console.error('❌ No code_verifier found for state:', state);
+        console.error('State may have expired or is invalid');
+        return res.redirect(`${frontendUrl}/social-presence?error=linkedin_state_invalid`);
+    }
+    console.log('🔐 Retrieved code_verifier for state:', state);
     
     // Validate environment variables
     if (!redirectUri) {
@@ -125,7 +167,8 @@ router.get('/linkedin/callback', async (req, res) => {
             code: code,
             client_id: process.env.LINKEDIN_CLIENT_ID,
             client_secret: process.env.LINKEDIN_CLIENT_SECRET,
-            redirect_uri: redirectUri // Use the exact same variable
+            redirect_uri: redirectUri, // Use the exact same variable
+            code_verifier: codeVerifier // PKCE verification
         };
         
         console.log('📤 Token Exchange Parameters:');
@@ -134,6 +177,7 @@ router.get('/linkedin/callback', async (req, res) => {
         console.log('  - client_id:', tokenExchangeParams.client_id);
         console.log('  - client_secret:', '***' + process.env.LINKEDIN_CLIENT_SECRET?.slice(-4));
         console.log('  - redirect_uri:', tokenExchangeParams.redirect_uri);
+        console.log('  - code_verifier:', codeVerifier.substring(0, 20) + '...');
         console.log('\n🔍 Redirect URI Match Check:');
         console.log('  Auth Request:  ', redirectUri);
         console.log('  Token Exchange:', tokenExchangeParams.redirect_uri);
