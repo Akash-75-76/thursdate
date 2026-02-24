@@ -15,35 +15,54 @@ const CODE_EXPIRY_MS = 60000; // 1 minute
 
 // Initiate OAuth flow
 router.get('/linkedin', (req, res) => {
-    console.log('🔄 Initiating LinkedIn OAuth flow...');
-    console.log('📍 Client ID:', process.env.LINKEDIN_CLIENT_ID);
-    console.log('📍 Callback URL:', process.env.LINKEDIN_CALLBACK_URL);
+    const timestamp = new Date().toISOString();
+    console.log('\n========================================');
+    console.log('🔄 STEP 1: Initiating LinkedIn OAuth flow');
+    console.log('Timestamp:', timestamp);
+    console.log('Client ID:', process.env.LINKEDIN_CLIENT_ID);
+    console.log('Callback URL:', process.env.LINKEDIN_CALLBACK_URL);
+    console.log('========================================\n');
     
+    const redirectUri = process.env.LINKEDIN_CALLBACK_URL;
     const params = new URLSearchParams({
         response_type: 'code',
         client_id: process.env.LINKEDIN_CLIENT_ID,
-        redirect_uri: process.env.LINKEDIN_CALLBACK_URL,
-        scope: 'openid profile email'
+        redirect_uri: redirectUri,
+        scope: 'openid profile email',
+        state: timestamp // Add state parameter to track requests
     });
     
     const authUrl = `${LINKEDIN_AUTH_URL}?${params.toString()}`;
-    console.log('🔗 Redirecting to:', authUrl);
+    console.log('🔗 Full Authorization URL:', authUrl);
+    console.log('📍 Exact redirect_uri sent to LinkedIn:', redirectUri);
     res.redirect(authUrl);
 });
 
 // OAuth callback handler
 router.get('/linkedin/callback', async (req, res) => {
     const callbackTime = new Date();
-    console.log('📥 LinkedIn callback received at:', callbackTime.toISOString());
-    console.log('Query params:', req.query);
+    const requestId = Math.random().toString(36).substring(7);
     
-    const { code, error } = req.query;
+    console.log('\n========================================');
+    console.log(`📥 STEP 2: LinkedIn Callback [${requestId}]`);
+    console.log('Timestamp:', callbackTime.toISOString());
+    console.log('All Query Params:', JSON.stringify(req.query, null, 2));
+    console.log('Request Headers:', JSON.stringify({
+        'user-agent': req.headers['user-agent'],
+        'referer': req.headers['referer']
+    }, null, 2));
+    console.log('========================================\n');
+    
+    const { code, error, state } = req.query;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    console.log('🌐 Frontend URL:', frontendUrl);
-    console.log('📍 Callback URL (from env):', process.env.LINKEDIN_CALLBACK_URL);
+    const redirectUri = process.env.LINKEDIN_CALLBACK_URL;
+    
+    console.log('📍 Exact redirect_uri to use in token exchange:', redirectUri);
+    console.log('🕐 State parameter from auth flow:', state);
     
     if (error) {
         console.error('❌ LinkedIn OAuth error:', error);
+        console.error('Error description:', req.query.error_description);
         return res.redirect(`${frontendUrl}/social-presence?error=linkedin_auth_failed`);
     }
     
@@ -52,38 +71,56 @@ router.get('/linkedin/callback', async (req, res) => {
         return res.redirect(`${frontendUrl}/social-presence?error=linkedin_no_code`);
     }
     
+    const codePrefix = code.substring(0, 15);
+    console.log('📝 Authorization code prefix:', codePrefix + '...');
+    
     // Check if code was already used (prevent double-processing)
     if (usedCodes.has(code)) {
-        console.warn('⚠️  Authorization code already used - ignoring duplicate request');
+        console.warn(`⚠️  [${requestId}] Authorization code ${codePrefix}... already used`);
+        console.warn('This is a duplicate request - returning cached success response');
         return res.redirect(`${frontendUrl}/social-presence?linkedin_verified=true&status=already_processed`);
     }
     
     // Mark code as used immediately
+    console.log(`✅ [${requestId}] Marking code ${codePrefix}... as USED`);
     usedCodes.add(code);
-    setTimeout(() => usedCodes.delete(code), CODE_EXPIRY_MS); // Clean up after 1 minute
+    setTimeout(() => {
+        usedCodes.delete(code);
+        console.log(`🗑️  Cleaned up code ${codePrefix}... from cache`);
+    }, CODE_EXPIRY_MS);
     
-    console.log('✅ Authorization code received (length:', code.length, ')');
-    console.log('⏱️  Starting token exchange immediately...');
+    console.log(`⏱️  [${requestId}] Starting token exchange NOW...`);
     
     try {
         // Exchange code for access token
-        console.log('🔄 Exchanging LinkedIn code for access token...');
+        console.log('\n========================================');
+        console.log(`🔄 STEP 3: Token Exchange [${requestId}]`);
+        console.log('========================================\n');
         
-        // Create form data for token exchange (LinkedIn requires application/x-www-form-urlencoded in body, not query params)
-        const formData = new URLSearchParams({
+        // CRITICAL: Use EXACT same redirect_uri as in authorization request
+        const tokenExchangeParams = {
             grant_type: 'authorization_code',
             code: code,
             client_id: process.env.LINKEDIN_CLIENT_ID,
             client_secret: process.env.LINKEDIN_CLIENT_SECRET,
-            redirect_uri: process.env.LINKEDIN_CALLBACK_URL
-        });
+            redirect_uri: redirectUri // Use the exact same variable
+        };
         
-        console.log('📤 Token request params:', {
-            grant_type: 'authorization_code',
-            code: code.substring(0, 20) + '...',
-            client_id: process.env.LINKEDIN_CLIENT_ID,
-            redirect_uri: process.env.LINKEDIN_CALLBACK_URL
-        });
+        console.log('📤 Token Exchange Parameters:');
+        console.log('  - grant_type:', tokenExchangeParams.grant_type);
+        console.log('  - code:', codePrefix + '... (length: ' + code.length + ')');
+        console.log('  - client_id:', tokenExchangeParams.client_id);
+        console.log('  - client_secret:', '***' + process.env.LINKEDIN_CLIENT_SECRET?.slice(-4));
+        console.log('  - redirect_uri:', tokenExchangeParams.redirect_uri);
+        console.log('\n🔍 Redirect URI Match Check:');
+        console.log('  Auth Request:  ', redirectUri);
+        console.log('  Token Exchange:', tokenExchangeParams.redirect_uri);
+        console.log('  Match:', redirectUri === tokenExchangeParams.redirect_uri ? '✅ YES' : '❌ NO');
+        
+        const formData = new URLSearchParams(tokenExchangeParams);
+        
+        console.log('\n📡 Sending POST to:', LINKEDIN_TOKEN_URL);
+        const tokenStartTime = Date.now();
         
         const tokenResponse = await axios.post(LINKEDIN_TOKEN_URL, formData, {
             headers: {
@@ -91,8 +128,9 @@ router.get('/linkedin/callback', async (req, res) => {
             }
         });
         
+        const tokenEndTime = Date.now();
         const { access_token } = tokenResponse.data;
-        console.log('✅ LinkedIn access token received');
+        console.log(`✅ LinkedIn access token received (took ${tokenEndTime - tokenStartTime}ms)`);
         
         // Fetch user info using OpenID Connect userinfo endpoint
         console.log('🔄 Fetching LinkedIn user info...');
@@ -154,26 +192,58 @@ router.get('/linkedin/callback', async (req, res) => {
         
         // Redirect with shortened URL to avoid browser issues with long URLs
         const redirectUrl = `${frontendUrl}/social-presence?linkedin_verified=true&token=${encodeURIComponent(token)}`;
-        console.log('🔄 Redirecting to:', redirectUrl.substring(0, 120) + '...');
+        console.log(`\n✅ [${requestId}] SUCCESS - OAuth flow completed`);
+        console.log('🔄 Redirecting to:', redirectUrl.substring(0, 120) + '...\n');
+        console.log('========================================\n');
         res.redirect(redirectUrl);
     } catch (error) {
-        console.error('❌ LinkedIn callback error:', error.response?.data || error.message);
-        console.error('❌ Error status:', error.response?.status);
+        console.error('\n========================================');
+        console.error(`❌ STEP 3 FAILED [${requestId}]`);
+        console.error('========================================\n');
         
-        if (error.response?.data) {
-            console.error('❌ LinkedIn error details:', JSON.stringify(error.response.data, null, 2));
+        console.error('Error Type:', error.name);
+        console.error('Error Message:', error.message);
+        
+        if (error.response) {
+            console.error('\n📡 LinkedIn API Response:');
+            console.error('  Status:', error.response.status, error.response.statusText);
+            console.error('  Data:', JSON.stringify(error.response.data, null, 2));
             
-            // Check for specific error types
-            if (error.response.data.error === 'invalid_request') {
-                console.error('💡 Hint: This usually means:');
-                console.error('   1. Authorization code expired (30 second timeout)');
-                console.error('   2. Code was already used (can only use once)');
-                console.error('   3. redirect_uri mismatch between initial request and token exchange');
-                console.error('   4. Verify redirect_uri in LinkedIn Developer Console matches:', process.env.LINKEDIN_CALLBACK_URL);
+            if (error.response.status === 400 && error.response.data?.error === 'invalid_request') {
+                console.error('\n💡 TROUBLESHOOTING - Invalid Request Error:');
+                console.error('This usually means ONE of the following:\n');
+                console.error('  1️⃣  REDIRECT_URI MISMATCH');
+                console.error('      - LinkedIn Developer Console:', '(check your app settings)');
+                console.error('      - Environment Variable:', redirectUri);
+                console.error('      - They must match EXACTLY (including trailing slashes, http/https)\n');
+                console.error('  2️⃣  AUTHORIZATION CODE EXPIRED');
+                console.error('      - Codes expire in ~30 seconds');
+                console.error('      - Time from callback to token exchange:', `${Date.now() - callbackTime.getTime()}ms\n`);
+                console.error('  3️⃣  CODE ALREADY USED');
+                console.error('      - Authorization codes are single-use only');
+                console.error('      - This code:', codePrefix + '...\n');
+                console.error('  4️⃣  EXTERNAL MEMBER BINDING');
+                console.error('      - LinkedIn account may be linked to another app');
+                console.error('      - Try with a different LinkedIn test account\n');
+                console.error('Full error from LinkedIn:', error.response.data.error_description);
             }
+            
+            console.error('\n📤 What we sent to LinkedIn:');
+            console.error('  URL:', LINKEDIN_TOKEN_URL);
+            console.error('  grant_type: authorization_code');
+            console.error('  code:', codePrefix + '... (length: ' + code.length + ')');
+            console.error('  client_id:', process.env.LINKEDIN_CLIENT_ID);
+            console.error('  redirect_uri:', redirectUri);
+        } else if (error.request) {
+            console.error('\n📡 No response from LinkedIn');
+            console.error('Request was made but no response received');
+            console.error('Check network connectivity');
+        } else {
+            console.error('\n⚠️  Error setting up the request');
+            console.error(error.message);
         }
         
-        console.error('❌ Full error:', error);
+        console.error('\n========================================\n');
         res.redirect(`${frontendUrl}/social-presence?error=linkedin_callback_failed`);
     }
 });
