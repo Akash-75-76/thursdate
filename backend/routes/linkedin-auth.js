@@ -45,14 +45,24 @@ router.get('/linkedin/callback', async (req, res) => {
     try {
         // Exchange code for access token
         console.log('🔄 Exchanging LinkedIn code for access token...');
-        const tokenResponse = await axios.post(LINKEDIN_TOKEN_URL, null, {
-            params: {
-                grant_type: 'authorization_code',
-                code: code,
-                client_id: process.env.LINKEDIN_CLIENT_ID,
-                client_secret: process.env.LINKEDIN_CLIENT_SECRET,
-                redirect_uri: process.env.LINKEDIN_CALLBACK_URL
-            },
+        
+        // Create form data for token exchange (LinkedIn requires application/x-www-form-urlencoded in body, not query params)
+        const formData = new URLSearchParams({
+            grant_type: 'authorization_code',
+            code: code,
+            client_id: process.env.LINKEDIN_CLIENT_ID,
+            client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+            redirect_uri: process.env.LINKEDIN_CALLBACK_URL
+        });
+        
+        console.log('📤 Token request params:', {
+            grant_type: 'authorization_code',
+            code: code.substring(0, 20) + '...',
+            client_id: process.env.LINKEDIN_CLIENT_ID,
+            redirect_uri: process.env.LINKEDIN_CALLBACK_URL
+        });
+        
+        const tokenResponse = await axios.post(LINKEDIN_TOKEN_URL, formData, {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
