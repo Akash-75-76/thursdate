@@ -6,17 +6,19 @@ const pool = require('../config/db');
  * 
  * Level System:
  * - Level 1: Default on match (basic info)
- * - Level 2: Unlocks at 5 messages (preferences + lifestyle) - requires both users to complete
- * - Level 3: Unlocks at 10 messages (deep + personal) - requires explicit consent
+ * - Level 2: Unlocks after each user has sent 5 messages (preferences + lifestyle) - requires both users to complete
+ * - Level 3: Unlocks after each user has sent 5 messages (deep + personal) - requires explicit consent and Level 2 acceptance
  */
 
 class ProfileLevelService {
     /**
-     * Level thresholds for message count
+     * Level thresholds for per-user message counts (per conversation)
+     * - Level 2: requires each user to have sent >= 5 messages
+     * - Level 3: requires each user to have sent >= 5 messages (and Level 2 accepted by both)
      */
     static THRESHOLDS = {
         LEVEL_2: 5,
-        LEVEL_3: 10
+        LEVEL_3: 5
     };
 
     /**
@@ -60,10 +62,13 @@ class ProfileLevelService {
                 viewer.level2_questions_completed as viewer_level2_completed,
                 viewer.level3_questions_completed as viewer_level3_completed,
                 owner.level2_questions_completed as owner_level2_completed,
-                owner.level3_questions_completed as owner_level3_completed
+                owner.level3_questions_completed as owner_level3_completed,
+                ml.user1_message_count,
+                ml.user2_message_count
             FROM conversations c
             JOIN users viewer ON viewer.id = ?
             JOIN users owner ON owner.id = ?
+            LEFT JOIN match_levels ml ON ml.conversation_id = c.id
             WHERE c.id = ?`,
             [viewerId, profileOwnerId, conversationId]
         );
@@ -74,6 +79,10 @@ class ProfileLevelService {
 
         const conv = rows[0];
         const messageCount = conv.message_count;
+        const user1MsgCount = Number(conv.user1_message_count ?? 0);
+        const user2MsgCount = Number(conv.user2_message_count ?? 0);
+        const level2ThresholdReached = user1MsgCount >= this.THRESHOLDS.LEVEL_2 && user2MsgCount >= this.THRESHOLDS.LEVEL_2;
+        const level3ThresholdReached = user1MsgCount >= this.THRESHOLDS.LEVEL_3 && user2MsgCount >= this.THRESHOLDS.LEVEL_3;
 
         // ✅ FIX: Correctly map viewer and owner to their actual positions in conversation
         const viewerIsUser1 = conv.user_id_1 === viewerId;
@@ -84,7 +93,7 @@ class ProfileLevelService {
         const viewer_level3_consent = viewerIsUser1 ? conv.level3_user1_consent : conv.level3_user2_consent;
         const owner_level3_consent = ownerIsUser1 ? conv.level3_user1_consent : conv.level3_user2_consent;
 
-        console.log(`[Visibility] Conv ${conversationId}: messages=${messageCount}`);
+        console.log(`[Visibility] Conv ${conversationId}: totalMessages=${messageCount}, user1Messages=${user1MsgCount}, user2Messages=${user2MsgCount}`);
         console.log(`[Visibility] Viewer=${viewerId} (isUser1=${viewerIsUser1}), Owner=${profileOwnerId} (isUser1=${ownerIsUser1})`);
         console.log(`[Visibility] Level 2 - viewer_consent=${viewer_level2_consent}, owner_consent=${owner_level2_consent}, viewer_completed=${conv.viewer_level2_completed}, owner_completed=${conv.owner_level2_completed}`);
         console.log(`[Visibility] Level 3 - viewer_consent=${viewer_level3_consent}, owner_consent=${owner_level3_consent}, viewer_completed=${conv.viewer_level3_completed}, owner_completed=${conv.owner_level3_completed}`);
@@ -93,7 +102,7 @@ class ProfileLevelService {
         let visibleLevel = 1;
 
         // ✅ CRITICAL: Level 2 visibility requires BOTH users to have COMPLETED questions AND CONSENTED
-        if (messageCount >= this.THRESHOLDS.LEVEL_2 && 
+        if (level2ThresholdReached && 
             viewer_level2_consent && 
             owner_level2_consent &&
             conv.viewer_level2_completed &&
@@ -103,7 +112,7 @@ class ProfileLevelService {
         }
 
         // ✅ CRITICAL: Level 3 visibility requires BOTH users to have COMPLETED questions AND CONSENTED
-        if (messageCount >= this.THRESHOLDS.LEVEL_3 && 
+        if (level3ThresholdReached && 
             viewer_level3_consent && 
             owner_level3_consent &&
             conv.viewer_level3_completed &&
@@ -118,18 +127,18 @@ class ProfileLevelService {
         let canUpgrade = false;
         let nextLevelAt = null;
 
-        if (visibleLevel === 1 && messageCount >= this.THRESHOLDS.LEVEL_2) {
+        if (visibleLevel === 1 && level2ThresholdReached) {
             canUpgrade = true;
-        } else if (visibleLevel === 2 && messageCount >= this.THRESHOLDS.LEVEL_3) {
+        } else if (visibleLevel === 2 && level3ThresholdReached) {
             canUpgrade = true;
         } else if (visibleLevel === 1) {
-            nextLevelAt = this.THRESHOLDS.LEVEL_2 - messageCount;
+            nextLevelAt = null;
         } else if (visibleLevel === 2) {
-            nextLevelAt = this.THRESHOLDS.LEVEL_3 - messageCount;
+            nextLevelAt = null;
         }
 
         // ✅ PERSONAL TAB UNLOCK: Only unlocked when Level 3 FULLY unlocked (both consented AND completed)
-        const personalTabUnlocked = !!(messageCount >= this.THRESHOLDS.LEVEL_3 && 
+        const personalTabUnlocked = !!(level3ThresholdReached && 
                                        viewer_level3_consent && 
                                        owner_level3_consent &&
                                        conv.viewer_level3_completed &&
@@ -140,8 +149,8 @@ class ProfileLevelService {
             canUpgrade,
             nextLevelAt,
             messageCount,
-            level2Ready: conv.viewer_level2_done && conv.owner_level2_done,
-            level3Ready: conv.viewer_level3_consent && conv.owner_level3_consent,
+            level2Ready: level2ThresholdReached && conv.viewer_level2_completed && conv.owner_level2_completed,
+            level3Ready: level3ThresholdReached && conv.viewer_level3_completed && conv.owner_level3_completed,
             personalTabUnlocked  // ✅ NEW: Flag for Personal tab lock/unlock state
         };
     }
@@ -215,11 +224,14 @@ class ProfileLevelService {
         const user1Count = ml.user1_message_count + (senderIsUser1 ? 1 : 0);
         const user2Count = ml.user2_message_count + (senderIsUser1 ? 0 : 1);
         
-        // ✅ CRITICAL: Check if BOTH users have participated
+        // ✅ CRITICAL: Require BOTH users to meaningfully participate (prevents spam unlocks)
         const bothUsersParticipated = user1Count >= 1 && user2Count >= 1;
+        const bothUsersAtLevel2Threshold = user1Count >= this.THRESHOLDS.LEVEL_2 && user2Count >= this.THRESHOLDS.LEVEL_2;
+        const bothUsersAtLevel3Threshold = user1Count >= this.THRESHOLDS.LEVEL_3 && user2Count >= this.THRESHOLDS.LEVEL_3;
         
         console.log(`[MessageCount] Conv ${conversationId}: Sender=${senderId} (isUser1=${senderIsUser1})`);
         console.log(`[MessageCount] Per-user counts: User1=${user1Count}, User2=${user2Count}, BothParticipated=${bothUsersParticipated}`);
+        console.log(`[MessageCount] Thresholds: L2=${bothUsersAtLevel2Threshold}, L3=${bothUsersAtLevel3Threshold}`);
         
         // ✅ INCREMENT: Update both total count and per-user count
         const newMessageCount = message_count + 1;
@@ -241,28 +253,28 @@ class ProfileLevelService {
         
         console.log(`[MessageCount] Total: ${message_count} → ${newMessageCount}`);
         
-        // ✅ Level 2 triggers at TOTAL >= 5 AND BOTH users participated
-        if (currentLevel === 1 && newMessageCount >= this.THRESHOLDS.LEVEL_2 && bothUsersParticipated) {
+        // ✅ Level 2 triggers only when BOTH users have sent >= 5 messages each
+        if (currentLevel === 1 && bothUsersAtLevel2Threshold) {
             shouldNotify = true;
             threshold = 'LEVEL_2';
             await this.setPopupPending(conversationId, user_id_1, user_id_2, 2);
-            console.log(`[Level2] ✅ Threshold reached: total=${newMessageCount}, user1=${user1Count}, user2=${user2Count}`);
-        } else if (currentLevel === 1 && newMessageCount >= this.THRESHOLDS.LEVEL_2 && !bothUsersParticipated) {
-            console.log(`[Level2] ⚠️  BLOCKED: total=${newMessageCount} BUT only one user talking (user1=${user1Count}, user2=${user2Count})`);
+            console.log(`[Level2] ✅ Threshold reached: user1=${user1Count}, user2=${user2Count} (total=${newMessageCount})`);
+        } else if (currentLevel === 1 && newMessageCount >= (this.THRESHOLDS.LEVEL_2 * 2) && !bothUsersAtLevel2Threshold) {
+            console.log(`[Level2] ⚠️  BLOCKED: total=${newMessageCount} but not 5-each (user1=${user1Count}, user2=${user2Count})`);
         }
         
-        // ✅ Level 3 triggers at TOTAL >= 10 AND BOTH users participated (ONLY if Level 2 consent accepted)
-        if (currentLevel >= 2 && newMessageCount >= this.THRESHOLDS.LEVEL_3 && bothUsersParticipated) {
+        // ✅ Level 3 triggers only when BOTH users have sent >= 10 messages each (ONLY if Level 2 consent accepted)
+        if (currentLevel >= 2 && bothUsersAtLevel3Threshold) {
             if (level2BothAccepted) {
                 shouldNotify = true;
                 threshold = 'LEVEL_3';
                 await this.setPopupPending(conversationId, user_id_1, user_id_2, 3);
-                console.log(`[Level3] ✅ Threshold reached: total=${newMessageCount}, user1=${user1Count}, user2=${user2Count}`);
+                console.log(`[Level3] ✅ Threshold reached: user1=${user1Count}, user2=${user2Count} (total=${newMessageCount})`);
             } else {
                 console.log(`[Level3] ⚠️  BLOCKED: Threshold reached but Level 2 consent not accepted by both`);
             }
-        } else if (currentLevel >= 2 && newMessageCount >= this.THRESHOLDS.LEVEL_3 && !bothUsersParticipated) {
-            console.log(`[Level3] ⚠️  BLOCKED: total=${newMessageCount} BUT only one user talking (user1=${user1Count}, user2=${user2Count})`);
+        } else if (currentLevel >= 2 && newMessageCount >= (this.THRESHOLDS.LEVEL_3 * 2) && !bothUsersAtLevel3Threshold) {
+            console.log(`[Level3] ⚠️  BLOCKED: total=${newMessageCount} but not 10-each (user1=${user1Count}, user2=${user2Count})`);
         }
         
         return {
@@ -272,7 +284,9 @@ class ProfileLevelService {
             messageCount: newMessageCount,
             user1MessageCount: user1Count,
             user2MessageCount: user2Count,
-            bothUsersParticipated
+            bothUsersParticipated,
+            bothUsersAtLevel2Threshold,
+            bothUsersAtLevel3Threshold
         };
     }
 
@@ -442,7 +456,7 @@ class ProfileLevelService {
 
         const bothConsented = updated[0].level2_user1_consent && updated[0].level2_user2_consent;
 
-        // ✅ CRITICAL: When BOTH users accept Level 2, check if Level 3 threshold already met
+        // ✅ CRITICAL: When BOTH users accept Level 2, check if Level 3 threshold already met (per-user counts)
         if (bothConsented && consent) {
             // Update current_level to 2
             await pool.execute(
@@ -450,23 +464,22 @@ class ProfileLevelService {
                 [conversationId]
             );
             
-            // Check if Level 3 threshold already crossed while waiting for consent
-            const [msgCheck] = await pool.execute(
-                'SELECT message_count FROM conversations WHERE id = ?',
+            const [counts] = await pool.execute(
+                'SELECT user1_message_count, user2_message_count FROM match_levels WHERE conversation_id = ?',
                 [conversationId]
             );
+            const u1 = counts[0]?.user1_message_count ?? 0;
+            const u2 = counts[0]?.user2_message_count ?? 0;
+            console.log(`[Level2Consent] ✅ BOTH users accepted! Per-user counts: user1=${u1}, user2=${u2}`);
             
-            const totalMessages = msgCheck[0]?.message_count || 0;
-            console.log(`[Level2Consent] ✅ BOTH users accepted! Total messages: ${totalMessages}`);
-            
-            // Edge case: If already >= 10 messages, trigger Level 3 immediately
-            if (totalMessages >= this.THRESHOLDS.LEVEL_3) {
+            // Edge case: If already >= 10 messages each, trigger Level 3 immediately
+            if (u1 >= this.THRESHOLDS.LEVEL_3 && u2 >= this.THRESHOLDS.LEVEL_3) {
                 const [conv] = await pool.execute(
                     'SELECT user_id_1, user_id_2 FROM conversations WHERE id = ?',
                     [conversationId]
                 );
                 await this.setPopupPending(conversationId, conv[0].user_id_1, conv[0].user_id_2, 3);
-                console.log(`[Level2Consent] ⚡ Level 3 threshold already met! Triggering immediately.`);
+                console.log(`[Level2Consent] ⚡ Level 3 threshold already met (10-each)! Triggering immediately.`);
             }
         }
 
@@ -668,6 +681,8 @@ class ProfileLevelService {
                 ml.level2_popup_pending_user2,
                 ml.level3_popup_pending_user1,
                 ml.level3_popup_pending_user2,
+                ml.user1_message_count,
+                ml.user2_message_count,
                 ml.level2_user1_consent_state,
                 ml.level2_user2_consent_state,
                 ml.level3_user1_consent_state,
@@ -715,6 +730,18 @@ class ProfileLevelService {
             ? (isUser1InMatchLevels ? data.level3_user1_consent_state : data.level3_user2_consent_state)
             : 'PENDING';
 
+        // Per-user message counts (mapped to "user" vs "partner")
+        const rawUser1Count = Number(data.user1_message_count ?? 0);
+        const rawUser2Count = Number(data.user2_message_count ?? 0);
+        const userMessageCount = data.ml_user_id_1
+            ? (isUser1InMatchLevels ? rawUser1Count : rawUser2Count)
+            : 0;
+        const partnerMessageCount = data.ml_user_id_1
+            ? (isUser1InMatchLevels ? rawUser2Count : rawUser1Count)
+            : 0;
+        const level2ThresholdReached = userMessageCount >= this.THRESHOLDS.LEVEL_2 && partnerMessageCount >= this.THRESHOLDS.LEVEL_2;
+        const level3ThresholdReached = userMessageCount >= this.THRESHOLDS.LEVEL_3 && partnerMessageCount >= this.THRESHOLDS.LEVEL_3;
+
         // ✅ CRITICAL: Determine explicit actions for each level
         // Level 2 Action Logic
         let level2Action = 'NO_ACTION';
@@ -740,27 +767,29 @@ class ProfileLevelService {
 
         return {
             messageCount: msgCount,
+            userMessageCount,
+            partnerMessageCount,
             currentLevel: data.current_level,
             
             // Level 2 status
-            level2ThresholdReached: msgCount >= this.THRESHOLDS.LEVEL_2,
+            level2ThresholdReached,
             level2Action: level2Action, // ✅ EXPLICIT ACTION: FILL_INFORMATION | ASK_CONSENT | NO_ACTION
             level2UserCompletedGlobal: userLevel2CompletedGlobal,
             level2PartnerCompletedGlobal: partnerLevel2CompletedGlobal,
             level2UserConsent: userLevel2Consent,
             level2PartnerConsent: partnerLevel2Consent,
-            level2Visible: msgCount >= this.THRESHOLDS.LEVEL_2 && userLevel2Consent && partnerLevel2Consent,
+            level2Visible: level2ThresholdReached && userLevel2Consent && partnerLevel2Consent,
             level2PopupPending: level2PopupPending, // ✅ CRITICAL: Backend drives popup visibility
             level2ConsentState: level2ConsentState, // ✅ NEW: For reminder banner (PENDING | ACCEPTED | DECLINED_TEMPORARY)
             
             // Level 3 status
-            level3ThresholdReached: msgCount >= this.THRESHOLDS.LEVEL_3,
+            level3ThresholdReached,
             level3Action: level3Action, // ✅ EXPLICIT ACTION: FILL_INFORMATION | ASK_CONSENT | NO_ACTION
             level3UserCompletedGlobal: userLevel3CompletedGlobal,
             level3PartnerCompletedGlobal: partnerLevel3CompletedGlobal,
             level3UserConsent: userLevel3Consent,
             level3PartnerConsent: partnerLevel3Consent,
-            level3Visible: msgCount >= this.THRESHOLDS.LEVEL_3 && userLevel3Consent && partnerLevel3Consent,
+            level3Visible: level3ThresholdReached && userLevel3Consent && partnerLevel3Consent,
             level3PopupPending: level3PopupPending, // ✅ CRITICAL: Backend drives popup visibility
             level3ConsentState: level3ConsentState, // ✅ NEW: For reminder banner (PENDING | ACCEPTED | DECLINED_TEMPORARY)
             

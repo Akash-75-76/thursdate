@@ -61,7 +61,7 @@ export default function WaitlistStatus() {
           <img src="/backarrow.svg" alt="Back" width={24} height={24} />
         </button>
         <div className="text-gray-400 text-[14px] font-semibold mx-auto">
-          ThursDate.
+          SunDate.
         </div>
         <div style={{ width: 24 }}></div> {/* Spacer */}
       </div>

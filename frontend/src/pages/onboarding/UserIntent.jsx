@@ -3,6 +3,42 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { userAPI, uploadAPI } from '../../utils/api';
 import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
+import Cropper from 'react-easy-crop';
+
+const createImage = (url) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.setAttribute('crossOrigin', 'anonymous');
+    image.src = url;
+  });
+
+const getCroppedBlob = async (imageSrc, pixelCrop, type = 'image/jpeg', quality = 0.92) => {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.floor(pixelCrop.width));
+  canvas.height = Math.max(1, Math.floor(pixelCrop.height));
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not create canvas context');
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+  if (!blob) throw new Error('Failed to crop image');
+  return blob;
+};
 
 export default function UserIntent() {
   const navigate = useNavigate();
@@ -43,6 +79,17 @@ export default function UserIntent() {
   const [lifestyleImageUrls, setLifestyleImageUrls] = useState([null, null, null, null, null]); // Step 12
   const [imgUploading, setImgUploading] = useState(false);
   const [imgError, setImgError] = useState('');
+
+  // Lifestyle image crop state
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropSrc, setCropSrc] = useState(null);
+  const [cropFile, setCropFile] = useState(null);
+  const [cropIdx, setCropIdx] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [cropSubmitting, setCropSubmitting] = useState(false);
+  const [cropError, setCropError] = useState('');
 
   // Age limits
   const minAge = 35;
@@ -300,7 +347,7 @@ export default function UserIntent() {
   };
 
   // Lifestyle image upload
-  const handleLifestyleImageChange = async (idx, file) => {
+  const uploadLifestyleImage = async (idx, file) => {
     if (!file) return;
     // Set a preview URL directly from the file object
     setLifestyleImageUrls(prev => {
@@ -326,6 +373,72 @@ export default function UserIntent() {
       setImgUploading(false);
     }
   };
+
+  const closeCrop = useCallback(() => {
+    setCropOpen(false);
+    setCropError('');
+    setCroppedAreaPixels(null);
+    setCropFile(null);
+    setCropIdx(null);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+
+    setCropSrc(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, []);
+
+  const handleLifestyleFilePicked = useCallback((idx, file) => {
+    if (!file) return;
+    if (!file.type?.startsWith('image/')) {
+      setImgError('Please upload an image file.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setImgError('Please upload an image under 10MB.');
+      return;
+    }
+
+    setImgError('');
+    setCropError('');
+    setCropIdx(idx);
+    setCropFile(file);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+
+    setCropSrc(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setCropOpen(true);
+  }, []);
+
+  const confirmCrop = useCallback(async () => {
+    if (cropIdx === null || !cropFile || !cropSrc || !croppedAreaPixels) {
+      setCropError('Please adjust the crop area.');
+      return;
+    }
+
+    setCropSubmitting(true);
+    setCropError('');
+    try {
+      const blob = await getCroppedBlob(cropSrc, croppedAreaPixels, 'image/jpeg', 0.92);
+      const croppedFile = new File([blob], `${(cropFile.name || 'lifestyle').replace(/\.[^/.]+$/, '')}-cropped.jpg`, {
+        type: blob.type || 'image/jpeg',
+        lastModified: Date.now(),
+      });
+
+      closeCrop();
+      await uploadLifestyleImage(cropIdx, croppedFile);
+    } catch (err) {
+      console.error('[UserIntent] Crop failed', err);
+      setCropError(err?.message || 'Failed to crop image. Try again.');
+    } finally {
+      setCropSubmitting(false);
+    }
+  }, [closeCrop, cropFile, cropIdx, cropSrc, croppedAreaPixels]);
 
   // Validation
   const isStepValid = useCallback(() => {
@@ -354,7 +467,7 @@ export default function UserIntent() {
       const currentProfile = await userAPI.getProfile();
       console.log('[UserIntent] Current profile:', currentProfile);
       console.log('[UserIntent] Profile image URL to save:', profileImageUrl);
-      
+
       const updateData = {
         ...currentProfile,
         // ✅ NEW: Send interests at root level for hybrid storage
@@ -377,10 +490,10 @@ export default function UserIntent() {
         profilePicUrl: profileImageUrl,  // ✅ FIX: Changed from profileImageUrl to profilePicUrl to match backend
         onboardingComplete: true, // ✅ Onboarding complete - navigate to Home
       };
-      
+
       console.log('[UserIntent] Saving profile with data:', updateData);
       console.log('[UserIntent] profilePicUrl in update:', updateData.profilePicUrl);
-      
+
       await userAPI.updateProfile(updateData);
       // Clear saved onboarding state on successful completion
       clearOnboardingState(STORAGE_KEYS.USER_INTENT);
@@ -639,7 +752,7 @@ export default function UserIntent() {
               <input
                 value={interestInput}
                 onChange={e => setInterestInput(e.target.value)}
-                onKeyDown={e => { 
+                onKeyDown={e => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     addInterest(interestInput);
@@ -805,7 +918,7 @@ export default function UserIntent() {
               <input
                 value={artistBandInput}
                 onChange={e => setArtistBandInput(e.target.value)}
-                onKeyDown={e => { 
+                onKeyDown={e => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     addArtistBand();
@@ -902,7 +1015,18 @@ export default function UserIntent() {
                   ) : (
                     <span className="text-white/60 text-3xl">+</span>
                   )}
-                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files && e.target.files[0] && handleLifestyleImageChange(idx, e.target.files[0])} disabled={imgUploading} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files && e.target.files[0];
+                      if (file) handleLifestyleFilePicked(idx, file);
+                      // allow re-selecting the same file
+                      e.target.value = '';
+                    }}
+                    disabled={imgUploading}
+                  />
                   {imgUploading && <div className="absolute inset-0 flex items-center justify-center bg-white/20 text-xs">Uploading...</div>}
                 </label>
               ))}
@@ -917,7 +1041,7 @@ export default function UserIntent() {
   }, [
     step, purpose, relationshipVibe, interestedGender, ageRange,
     bio, interests, interestInput, tvShows, movies, tvInput, movieInput, watchList, watchInput, artistsBands, artistBandInput, profileImageUrl, lifestyleImageUrls,
-    imgUploading, imgError, addInterest, removeInterest, addTvShow, removeTvShow, addMovie, removeMovie, addWatchItem, removeWatchItem, addArtistBand, removeArtistBand, handleLifestyleImageChange, handleProfileImageChange, profileImgUploading, profileImgError
+    imgUploading, imgError, addInterest, removeInterest, addTvShow, removeTvShow, addMovie, removeMovie, addWatchItem, removeWatchItem, addArtistBand, removeArtistBand, handleLifestyleFilePicked, handleProfileImageChange, profileImgUploading, profileImgError
   ]);
 
   if (initialLoading) {
@@ -980,6 +1104,68 @@ export default function UserIntent() {
           </div>
         </div>
       </div>
+
+      {cropOpen && cropSrc ? (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80" onClick={closeCrop} />
+          <div className="relative w-full max-w-md rounded-2xl overflow-hidden border border-white/10 bg-neutral-950">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="text-white font-semibold">Crop image</div>
+              <button type="button" onClick={closeCrop} className="text-white/70 hover:text-white text-sm">Close</button>
+            </div>
+
+            <div className="relative w-full" style={{ height: 340 }}>
+              <Cropper
+                image={cropSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
+              />
+            </div>
+
+            <div className="p-4 border-t border-white/10">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="text-white/70 text-xs w-12">Zoom</div>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1"
+                />
+              </div>
+
+              {cropError ? <div className="text-red-400 text-sm mb-3">{cropError}</div> : null}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeCrop}
+                  disabled={cropSubmitting}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={cropSubmitting ? { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)' } : { background: 'rgba(255,255,255,0.12)', color: 'white' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmCrop}
+                  disabled={cropSubmitting}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={cropSubmitting ? { background: 'rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.8)' } : { background: 'white', color: 'black' }}
+                >
+                  {cropSubmitting ? 'Cropping...' : 'Use photo'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
