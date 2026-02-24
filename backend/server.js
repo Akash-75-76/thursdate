@@ -9,6 +9,7 @@ const cloudinary = require('./config/cloudinary');
 const { initializeSocketHandlers } = require('./config/socket');
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (needed for Render/production HTTPS)
 const server = http.createServer(app);
 
 // Configure Socket.IO with CORS
