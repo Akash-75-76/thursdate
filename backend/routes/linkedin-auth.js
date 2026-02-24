@@ -23,20 +23,28 @@ router.get('/linkedin', (req, res) => {
 
 // OAuth callback handler
 router.get('/linkedin/callback', async (req, res) => {
+    console.log('📥 LinkedIn callback received');
+    console.log('Query params:', req.query);
+    
     const { code, error } = req.query;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    console.log('🌐 Frontend URL:', frontendUrl);
     
     if (error) {
-        console.error('LinkedIn OAuth error:', error);
+        console.error('❌ LinkedIn OAuth error:', error);
         return res.redirect(`${frontendUrl}/social-presence?error=linkedin_auth_failed`);
     }
     
     if (!code) {
+        console.error('❌ No authorization code received');
         return res.redirect(`${frontendUrl}/social-presence?error=linkedin_no_code`);
     }
     
+    console.log('✅ Authorization code received');
+    
     try {
         // Exchange code for access token
+        console.log('🔄 Exchanging LinkedIn code for access token...');
         const tokenResponse = await axios.post(LINKEDIN_TOKEN_URL, null, {
             params: {
                 grant_type: 'authorization_code',
@@ -51,9 +59,10 @@ router.get('/linkedin/callback', async (req, res) => {
         });
         
         const { access_token } = tokenResponse.data;
-        console.log('LinkedIn access token received');
+        console.log('✅ LinkedIn access token received');
         
         // Fetch user info using OpenID Connect userinfo endpoint
+        console.log('🔄 Fetching LinkedIn user info...');
         const userInfoResponse = await axios.get(LINKEDIN_USERINFO_URL, {
             headers: {
                 'Authorization': `Bearer ${access_token}`
@@ -61,12 +70,14 @@ router.get('/linkedin/callback', async (req, res) => {
         });
         
         const userInfo = userInfoResponse.data;
-        console.log('LinkedIn user info:', JSON.stringify(userInfo, null, 2));
+        console.log('✅ LinkedIn user info received:', JSON.stringify(userInfo, null, 2));
         
         // Extract profile URL (LinkedIn provides this in the userinfo response)
         const profileUrl = userInfo.sub ? `https://www.linkedin.com/in/${userInfo.sub}` : '';
+        console.log('📍 LinkedIn profile URL:', profileUrl);
         
         // Find or create user in database
+        console.log('🔄 Checking database for existing user...');
         const [existingUsers] = await pool.execute(
             'SELECT id FROM users WHERE email = ?',
             [userInfo.email]
@@ -75,21 +86,26 @@ router.get('/linkedin/callback', async (req, res) => {
         let userId;
         if (existingUsers.length > 0) {
             userId = existingUsers[0].id;
+            console.log('✅ Found existing user:', userId);
             // Update LinkedIn info for existing user
             await pool.execute(
                 'UPDATE users SET linkedin = ? WHERE id = ?',
                 [profileUrl, userId]
             );
+            console.log('✅ Updated LinkedIn URL for existing user');
         } else {
+            console.log('🔄 Creating new user...');
             // Create new user
             const [result] = await pool.execute(
                 'INSERT INTO users (email, linkedin, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
                 [userInfo.email, profileUrl, false, false]
             );
             userId = result.insertId;
+            console.log('✅ Created new user:', userId);
         }
         
         // Generate JWT token for your app with userId
+        console.log('🔄 Generating JWT token...');
         const token = jwt.sign(
             { 
                 userId: userId,
@@ -101,11 +117,15 @@ router.get('/linkedin/callback', async (req, res) => {
             process.env.JWT_SECRET || 'your-secret-key',
             { expiresIn: '7d' }
         );
+        console.log('✅ JWT token generated');
         
         // Redirect back to frontend with success
-        res.redirect(`${frontendUrl}/social-presence?linkedin_verified=true&token=${token}&linkedin_url=${encodeURIComponent(profileUrl)}`);
+        const redirectUrl = `${frontendUrl}/social-presence?linkedin_verified=true&token=${encodeURIComponent(token)}&linkedin_url=${encodeURIComponent(profileUrl)}`;
+        console.log('🔄 Redirecting to:', redirectUrl);
+        res.redirect(redirectUrl);
     } catch (error) {
-        console.error('LinkedIn callback error:', error.response?.data || error.message);
+        console.error('❌ LinkedIn callback error:', error.response?.data || error.message);
+        console.error('❌ Full error:', error);
         res.redirect(`${frontendUrl}/social-presence?error=linkedin_callback_failed`);
     }
 });
