@@ -190,10 +190,10 @@ router.get('/linkedin/callback', async (req, res) => {
         );
         console.log('✅ JWT token generated');
         
-        // Redirect with shortened URL to avoid browser issues with long URLs
-        const redirectUrl = `${frontendUrl}/social-presence?linkedin_verified=true&token=${encodeURIComponent(token)}`;
+        // Redirect with LinkedIn URL so frontend can display verification
+        const redirectUrl = `${frontendUrl}/social-presence?linkedin_verified=true&token=${encodeURIComponent(token)}&linkedin_url=${encodeURIComponent(profileUrl)}`;
         console.log(`\n✅ [${requestId}] SUCCESS - OAuth flow completed`);
-        console.log('🔄 Redirecting to:', redirectUrl.substring(0, 120) + '...\n');
+        console.log('🔄 Redirecting to:', redirectUrl.substring(0, 150) + '...\n');
         console.log('========================================\n');
         res.redirect(redirectUrl);
     } catch (error) {
