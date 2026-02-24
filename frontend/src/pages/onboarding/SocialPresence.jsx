@@ -78,7 +78,11 @@ export default function SocialPresence() {
 
     const handleLinkedInOAuth = () => {
         // Redirect to backend OAuth endpoint (uses env variable for production)
-        const backendUrl = import.meta.env.VITE_BACKEND_API_URL.replace('/api', '');
+        // Fallback to production URL if env variable is not set
+        const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://sundate-backend.onrender.com/api';
+        const backendUrl = backendApiUrl.replace('/api', '');
+        
+        console.log('🔗 LinkedIn OAuth - Redirecting to:', `${backendUrl}/auth/linkedin`);
         window.location.href = `${backendUrl}/auth/linkedin`;
     };
 

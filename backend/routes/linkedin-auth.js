@@ -21,7 +21,18 @@ router.get('/linkedin', (req, res) => {
     console.log('Timestamp:', timestamp);
     console.log('Client ID:', process.env.LINKEDIN_CLIENT_ID);
     console.log('Callback URL:', process.env.LINKEDIN_CALLBACK_URL);
+    console.log('Environment:', process.env.NODE_ENV || 'development');
     console.log('========================================\n');
+    
+    // Validate environment variables
+    if (!process.env.LINKEDIN_CLIENT_ID) {
+        console.error('❌ LINKEDIN_CLIENT_ID not set!');
+        return res.status(500).json({ error: 'LinkedIn OAuth not configured', message: 'LINKEDIN_CLIENT_ID is missing' });
+    }
+    if (!process.env.LINKEDIN_CALLBACK_URL) {
+        console.error('❌ LINKEDIN_CALLBACK_URL not set!');
+        return res.status(500).json({ error: 'LinkedIn OAuth not configured', message: 'LINKEDIN_CALLBACK_URL is missing' });
+    }
     
     const redirectUri = process.env.LINKEDIN_CALLBACK_URL;
     const params = new URLSearchParams({
@@ -57,7 +68,18 @@ router.get('/linkedin/callback', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const redirectUri = process.env.LINKEDIN_CALLBACK_URL;
     
+    // Validate environment variables
+    if (!redirectUri) {
+        console.error('❌ CRITICAL: LINKEDIN_CALLBACK_URL not set!');
+        return res.status(500).send('Server configuration error: LINKEDIN_CALLBACK_URL not set');
+    }
+    if (!process.env.LINKEDIN_CLIENT_ID || !process.env.LINKEDIN_CLIENT_SECRET) {
+        console.error('❌ CRITICAL: LinkedIn credentials not set!');
+        return res.status(500).send('Server configuration error: LinkedIn credentials missing');
+    }
+    
     console.log('📍 Exact redirect_uri to use in token exchange:', redirectUri);
+    console.log('🏠 Frontend URL for final redirect:', frontendUrl);
     console.log('🕐 State parameter from auth flow:', state);
     
     if (error) {
