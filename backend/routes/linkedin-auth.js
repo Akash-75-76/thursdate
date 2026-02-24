@@ -9,6 +9,10 @@ const LINKEDIN_AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization';
 const LINKEDIN_TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken';
 const LINKEDIN_USERINFO_URL = 'https://api.linkedin.com/v2/userinfo';
 
+// Track used authorization codes to prevent double-use
+const usedCodes = new Set();
+const CODE_EXPIRY_MS = 60000; // 1 minute
+
 // Initiate OAuth flow
 router.get('/linkedin', (req, res) => {
     console.log('🔄 Initiating LinkedIn OAuth flow...');
@@ -47,6 +51,16 @@ router.get('/linkedin/callback', async (req, res) => {
         console.error('❌ No authorization code received');
         return res.redirect(`${frontendUrl}/social-presence?error=linkedin_no_code`);
     }
+    
+    // Check if code was already used (prevent double-processing)
+    if (usedCodes.has(code)) {
+        console.warn('⚠️  Authorization code already used - ignoring duplicate request');
+        return res.redirect(`${frontendUrl}/social-presence?linkedin_verified=true&status=already_processed`);
+    }
+    
+    // Mark code as used immediately
+    usedCodes.add(code);
+    setTimeout(() => usedCodes.delete(code), CODE_EXPIRY_MS); // Clean up after 1 minute
     
     console.log('✅ Authorization code received (length:', code.length, ')');
     console.log('⏱️  Starting token exchange immediately...');
@@ -138,9 +152,9 @@ router.get('/linkedin/callback', async (req, res) => {
         );
         console.log('✅ JWT token generated');
         
-        // Redirect back to frontend with success
-        const redirectUrl = `${frontendUrl}/social-presence?linkedin_verified=true&token=${encodeURIComponent(token)}&linkedin_url=${encodeURIComponent(profileUrl)}`;
-        console.log('🔄 Redirecting to:', redirectUrl);
+        // Redirect with shortened URL to avoid browser issues with long URLs
+        const redirectUrl = `${frontendUrl}/social-presence?linkedin_verified=true&token=${encodeURIComponent(token)}`;
+        console.log('🔄 Redirecting to:', redirectUrl.substring(0, 120) + '...');
         res.redirect(redirectUrl);
     } catch (error) {
         console.error('❌ LinkedIn callback error:', error.response?.data || error.message);
