@@ -33,7 +33,7 @@ export default function LevelUpPopup({ show, type, action, partnerName, onFillIn
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 20, opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="mb-3 relative z-20"
+                    className="mb-3 relative z-10"
                 >
                     <div className="bg-gradient-to-r from-purple-600/90 to-pink-600/90 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-white/20">
                         {/* ✅ FILL INFORMATION - First-time users who never completed this level */}

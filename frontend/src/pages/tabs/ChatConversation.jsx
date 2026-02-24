@@ -832,7 +832,7 @@ export default function ChatConversation() {
             }}
         >
             {/* Header */}
-            <div className="bg-white/10 backdrop-blur-sm border-b border-white/20 pt-safe pt-12 pb-3 px-safe px-4 sm:px-6">
+            <div className="bg-white/10 backdrop-blur-sm border-b border-white/20 pt-safe pt-12 pb-3 px-safe px-4 sm:px-6 relative z-50">
                 <div className="flex items-center justify-between">
                     {/* Back button and profile */}
                     <div className="flex items-center gap-3 flex-1">
@@ -895,7 +895,7 @@ export default function ChatConversation() {
 
                         {/* Apple-style dropdown menu */}
                         {showMenu && (
-                            <div className="absolute right-0 top-12 w-56 bg-white backdrop-blur-xl rounded-2xl shadow-lg overflow-hidden z-[60]">
+                            <div className="absolute right-0 top-12 w-56 bg-white backdrop-blur-xl rounded-2xl shadow-lg overflow-hidden z-[100]">
                                 <button
                                     onClick={() => {
                                         setShowMenu(false);
