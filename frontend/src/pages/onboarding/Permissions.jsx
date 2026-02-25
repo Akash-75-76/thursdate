@@ -74,7 +74,7 @@ export default function Permissions() {
           </svg>
         </button>
         <div className="text-gray-400 text-[14px] font-semibold mx-auto">
-          ThursDate.
+          SunDate.
         </div>
         <div style={{ width: 24 }}></div> {/* Spacer for alignment */}
       </div>
@@ -124,7 +124,7 @@ export default function Permissions() {
           <div className="bg-[#515151] rounded-xl shadow-lg w-72 text-center overflow-hidden">
             <div className="p-4 pt-5">
               <p className="text-white text-[17px] font-semibold mb-1">
-                "ThursDate" would like to {permissionType === 'notifications' ? 'send you notifications' : 'access your location'}
+                "SunDate" would like to {permissionType === 'notifications' ? 'send you notifications' : 'access your location'}
               </p>
               <p className="text-[#D0D0D0] text-[13px] leading-tight px-2">
                 {permissionType === 'notifications'

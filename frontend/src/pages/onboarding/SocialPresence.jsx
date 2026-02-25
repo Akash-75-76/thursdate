@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -25,8 +26,8 @@ export default function SocialPresence() {
     // cleanup object URLs when component unmounts
     useEffect(() => {
         return () => {
-            try { if (licenseFrontPreview) URL.revokeObjectURL(licenseFrontPreview); } catch (e) { }
-            try { if (licenseBackPreview) URL.revokeObjectURL(licenseBackPreview); } catch (e) { }
+            try { if (licenseFrontPreview) URL.revokeObjectURL(licenseFrontPreview); } catch { /* ignore */ }
+            try { if (licenseBackPreview) URL.revokeObjectURL(licenseBackPreview); } catch { /* ignore */ }
         };
     }, [licenseFrontPreview, licenseBackPreview]);
 
@@ -190,7 +191,7 @@ export default function SocialPresence() {
                                                             type="button"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                try { URL.revokeObjectURL(licenseFrontPreview); } catch (err) { }
+                                                                try { URL.revokeObjectURL(licenseFrontPreview); } catch { /* ignore */ }
                                                                 setLicenseFrontPreview(null);
                                                                 const input = document.getElementById('license-upload-front');
                                                                 if (input) input.value = '';
@@ -207,7 +208,7 @@ export default function SocialPresence() {
                                                             type="button"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                try { URL.revokeObjectURL(licenseBackPreview); } catch (err) { }
+                                                                try { URL.revokeObjectURL(licenseBackPreview); } catch { /* ignore */ }
                                                                 setLicenseBackPreview(null);
                                                                 const input = document.getElementById('license-upload-back');
                                                                 if (input) input.value = '';
@@ -249,10 +250,10 @@ export default function SocialPresence() {
                                                         if (file && file.size <= 10 * 1024 * 1024) {
                                                             const url = URL.createObjectURL(file);
                                                             if (uploadStep === 'front') {
-                                                                if (licenseFrontPreview) try { URL.revokeObjectURL(licenseFrontPreview); } catch (err) { }
+                                                                if (licenseFrontPreview) try { URL.revokeObjectURL(licenseFrontPreview); } catch { /* ignore */ }
                                                                 setLicenseFrontPreview(url);
                                                             } else {
-                                                                if (licenseBackPreview) try { URL.revokeObjectURL(licenseBackPreview); } catch (err) { }
+                                                                if (licenseBackPreview) try { URL.revokeObjectURL(licenseBackPreview); } catch { /* ignore */ }
                                                                 setLicenseBackPreview(url);
                                                             }
                                                         } else if (file) {
