@@ -34,6 +34,30 @@ const usedCodes = new Map();
 const CODE_EXPIRY_MS = 60000; // 1 minute
 
 /**
+ * GET /auth/linkedin/debug
+ * Debug endpoint to check LinkedIn OAuth configuration
+ */
+router.get('/linkedin/debug', (req, res) => {
+    const config = {
+        clientId: process.env.LINKEDIN_CLIENT_ID ? '✅ Set' : '❌ Missing',
+        clientSecret: process.env.LINKEDIN_CLIENT_SECRET ? '✅ Set' : '❌ Missing',
+        callbackUrl: process.env.LINKEDIN_CALLBACK_URL || '❌ Missing',
+        frontendUrl: process.env.FRONTEND_URL || '❌ Missing',
+        nodeEnv: process.env.NODE_ENV || 'development'
+    };
+    
+    res.json({
+        status: 'LinkedIn OAuth Configuration',
+        config: config,
+        instructions: {
+            step1: 'Check if callback URL uses HTTPS in production',
+            step2: 'Verify this exact URL is in LinkedIn Developer Console',
+            step3: 'Make sure all environment variables are set in Render'
+        }
+    });
+});
+
+/**
  * GET /auth/linkedin
  * Initiates LinkedIn OAuth flow by redirecting to LinkedIn's consent screen
  */
@@ -76,8 +100,12 @@ router.get('/linkedin', (req, res) => {
         const authUrl = `${LINKEDIN_AUTH_URL}?${params.toString()}`;
         
         console.log('✅ Initiating LinkedIn OAuth flow');
+        console.log('   Environment:', process.env.NODE_ENV || 'development');
+        console.log('   Client ID:', clientId);
         console.log('   Callback URL:', callbackUrl);
+        console.log('   Frontend URL:', process.env.FRONTEND_URL || 'http://localhost:5173');
         console.log('   State:', state.substring(0, 10) + '...');
+        console.log('   Full Auth URL:', authUrl.substring(0, 150) + '...');
         
         // Redirect user to LinkedIn's consent screen
         res.redirect(authUrl);
