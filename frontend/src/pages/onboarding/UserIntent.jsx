@@ -1092,7 +1092,7 @@ export default function UserIntent() {
           <button onClick={handleBack} aria-label="Back" className="w-8 h-8 flex items-center justify-center">
             <img src="/backarrow.svg" alt="Back" className="w-5 h-5" />
           </button>
-          <div className="text-white text-lg font-semibold">Sundate</div>
+          <img src="/logo.png" alt="Sundate" className="h-7" />
           <div style={{ width: 32 }} />
         </div>
 

@@ -173,9 +173,7 @@ export default function Referral() {
         >
           <img src="/backarrow.svg" alt="Back" width={24} height={24} />
         </button>
-        <div className="text-gray-400 text-[14px] font-semibold mx-auto">
-          Sundate.
-        </div>
+        <img src="/logo.png" alt="Sundate" className="h-6 mx-auto" />
         <div style={{ width: 24 }}></div> {/* Spacer to balance header */}
       </div>
 

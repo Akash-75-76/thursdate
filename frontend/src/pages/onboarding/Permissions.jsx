@@ -73,10 +73,8 @@ export default function Permissions() {
             />
           </svg>
         </button>
-        <div className="text-gray-400 text-[14px] font-semibold mx-auto">
-          SunDate.
-        </div>
-        <div style={{ width: 24 }}></div> {/* Spacer for alignment */}
+        <img src="/logo.png" alt="Sundate" className="h-6 mx-auto" />
+        <div style={{ width: 24 }}></div> {/* Spacer for alignment */
       </div>
 
       {/* Main Content Area */}

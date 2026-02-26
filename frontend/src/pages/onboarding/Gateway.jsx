@@ -19,8 +19,8 @@ export default function Gateway() {
     >
       <div className="absolute inset-0 bg-black/30 z-0"></div>
       
-      <div className="absolute top-10 w-full text-center text-white text-2xl font-semibold z-10">
-        Sundate
+      <div className="absolute top-10 w-full text-center z-10">
+        <img src="/logo.png" alt="Sundate" className="h-8 mx-auto" />
       </div>
 
       <div className={`relative z-10 w-full max-w-sm p-6 pb-8 mb-6 rounded-3xl ${CARD_GLASS_ACTIVE}`}>

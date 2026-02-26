@@ -173,9 +173,7 @@ const FaceVerification = () => {
                             <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                     </button>
-                    <div className="text-white/80 text-[24px] font-semibold mx-auto">
-                        Sundate.
-                    </div>
+                    <img src="/logo.png" alt="Sundate" className="h-8 mx-auto" />
                     <div style={{ width: 32 }}></div>
                 </div>
 

@@ -118,8 +118,8 @@ export default function Login() {
         }}
       ></div>
       <div className="absolute inset-0 bg-black/50 z-0"></div>
-      <div className="absolute top-10 w-full text-center text-white text-2xl font-semibold z-10">
-        Sundate
+      <div className="absolute top-10 w-full text-center z-10">
+        <img src="/logo.png" alt="Sundate" className="h-8 mx-auto" />
       </div>
       <div className={`relative z-10 w-full max-w-sm p-6 pt-10 pb-8 rounded-3xl ${CARD_GLASS_ACTIVE} flex flex-col items-center mt-28`}>
         {step === "email" && (
