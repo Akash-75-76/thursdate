@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { userAPI } from '../../utils/api';
+import { userAPI, uploadAPI } from '../../utils/api';
 
 export default function SocialPresence() {
     const navigate = useNavigate();
@@ -20,6 +20,8 @@ export default function SocialPresence() {
     const [licenseFrontPreview, setLicenseFrontPreview] = useState(null);
     const [licenseBackPreview, setLicenseBackPreview] = useState(null);
     const [licenseVerified, setLicenseVerified] = useState(false);
+    const [uploadingFront, setUploadingFront] = useState(false);
+    const [uploadingBack, setUploadingBack] = useState(false);
     
     // OAuth Loading & Error states
     const [isOAuthLoading, setIsOAuthLoading] = useState(false);
@@ -366,43 +368,80 @@ export default function SocialPresence() {
                                                         <p className="text-white/60 text-xs mt-1">JPG, PNG or JPEG (max 10MB)</p>
                                                     </>
                                                 )}
-                                                <input
+                                                                        <input
                                                     id={`license-upload-${uploadStep}`}
                                                     type="file"
                                                     accept="image/jpeg,image/png,image/jpg"
                                                     className="hidden"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files?.[0];
-                                                        if (file && file.size <= 10 * 1024 * 1024) {
-                                                            const url = URL.createObjectURL(file);
-                                                            if (uploadStep === 'front') {
-                                                                if (licenseFrontPreview) try { URL.revokeObjectURL(licenseFrontPreview); } catch (err) { }
-                                                                setLicenseFrontPreview(url);
-                                                            } else {
-                                                                if (licenseBackPreview) try { URL.revokeObjectURL(licenseBackPreview); } catch (err) { }
-                                                                setLicenseBackPreview(url);
-                                                            }
-                                                        } else if (file) {
-                                                            alert("File too large. Max 10MB.");
-                                                        }
-                                                    }}
+                                                                            onChange={async (e) => {
+                                                                                const file = e.target.files?.[0];
+                                                                                if (!file) return;
+                                                                                if (file.size > 10 * 1024 * 1024) {
+                                                                                    alert("File too large. Max 10MB.");
+                                                                                    return;
+                                                                                }
+
+                                                                                // Upload to backend via uploadAPI
+                                                                                try {
+                                                                                    if (uploadStep === 'front') setUploadingFront(true);
+                                                                                    else setUploadingBack(true);
+
+                                                                                    const res = await uploadAPI.uploadLicenseImage(file);
+                                                                                    const returnedUrl = res && res.url ? res.url : null;
+                                                                                    if (!returnedUrl) throw new Error('Upload did not return a URL');
+
+                                                                                    if (uploadStep === 'front') {
+                                                                                        // clear any previous object URL
+                                                                                        try { if (licenseFrontPreview && licenseFrontPreview.startsWith('blob:')) URL.revokeObjectURL(licenseFrontPreview); } catch (err) { }
+                                                                                        setLicenseFrontPreview(returnedUrl);
+                                                                                    } else {
+                                                                                        try { if (licenseBackPreview && licenseBackPreview.startsWith('blob:')) URL.revokeObjectURL(licenseBackPreview); } catch (err) { }
+                                                                                        setLicenseBackPreview(returnedUrl);
+                                                                                    }
+                                                                                } catch (err) {
+                                                                                    console.error('License upload failed', err);
+                                                                                    alert('Upload failed. Please try again.');
+                                                                                } finally {
+                                                                                    if (uploadStep === 'front') setUploadingFront(false);
+                                                                                    else setUploadingBack(false);
+                                                                                }
+                                                                            }}
                                                 />
                                             </label>
                                         </div>
 
-                                        {/* Continue Button */}
-                                        <button
-                                            onClick={() => {
-                                                if (uploadStep === "front") {
-                                                    setUploadStep("back");
-                                                } else {
-                                                    setLicenseVerified(true);
-                                                }
-                                            }}
-                                            className={`w-full py-4 rounded-full font-medium text-lg mt-8 transition ${BUTTON_GLASS_ACTIVE}`}
-                                        >
-                                            {uploadStep === "front" ? "Continue" : "Finish"}
-                                        </button>
+                                                                {/* Continue / Submit Button */}
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (uploadStep === "front") {
+                                                                            setUploadStep("back");
+                                                                            return;
+                                                                        }
+
+                                                                        // On finish: ensure both images uploaded
+                                                                        if (!licenseFrontPreview || !licenseBackPreview) {
+                                                                            alert('Please upload both front and back images before submitting.');
+                                                                            return;
+                                                                        }
+
+                                                                        try {
+                                                                            // Mark as pending for admin review
+                                                                            const payload = {
+                                                                                licensePhotos: [licenseFrontPreview, licenseBackPreview],
+                                                                                licenseStatus: 'pending'
+                                                                            };
+                                                                            await userAPI.updateProfile(payload);
+                                                                            setLicenseVerified(true);
+                                                                        } catch (err) {
+                                                                            console.error('Failed to submit license for review', err);
+                                                                            alert('Failed to submit. Please try again.');
+                                                                        }
+                                                                    }}
+                                                                    className={`w-full py-4 rounded-full font-medium text-lg mt-8 transition ${BUTTON_GLASS_ACTIVE}`}
+                                                                    disabled={uploadingFront || uploadingBack}
+                                                                >
+                                                                    {uploadStep === "front" ? "Continue" : (uploadingBack || uploadingFront) ? 'Uploading...' : "Submit for Review"}
+                                                                </button>
                                     </div>
                                 ) : (
                                     // ---------- INFO SCREEN ----------
