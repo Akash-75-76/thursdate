@@ -3,7 +3,52 @@ const pool = require('../config/db');
 const auth = require('../middleware/auth');
 const matchExpiryService = require('../services/matchExpiry');
 const profileLevelService = require('../services/profileLevelService');
+const cloudinary = require('../config/cloudinary');
+const multer = require('multer');
+const { Readable } = require('stream');
 const router = express.Router();
+
+// Configure multer for license photo uploads
+const uploadLicense = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max file size
+  },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image files are allowed'), false);
+    }
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error('Only JPG, JPEG, and PNG files are allowed'), false);
+    }
+    cb(null, true);
+  },
+});
+
+// Helper function to upload buffer to Cloudinary
+const uploadToCloudinary = (buffer, userId, side) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: `driving-licenses/${userId}`,
+        public_id: `${side}_${Date.now()}`,
+        resource_type: 'image',
+        type: 'upload',
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+    
+    const readableStream = Readable.from(buffer);
+    readableStream.pipe(uploadStream);
+  });
+};
 
 // Helper function to safely parse JSON
 const safeJsonParse = (jsonString, defaultValue = null) => {
@@ -268,6 +313,158 @@ router.get('/profile/:userId', auth, async (req, res) => {
         console.error('Get user profile by ID error:', error);
         res.status(500).json({ error: 'Internal server error: ' + error.message });
     }
+});
+
+/**
+ * @route   POST /api/user/upload-license
+ * @desc    Upload driving license images during onboarding (non-blocking)
+ * @access  Private (User)
+ */
+router.post('/upload-license', auth, uploadLicense.fields([
+  { name: 'frontImage', maxCount: 1 },
+  { name: 'backImage', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Validate that both images are provided
+    if (!req.files || !req.files.frontImage || !req.files.backImage) {
+      return res.status(400).json({ 
+        error: 'Both front and back images of driving license are required' 
+      });
+    }
+
+    // Check current license status
+    const [users] = await pool.execute(
+      'SELECT license_status, license_photos FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentStatus = users[0].license_status;
+    
+    // Prevent duplicate uploads if already pending or verified
+    if (currentStatus === 'pending') {
+      return res.status(400).json({ 
+        error: 'You already have a license verification request under review. Please wait for admin approval.' 
+      });
+    }
+    
+    if (currentStatus === 'verified') {
+      return res.status(400).json({ 
+        error: 'Your license is already verified.' 
+      });
+    }
+
+    const frontImage = req.files.frontImage[0];
+    const backImage = req.files.backImage[0];
+
+    // Upload images to Cloudinary
+    console.log(`[License Upload] Uploading for user ${userId}...`);
+    const frontUploadResult = await uploadToCloudinary(
+      frontImage.buffer, 
+      userId, 
+      'front'
+    );
+    const backUploadResult = await uploadToCloudinary(
+      backImage.buffer, 
+      userId, 
+      'back'
+    );
+
+    // Store license photos and set status to pending
+    const licensePhotos = {
+      front: frontUploadResult.secure_url,
+      back: backUploadResult.secure_url,
+      uploadedAt: new Date().toISOString()
+    };
+
+    await pool.execute(
+      'UPDATE users SET license_photos = ?, license_status = ? WHERE id = ?',
+      [JSON.stringify(licensePhotos), 'pending', userId]
+    );
+
+    console.log(`[License Upload] Successfully uploaded for user ${userId}`);
+
+    // Non-blocking response - verification happens after onboarding
+    res.status(200).json({
+      message: 'Driving license data uploaded successfully. Verification will be done after onboarding.',
+      status: 'pending',
+      uploadedAt: licensePhotos.uploadedAt
+    });
+
+  } catch (error) {
+    console.error('[License Upload] Error:', error);
+    
+    // Handle multer errors
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File size exceeds 5MB limit' });
+      }
+      return res.status(400).json({ error: error.message });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to upload driving license. Please try again.',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * @route   GET /api/user/license-status
+ * @desc    Get user's driving license verification status
+ * @access  Private (User)
+ */
+router.get('/license-status', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const [users] = await pool.execute(
+      'SELECT license_status, license_photos FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const licenseStatus = users[0].license_status || 'none';
+    const licensePhotos = safeJsonParse(users[0].license_photos, null);
+
+    let statusMessage = '';
+    switch (licenseStatus) {
+      case 'none':
+        statusMessage = 'No license uploaded yet';
+        break;
+      case 'pending':
+        statusMessage = 'Verification in progress';
+        break;
+      case 'verified':
+        statusMessage = 'Your driving license is verified';
+        break;
+      case 'rejected':
+        statusMessage = 'Verification failed. You can re-upload your license.';
+        break;
+      default:
+        statusMessage = 'Unknown status';
+    }
+
+    res.json({
+      status: licenseStatus,
+      hasUpload: !!licensePhotos,
+      uploadedAt: licensePhotos?.uploadedAt || null,
+      statusMessage: statusMessage,
+      canReupload: licenseStatus === 'rejected' || licenseStatus === 'none'
+    });
+
+  } catch (error) {
+    console.error('[License Status] Error:', error);
+    res.status(500).json({ error: 'Failed to get license status' });
+  }
 });
 
 // Save user profile (for onboarding)

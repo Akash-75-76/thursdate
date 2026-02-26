@@ -6,6 +6,7 @@
     "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate:match-timer": "node run-match-timing-migration.js",
+    "migrate:driving-license": "node run-driving-license-migration.js",
     "test:match-timer": "node test-match-timer.js",
     "cleanup:matches": "node cleanup-expired-matches.js",
     "cleanup:auto": "node match-expiry-scheduler.js"

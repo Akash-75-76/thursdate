@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { userAPI } from "../../utils/api";
 
 export default function SocialPresence() {
     const navigate = useNavigate();
@@ -16,7 +17,10 @@ export default function SocialPresence() {
     const [uploadStep, setUploadStep] = useState("front"); // 'front' or 'back'
     const [licenseFrontPreview, setLicenseFrontPreview] = useState(null);
     const [licenseBackPreview, setLicenseBackPreview] = useState(null);
+    const [licenseFrontFile, setLicenseFrontFile] = useState(null);
+    const [licenseBackFile, setLicenseBackFile] = useState(null);
     const [licenseVerified, setLicenseVerified] = useState(false);
+    const [uploadingLicense, setUploadingLicense] = useState(false);
 
     // === GLASS STYLES ===
     const BUTTON_GLASS_ACTIVE =
@@ -73,6 +77,28 @@ export default function SocialPresence() {
 
         // Redirect to backend OAuth endpoint
         window.location.href = `${backendUrl}/auth/linkedin`;
+    };
+
+    const handleLicenseUpload = async () => {
+        if (!licenseFrontFile || !licenseBackFile) {
+            alert('Please upload both front and back photos of your license.');
+            return;
+        }
+
+        try {
+            setUploadingLicense(true);
+            console.log('📤 Uploading license photos...');
+            
+            await userAPI.uploadLicense(licenseFrontFile, licenseBackFile);
+            
+            console.log('✅ License uploaded successfully');
+            setLicenseVerified(true);
+        } catch (error) {
+            console.error('❌ License upload failed:', error);
+            alert('Failed to upload license: ' + (error.message || 'Unknown error'));
+        } finally {
+            setUploadingLicense(false);
+        }
     };
 
     // === RENDER ===
@@ -251,9 +277,11 @@ export default function SocialPresence() {
                                                             if (uploadStep === 'front') {
                                                                 if (licenseFrontPreview) try { URL.revokeObjectURL(licenseFrontPreview); } catch { /* ignore */ }
                                                                 setLicenseFrontPreview(url);
+                                                                setLicenseFrontFile(file);
                                                             } else {
                                                                 if (licenseBackPreview) try { URL.revokeObjectURL(licenseBackPreview); } catch { /* ignore */ }
                                                                 setLicenseBackPreview(url);
+                                                                setLicenseBackFile(file);
                                                             }
                                                         } else if (file) {
                                                             alert("File too large. Max 10MB.");
@@ -269,12 +297,13 @@ export default function SocialPresence() {
                                                 if (uploadStep === "front") {
                                                     setUploadStep("back");
                                                 } else {
-                                                    setLicenseVerified(true);
+                                                    handleLicenseUpload();
                                                 }
                                             }}
-                                            className={`w-full py-4 rounded-full font-medium text-lg mt-8 transition ${BUTTON_GLASS_ACTIVE}`}
+                                            disabled={uploadingLicense || (uploadStep === "front" ? !licenseFrontFile : !licenseBackFile)}
+                                            className={`w-full py-4 rounded-full font-medium text-lg mt-8 transition ${BUTTON_GLASS_ACTIVE} disabled:opacity-50`}
                                         >
-                                            {uploadStep === "front" ? "Continue" : "Finish"}
+                                            {uploadingLicense ? "Uploading..." : (uploadStep === "front" ? "Continue" : "Finish")}
                                         </button>
                                     </div>
                                 ) : (

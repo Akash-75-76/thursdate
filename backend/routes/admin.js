@@ -118,13 +118,22 @@ router.get('/waitlist', auth, adminAuth, async (req, res) => {
       SELECT 
         id, email, first_name, last_name, gender, dob, 
         current_location, profile_pic_url, intent, 
-        onboarding_complete, approval, created_at, updated_at
+        onboarding_complete, approval, created_at, updated_at,
+        license_photos, license_status, linkedin_verified
       FROM users 
       WHERE approval = false
       ORDER BY created_at ASC
     `);
 
-    const transformedUsers = users.map(transformUser);
+    const transformedUsers = users.map(user => {
+      const transformed = transformUser(user);
+      return {
+        ...transformed,
+        licensePhotos: safeJsonParse(user.license_photos, null),
+        licenseStatus: user.license_status || 'none',
+        linkedinVerified: user.linkedin_verified || false
+      };
+    });
 
     res.json({
       users: transformedUsers,
@@ -148,7 +157,7 @@ router.put('/users/:userId/approval', auth, adminAuth, async (req, res) => {
     const { approval, reason } = req.body;
 
     const [existingUsers] = await pool.execute(
-      'SELECT id, email FROM users WHERE id = ?',
+      'SELECT id, email, license_status FROM users WHERE id = ?',
       [userId]
     );
 
@@ -156,10 +165,26 @@ router.put('/users/:userId/approval', auth, adminAuth, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    await pool.execute(
-      'UPDATE users SET approval = ? WHERE id = ?',
-      [approval, userId]
-    );
+    const currentLicenseStatus = existingUsers[0].license_status;
+
+    // Update approval status AND license status if applicable
+    if (approval) {
+      // If approving user and they have pending license, mark it as verified
+      const newLicenseStatus = currentLicenseStatus === 'pending' ? 'verified' : currentLicenseStatus;
+      await pool.execute(
+        'UPDATE users SET approval = ?, license_status = ? WHERE id = ?',
+        [approval, newLicenseStatus, userId]
+      );
+      console.log(`[Admin Approval] User ${userId} approved. License status: ${currentLicenseStatus} → ${newLicenseStatus}`);
+    } else {
+      // If rejecting user and they have pending license, mark it as rejected
+      const newLicenseStatus = currentLicenseStatus === 'pending' ? 'rejected' : currentLicenseStatus;
+      await pool.execute(
+        'UPDATE users SET approval = ?, license_status = ? WHERE id = ?',
+        [approval, newLicenseStatus, userId]
+      );
+      console.log(`[Admin Rejection] User ${userId} rejected. License status: ${currentLicenseStatus} → ${newLicenseStatus}. Reason: ${reason || 'No reason provided'}`);
+    }
 
     res.json({ 
       message: `User ${approval ? 'approved' : 'rejected'} successfully`,
@@ -187,7 +212,11 @@ router.get('/users/:userId', auth, adminAuth, async (req, res) => {
         id, email, first_name, last_name, gender, dob, 
         current_location, favourite_travel_destination, last_holiday_places, 
         favourite_places_to_go, profile_pic_url, intent, 
-        onboarding_complete, approval, created_at, updated_at
+        onboarding_complete, approval, created_at, updated_at,
+        license_photos, license_status, linkedin_verified, linkedin,
+        interests, pets, drinking, smoking, height, religious_level,
+        kids_preference, food_preference, relationship_status, from_location,
+        instagram, face_photos
       FROM users 
       WHERE id = ?
     `, [userId]);
@@ -215,7 +244,25 @@ router.get('/users/:userId', auth, adminAuth, async (req, res) => {
         approval: !!user.approval,
         createdAt: user.created_at,
         updatedAt: user.updated_at,
-        age: user.dob ? Math.floor((new Date() - new Date(user.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : null
+        age: user.dob ? Math.floor((new Date() - new Date(user.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : null,
+        // License verification data
+        licensePhotos: safeJsonParse(user.license_photos, null),
+        licenseStatus: user.license_status || 'none',
+        linkedinVerified: user.linkedin_verified || false,
+        linkedin: user.linkedin || null,
+        // Additional profile data for admin review
+        interests: safeJsonParse(user.interests, []),
+        pets: user.pets || null,
+        drinking: user.drinking || null,
+        smoking: user.smoking || null,
+        height: user.height || null,
+        religiousLevel: user.religious_level || null,
+        kidsPreference: user.kids_preference || null,
+        foodPreference: user.food_preference || null,
+        relationshipStatus: user.relationship_status || null,
+        fromLocation: user.from_location || null,
+        instagram: user.instagram || null,
+        facePhotos: safeJsonParse(user.face_photos, [])
     };
 
     res.json(transformedUser);

@@ -171,4 +171,62 @@ export const userAPI = {
         
         return authRequest(url);
     },
+
+    // Upload driving license images during onboarding
+    uploadLicense: async (frontImage, backImage) => {
+        if (isMockMode()) {
+            console.log("MOCK MODE: Simulating license upload");
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const currentMock = getMockProfile();
+            setMockProfile({
+                ...currentMock,
+                licensePhotos: {
+                    front: 'mock-front-url',
+                    back: 'mock-back-url',
+                    uploadedAt: new Date().toISOString()
+                },
+                licenseStatus: 'pending'
+            });
+            return { 
+                message: 'Driving license data uploaded successfully. Verification will be done after onboarding.',
+                status: 'pending'
+            };
+        }
+
+        const formData = new FormData();
+        formData.append('frontImage', frontImage);
+        formData.append('backImage', backImage);
+
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/user/upload-license`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to upload license');
+        }
+
+        return response.json();
+    },
+
+    // Get license verification status
+    getLicenseStatus: async () => {
+        if (isMockMode()) {
+            console.log("MOCK MODE: Returning mock license status");
+            const currentMock = getMockProfile();
+            return {
+                status: currentMock.licenseStatus || 'none',
+                hasUpload: !!currentMock.licensePhotos,
+                statusMessage: 'No license uploaded yet',
+                canReupload: true
+            };
+        }
+
+        return authRequest('/user/license-status');
+    },
 };
