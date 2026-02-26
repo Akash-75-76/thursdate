@@ -142,6 +142,70 @@ router.post('/lifestyle-image', auth, upload.single('image'), async (req, res) =
   }
 });
 
+// Upload driver's license image (for admin review)
+router.post('/license-image', auth, upload.single('image'), async (req, res) => {
+  try {
+    console.log('License image upload attempt for user ID:', req.user.userId);
+
+    if (!req.file) {
+      console.log('No file received in request');
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    console.log('File received:', {
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      bufferLength: req.file.buffer ? req.file.buffer.length : 0
+    });
+
+    if (req.file.size > 20 * 1024 * 1024) {
+      return res.status(400).json({ error: 'File size too large. Maximum 20MB allowed.' });
+    }
+
+    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    const dataURI = `data:${req.file.mimetype};base64,${b64}`;
+
+    console.log('Uploading license image to Cloudinary...');
+
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: 'luyona/license-images',
+      public_id: `user_${req.user.userId}_license_${Date.now()}`,
+      transformation: [
+        { quality: 'auto' }
+      ]
+    });
+
+    console.log('License upload successful:', { url: result.secure_url, publicId: result.public_id });
+
+    // Persist the license URL to the user's record so admins can review immediately
+    try {
+      const [rows] = await db.query('SELECT license_photos FROM users WHERE id = ?', [req.user.userId]);
+      let current = [];
+      if (rows && rows.length > 0 && rows[0].license_photos) {
+        try {
+          current = typeof rows[0].license_photos === 'string' ? JSON.parse(rows[0].license_photos) : rows[0].license_photos;
+        } catch (e) {
+          current = Array.isArray(rows[0].license_photos) ? rows[0].license_photos : [];
+        }
+      }
+      current.push(result.secure_url);
+
+      await db.query('UPDATE users SET license_photos = ?, license_status = ? WHERE id = ?', [JSON.stringify(current), 'pending', req.user.userId]);
+      console.log('License photo saved to database for user', req.user.userId);
+    } catch (dbErr) {
+      console.error('Failed to persist license photo to DB for user', req.user.userId, dbErr);
+      // Not fatal for the upload; continue to return the upload result
+    }
+
+    res.json({ message: 'Image uploaded successfully', url: result.secure_url, publicId: result.public_id });
+
+  } catch (error) {
+    console.error('License upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image: ' + error.message });
+  }
+});
+
 // Upload face photo (for face verification)
 router.post('/face-photo', auth, upload.single('image'), async (req, res) => {
   try {

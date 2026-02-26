@@ -70,7 +70,7 @@ router.get('/profile', auth, async (req, res) => {
 
         const [users] = await pool.execute(
             // 🛑 FIX: is_private REMOVED from the SELECT query
-            'SELECT id, email, first_name, last_name, gender, dob, current_location, city, location_preference, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, face_photo_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin, face_photos FROM users WHERE id = ?',
+            'SELECT id, email, first_name, last_name, gender, dob, current_location, city, location_preference, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, face_photo_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin, face_photos, license_photos, license_status FROM users WHERE id = ?',
             [req.user.userId]
         );
         
@@ -118,6 +118,8 @@ router.get('/profile', auth, async (req, res) => {
             instagram: user.instagram || null,
             linkedin: user.linkedin || null,
             facePhotos: safeJsonParse(user.face_photos, []),
+            licensePhotos: safeJsonParse(user.license_photos, []),
+            licenseStatus: user.license_status || 'none',
         };
         
         res.json(transformedUser);
@@ -364,7 +366,7 @@ router.put('/profile', auth, async (req, res) => {
             // ✅ NEW: Extract profile fields for hybrid storage
             interests, pets, drinking, smoking, height, religiousLevel, kidsPreference, 
             foodPreference, relationshipStatus, fromLocation, instagram, linkedin, facePhotos
-        } = req.body;
+        , licensePhotos, licenseStatus } = req.body;
         
         let finalIntent = { ...currentIntent, ...intent };
         const intentJson = JSON.stringify(finalIntent); 
@@ -407,6 +409,8 @@ router.put('/profile', auth, async (req, res) => {
             instagram !== undefined ? instagram : currentUser.instagram,
             linkedin !== undefined ? linkedin : currentUser.linkedin,
             JSON.stringify(facePhotos !== undefined ? facePhotos : safeJsonParse(currentUser.face_photos, [])),
+            JSON.stringify(licensePhotos !== undefined ? licensePhotos : safeJsonParse(currentUser.license_photos, [])),
+            licenseStatus !== undefined ? licenseStatus : (currentUser.license_status || 'none'),
             req.user.userId
         ];
         
@@ -422,7 +426,9 @@ router.put('/profile', auth, async (req, res) => {
                 interests = ?, pets = ?, drinking = ?, smoking = ?, height = ?,
                 religious_level = ?, kids_preference = ?, food_preference = ?,
                 relationship_status = ?, from_location = ?, instagram = ?, linkedin = ?,
-                face_photos = ?
+                face_photos = ?,
+                license_photos = ?,
+                license_status = ?
             WHERE id = ?`,
             updateData 
         );

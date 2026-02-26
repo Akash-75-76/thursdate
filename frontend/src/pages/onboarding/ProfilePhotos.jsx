@@ -4,38 +4,38 @@ import { uploadAPI, userAPI } from '../../utils/api';
 import Cropper from 'react-easy-crop';
 
 const createImage = (url) =>
-  new Promise((resolve, reject) => {
-    const image = new Image();
-    image.addEventListener('load', () => resolve(image));
-    image.addEventListener('error', (error) => reject(error));
-    image.setAttribute('crossOrigin', 'anonymous');
-    image.src = url;
-  });
+    new Promise((resolve, reject) => {
+        const image = new Image();
+        image.addEventListener('load', () => resolve(image));
+        image.addEventListener('error', (error) => reject(error));
+        image.setAttribute('crossOrigin', 'anonymous');
+        image.src = url;
+    });
 
 const getCroppedBlob = async (imageSrc, pixelCrop, type = 'image/jpeg', quality = 0.92) => {
-  const image = await createImage(imageSrc);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.floor(pixelCrop.width));
-  canvas.height = Math.max(1, Math.floor(pixelCrop.height));
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.floor(pixelCrop.width));
+    canvas.height = Math.max(1, Math.floor(pixelCrop.height));
 
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Could not create canvas context');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not create canvas context');
 
-  ctx.drawImage(
-    image,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height
-  );
+    ctx.drawImage(
+        image,
+        pixelCrop.x,
+        pixelCrop.y,
+        pixelCrop.width,
+        pixelCrop.height,
+        0,
+        0,
+        pixelCrop.width,
+        pixelCrop.height
+    );
 
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-  if (!blob) throw new Error('Failed to crop image');
-  return blob;
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+    if (!blob) throw new Error('Failed to crop image');
+    return blob;
 };
 
 export default function ProfilePhotos() {
@@ -454,13 +454,13 @@ export default function ProfilePhotos() {
                                     style={
                                         cropSubmitting
                                             ? {
-                                                  background: 'rgba(255,255,255,0.15)',
-                                                  color: 'rgba(255,255,255,0.6)',
-                                              }
+                                                background: 'rgba(255,255,255,0.15)',
+                                                color: 'rgba(255,255,255,0.6)',
+                                            }
                                             : {
-                                                  background: 'rgba(255,255,255,0.12)',
-                                                  color: 'white',
-                                              }
+                                                background: 'rgba(255,255,255,0.12)',
+                                                color: 'white',
+                                            }
                                     }
                                 >
                                     Cancel
@@ -473,9 +473,9 @@ export default function ProfilePhotos() {
                                     style={
                                         cropSubmitting
                                             ? {
-                                                  background: 'rgba(255,255,255,0.25)',
-                                                  color: 'rgba(255,255,255,0.8)',
-                                              }
+                                                background: 'rgba(255,255,255,0.25)',
+                                                color: 'rgba(255,255,255,0.8)',
+                                            }
                                             : { background: 'white', color: 'black' }
                                     }
                                 >

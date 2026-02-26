@@ -53,7 +53,8 @@ export default function UserIntent() {
   const [purpose, setPurpose] = useState(''); // Step 1
   const [relationshipVibe, setRelationshipVibe] = useState(''); // Step 2
   const [interestedGender, setInterestedGender] = useState(''); // Step 3
-  const [ageRange, setAgeRange] = useState([40, 60]); // Step 4
+  const [ageRange, setAgeRange] = useState([35, 45]); // Step 4 - default to 35-45 to match UI
+
   const [bio, setBio] = useState(''); // Step 5
   const [bioMode, setBioMode] = useState('Read'); // 'Read' or 'Listen'
   const recognitionRef = useRef(null);
@@ -94,6 +95,12 @@ export default function UserIntent() {
   // Age limits
   const minAge = 35;
   const maxAge = 85;
+
+  // Determine which thumb should become active when the user starts interacting
+  // by checking the pointer position relative to the thumbs. Use capture handlers
+  // on the track so this runs before the invisible range inputs get the event.
+
+
 
   // Load existing profile and saved onboarding state
   useEffect(() => {
@@ -635,63 +642,79 @@ export default function UserIntent() {
           </>
         );
       case 4:
-        return (
-          <div className="flex flex-col gap-6 mt-4">
-            {/* Display selected range */}
-            <div className="text-center">
-              <div className="text-white text-3xl font-semibold mb-2">
-                {ageRange[0]} - {ageRange[1]} years
+        {
+          // compute percentage positions for the thumbs relative to the full range
+          const leftPct = ((ageRange[0] - minAge) / (maxAge - minAge)) * 100;
+          const rightPct = ((ageRange[1] - minAge) / (maxAge - minAge)) * 100;
+          return (
+            <div className="flex flex-col gap-6 mt-4">
+              <div className="text-center">
+                <div className="text-white text-sm mb-2">Tell us your preferred age range for potential matches.</div>
               </div>
-              <div className="text-white/60 text-sm">
-                Drag the sliders to adjust your preferred age range
-              </div>
-            </div>
 
-            {/* Minimum age slider */}
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between items-center">
-                <label className="text-white/80 text-sm font-medium">Minimum Age</label>
-                <span className="text-white text-base font-semibold">{ageRange[0]}</span>
+              {/* Bubbles row with dash */}
+              <div className="flex items-center justify-center gap-4 mb-6">
+                <div className="px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-sm font-semibold shadow-sm min-w-[56px] text-center">{ageRange[0]}</div>
+                <div className="text-white/60 text-xl">—</div>
+                <div className="px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-sm font-semibold shadow-sm min-w-[56px] text-center">{ageRange[1]}</div>
               </div>
-              <input
-                type="range"
-                min={minAge}
-                max={ageRange[1] - 1}
-                value={ageRange[0]}
-                onChange={e => {
-                  const newMin = parseInt(e.target.value, 10);
-                  setAgeRange([newMin, ageRange[1]]);
-                }}
-                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, white 0%, white ${((ageRange[0] - minAge) / (ageRange[1] - 1 - minAge)) * 100}%, rgba(255,255,255,0.2) ${((ageRange[0] - minAge) / (ageRange[1] - 1 - minAge)) * 100}%, rgba(255,255,255,0.2) 100%)`
-                }}
-              />
-            </div>
 
-            {/* Maximum age slider */}
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between items-center">
-                <label className="text-white/80 text-sm font-medium">Maximum Age</label>
-                <span className="text-white text-base font-semibold">{ageRange[1]}</span>
+              <div className="relative w-full px-6">
+                {/* Track background */}
+                <div
+                  className="relative h-3 rounded-full bg-white/10 w-full"
+
+                >
+                  {/* Filled segment between thumbs */}
+                  <div
+                    className="absolute h-full rounded-full"
+                    style={{ left: `${leftPct}%`, width: `${Math.max(0, rightPct - leftPct)}%`, background: 'white' }}
+                  />
+
+                  {/* Left thumb visual (small white pill) */}
+                  <div style={{ left: `${leftPct}%` }} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2">
+                    <div className="w-10 h-6 rounded-full bg-white shadow-md" />
+                  </div>
+
+                  {/* Right thumb visual (small white pill) */}
+                  <div style={{ left: `${rightPct}%` }} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2">
+                    <div className="w-10 h-6 rounded-full bg-white shadow-md" />
+                  </div>
+
+                  {/* Invisible range inputs layered for keyboard/mouse control */}
+                  {/* MIN INPUT */}
+                  {/* MIN INPUT */}
+                  <input
+                    type="range"
+                    min={minAge}
+                    max={ageRange[1] - 1}
+                    value={ageRange[0]}
+                    onChange={e => {
+                      const newMin = Math.min(parseInt(e.target.value, 10), ageRange[1] - 1);
+                      setAgeRange([newMin, ageRange[1]]);
+                    }}
+                    className="absolute left-0 top-0 w-1/2 h-full opacity-0 cursor-pointer"
+                  />
+
+                  {/* MAX INPUT */}
+                  <input
+                    type="range"
+                    min={ageRange[0] + 1}
+                    max={maxAge}
+                    value={ageRange[1]}
+                    onChange={e => {
+                      const newMax = Math.max(parseInt(e.target.value, 10), ageRange[0] + 1);
+                      setAgeRange([ageRange[0], newMax]);
+                    }}
+                    className="absolute right-0 top-0 w-1/2 h-full opacity-0 cursor-pointer"
+                  />
+                </div>
               </div>
-              <input
-                type="range"
-                min={ageRange[0] + 1}
-                max={maxAge}
-                value={ageRange[1]}
-                onChange={e => {
-                  const newMax = parseInt(e.target.value, 10);
-                  setAgeRange([ageRange[0], newMax]);
-                }}
-                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, white 0%, white ${((ageRange[1] - ageRange[0] - 1) / (maxAge - ageRange[0] - 1)) * 100}%, rgba(255,255,255,0.2) ${((ageRange[1] - ageRange[0] - 1) / (maxAge - ageRange[0] - 1)) * 100}%, rgba(255,255,255,0.2) 100%)`
-                }}
-              />
             </div>
-          </div>
-        );
+          );
+        }
+
+      // end case 4
       case 5:
         return (
           <>

@@ -43,6 +43,16 @@ export default function ProfileTab() {
   }
 
   const lifestyleImages = userInfo?.intent?.lifestyleImageUrls?.filter(Boolean) || [];
+  const [currentLifestyleImageIndex, setCurrentLifestyleImageIndex] = useState(0);
+
+  useEffect(() => {
+    setCurrentLifestyleImageIndex(0);
+  }, [lifestyleImages]);
+
+  const handleBackgroundTap = () => {
+    if (!lifestyleImages || lifestyleImages.length === 0) return;
+    setCurrentLifestyleImageIndex((prev) => (prev + 1) % lifestyleImages.length);
+  };
 
   const handleEditClick = (section) => {
     setEditingSection(section);
@@ -403,12 +413,14 @@ export default function ProfileTab() {
   };
 
   return (
-    <div className="h-screen w-full font-sans overflow-hidden fixed inset-0">
+    <div className="h-screen w-full font-sans overflow-hidden fixed inset-0" onClick={(e) => { if (e.target === e.currentTarget) handleBackgroundTap(); }}>
       {/* Blurred Background */}
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage: "url('/bgs/bg-profile.png')",
+          backgroundImage: (lifestyleImages && lifestyleImages.length > 0)
+            ? `url(${lifestyleImages[currentLifestyleImageIndex]})`
+            : "url('/bgs/bg-profile.png')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           filter: 'blur(8px)',

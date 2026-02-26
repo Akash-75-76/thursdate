@@ -152,4 +152,37 @@ export const uploadAPI = {
 
         return response.json();
     },
+
+    // Upload driver's license image for admin review (MOCK or LIVE)
+    uploadLicenseImage: async (file) => {
+        if (isMockMode()) {
+            console.log("MOCK UPLOAD: Simulating license image upload.");
+            const tempUrl = URL.createObjectURL(file);
+            await new Promise(resolve => setTimeout(resolve, 700)); // Simulate delay
+            return { url: tempUrl };
+        }
+
+        const token = getToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const response = await fetch(`${API_BASE_URL}/upload/license-image`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Upload failed');
+        }
+
+        return response.json();
+    },
 };

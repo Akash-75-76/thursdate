@@ -202,6 +202,10 @@ export default function UserInfo() {
   // Debounced values for API calls
   const debouncedCurrentLocation = useDebounce(currentLocation, 500);
   const debouncedFromLocation = useDebounce(fromLocation, 500);
+  // Debounced input + suggestions for favourite travel destination
+  const debouncedFavouriteDestinationInput = useDebounce(currentFavouriteDestinationInput, 500);
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+  const [loadingDestinationSuggestions, setLoadingDestinationSuggestions] = useState(false);
 
 
 
@@ -231,6 +235,19 @@ export default function UserInfo() {
       setLoadingFromLocation(false);
     });
   }, [debouncedFromLocation]);
+
+  // Effect for favourite destination suggestions
+  useEffect(() => {
+    if (!debouncedFavouriteDestinationInput || debouncedFavouriteDestinationInput.length < 2) {
+      setDestinationSuggestions([]);
+      return;
+    }
+    setLoadingDestinationSuggestions(true);
+    fetchLocationSuggestions(debouncedFavouriteDestinationInput).then(suggestions => {
+      setDestinationSuggestions(suggestions);
+      setLoadingDestinationSuggestions(false);
+    });
+  }, [debouncedFavouriteDestinationInput]);
 
 
 
@@ -369,7 +386,12 @@ export default function UserInfo() {
     if (e.key === 'Enter' && currentFavouriteDestinationInput.trim() !== '') {
       e.preventDefault();
       const { name, details } = parsePlaceInput(currentFavouriteDestinationInput);
-      setFavouriteTravelDestination(prev => [...prev, { id: Date.now(), name, details }]);
+      // Prevent duplicates by name (case-insensitive)
+      setFavouriteTravelDestination(prev => {
+        const exists = prev.some(p => p.name.toLowerCase() === name.toLowerCase());
+        if (exists) return prev;
+        return [...prev, { id: Date.now(), name, details }];
+      });
       setCurrentFavouriteDestinationInput("");
     }
   };
@@ -392,7 +414,7 @@ export default function UserInfo() {
     if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
       age--;
     }
-    return age >= 30;
+    return age >= 35;
   }, [dob]);
   const isStepFourValid = currentLocation.trim();
   const isStepFiveValid = fromLocation.trim();
@@ -615,7 +637,7 @@ export default function UserInfo() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar text-white/70"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>
               </div>
               <p className={`text-xs mb-auto text-white/60 ${isStepThreeValid ? 'text-white/60' : 'text-red-300'}`}>
-                {isStepThreeValid ? 'You meet the minimum age requirement.' : 'Must be at least 30 years old.'}
+                {isStepThreeValid ? 'You meet the minimum age requirement.' : 'Must be at least 35 years old.'}
               </p>
               <button
                 disabled={getNextButtonDisabled()}
@@ -820,32 +842,71 @@ export default function UserInfo() {
                 {isStepSixValid ? 'Great! You can add more if you like.' : 'Enter minimum 3 destinations'}
               </p>
 
-              {/* Input for new tags - manual entry only */}
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  value={currentFavouriteDestinationInput}
-                  onChange={(e) => setCurrentFavouriteDestinationInput(e.target.value)}
-                  onKeyDown={handleAddFavouriteDestination}
-                  placeholder="Type a destination (e.g., Paris, France)"
-                  className={`flex-1 px-4 py-3 border rounded-xl text-sm ${INPUT_GLASS}`}
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (currentFavouriteDestinationInput.trim()) {
-                      const { name, details } = parsePlaceInput(currentFavouriteDestinationInput);
-                      setFavouriteTravelDestination(prev => [...prev, { id: Date.now(), name, details }]);
-                      setCurrentFavouriteDestinationInput("");
-                    }
-                  }}
-                  disabled={!currentFavouriteDestinationInput.trim()}
-                  className="px-5 py-3 rounded-xl font-medium text-sm"
-                  style={currentFavouriteDestinationInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
-                >
-                  Add
-                </button>
+              {/* Input for new tags - with location suggestions */}
+              <div className="relative mb-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={currentFavouriteDestinationInput}
+                    onChange={(e) => setCurrentFavouriteDestinationInput(e.target.value)}
+                    onKeyDown={handleAddFavouriteDestination}
+                    placeholder="Type a destination (e.g., Paris, France)"
+                    className={`flex-1 px-4 py-3 border rounded-xl text-sm ${INPUT_GLASS}`}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentFavouriteDestinationInput.trim()) {
+                        const { name, details } = parsePlaceInput(currentFavouriteDestinationInput);
+                        setFavouriteTravelDestination(prev => {
+                          const exists = prev.some(p => p.name.toLowerCase() === name.toLowerCase());
+                          if (exists) return prev;
+                          return [...prev, { id: Date.now(), name, details }];
+                        });
+                        setCurrentFavouriteDestinationInput("");
+                        setDestinationSuggestions([]);
+                      }
+                    }}
+                    disabled={!currentFavouriteDestinationInput.trim()}
+                    className="px-5 py-3 rounded-xl font-medium text-sm"
+                    style={currentFavouriteDestinationInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {/* Suggestions dropdown */}
+                {loadingDestinationSuggestions && (
+                  <div className="absolute left-0 right-0 mt-2 px-4 py-3 rounded-xl bg-white/30 backdrop-blur-lg border border-white/30 text-sm text-white/70">
+                    Searching...
+                  </div>
+                )}
+                {!loadingDestinationSuggestions && destinationSuggestions.length > 0 && (
+                  <ul className="absolute z-30 left-0 right-0 bg-white/40 backdrop-blur-lg border border-white/40 rounded-xl mt-2 max-h-60 overflow-y-auto shadow-xl">
+                    {destinationSuggestions.map((suggestion, index) => (
+                      <li
+                        key={index}
+                        onClick={() => {
+                          const name = suggestion.city || suggestion.name.split(',')[0];
+                          const details = suggestion.country || '';
+                          setFavouriteTravelDestination(prev => {
+                            const exists = prev.some(p => p.name.toLowerCase() === name.toLowerCase());
+                            if (exists) return prev;
+                            return [...prev, { id: Date.now(), name, details }];
+                          });
+                          setCurrentFavouriteDestinationInput("");
+                          setDestinationSuggestions([]);
+                        }}
+                        className="px-4 py-3 text-sm text-white hover:bg-white/20 cursor-pointer transition border-b border-white/10 last:border-b-0"
+                      >
+                        <div className="font-medium">{suggestion.city || suggestion.name.split(',')[0]}</div>
+                        <div className="text-xs text-white/70 truncate">{suggestion.name}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               {/* Display existing tags - MOVED BELOW INPUT */}
