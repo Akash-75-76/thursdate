@@ -72,7 +72,7 @@ const SubmissionProgress = () => {
             <div className="relative z-40 p-6 pt-10 flex flex-col flex-grow">
                 <div className="flex items-center justify-between mb-6">
                     <div className="w-8 h-8" />
-                    <div className="text-white/80 text-[24px] font-semibold">Sundate.</div>
+                    <img src="/logo.png" alt="Sundate" className="h-8" />
                     <div style={{ width: 32 }} />
                 </div>
 

@@ -36,9 +36,7 @@ export default function ApplicationStatus() {
         >
           <img src="/backarrow.svg" alt="Back" width={24} height={24} />
         </button>
-        <div className="text-gray-400 text-[14px] font-semibold mx-auto">
-          SunDate.
-        </div>
+        <img src="/logo.png" alt="Sundate" className="h-6 mx-auto" />
         <div style={{ width: 24 }}></div>
       </div>
 

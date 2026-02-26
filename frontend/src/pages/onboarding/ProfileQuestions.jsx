@@ -401,7 +401,7 @@ export default function ProfileQuestions() {
                             />
                         </svg>
                     </button>
-                    <div className="text-white text-lg font-semibold">Sundate</div>
+                    <img src="/logo.png" alt="Sundate" className="h-7" />
                     <div className="w-8 h-8" />
                 </div>
 

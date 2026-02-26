@@ -73,16 +73,13 @@ export default function Permissions() {
             />
           </svg>
         </button>
-        <div className="text-gray-400 text-[14px] font-semibold mx-auto">
-          SunDate.
-        </div>
-        <div style={{ width: 24 }}></div> {/* Spacer for alignment */}
+        <img src="/logo.png" alt="Sundate" className="h-6 mx-auto" />
+        <div style={{ width: 24 }}></div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex flex-col flex-1 justify-between items-center text-center px-4 pb-6">
         {currentStep === 1 && (
-          // Step 1: Notifications Permission
           <div className="flex flex-col items-center justify-center flex-grow">
             <h1 className="text-xl font-semibold mb-2">Stay in the loop with notifications</h1>
             <p className="text-gray-500 text-sm mb-12 max-w-md">
@@ -92,7 +89,6 @@ export default function Permissions() {
         )}
 
         {currentStep === 2 && (
-          // Step 2: Location Permission
           <div className="flex flex-col items-center justify-center flex-grow">
             <h1 className="text-xl font-semibold mb-2">Location-based matches</h1>
             <p className="text-gray-500 text-sm mb-12 max-w-md">

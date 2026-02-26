@@ -10,7 +10,7 @@ const INPUT_CLEAN =
 
 const Header = () => (
   <div className="pt-10 w-full text-center z-10">
-    <h1 className="text-white text-base font-semibold">Sundate</h1>
+    <img src="/logo.png" alt="Sundate" className="h-6 mx-auto" />
   </div>
 );
 

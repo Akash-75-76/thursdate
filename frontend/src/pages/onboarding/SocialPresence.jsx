@@ -119,9 +119,7 @@ export default function SocialPresence() {
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div style={{ width: 24 }}></div>
-                    <div className="text-white/80 text-[24px] font-semibold mx-auto">
-                        Sundate.
-                    </div>
+                    <img src="/logo.png" alt="Sundate" className="h-8 mx-auto" />
                     <div style={{ width: 24 }}></div>
                 </div>
 

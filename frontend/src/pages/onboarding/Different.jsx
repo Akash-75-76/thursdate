@@ -26,8 +26,8 @@ export default function Different() {
     >
       <div className="absolute inset-0 bg-black/30 z-0"></div>
 
-      <div className="absolute top-10 w-full text-center text-white text-2xl font-semibold z-10">
-        Sundate
+      <div className="absolute top-10 w-full text-center z-10">
+        <img src="/logo.png" alt="Sundate" className="h-8 mx-auto" />
       </div>
 
       <div className="relative z-10 flex flex-col items-center justify-start flex-1 w-full pt-20">

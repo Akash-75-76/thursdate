@@ -103,7 +103,7 @@ export default function LocationPreferencePage() {
                             <path d="M15 18l-6-6 6-6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                     </button>
-                    <div className="text-white text-xl font-semibold">Sundate</div>
+                    <img src="/logo.png" alt="Sundate" className="h-8" />
                     <div style={{ width: 40 }}></div>
                 </div>
 
