@@ -164,6 +164,7 @@ app.use('/api/daily-game', require('./routes/dailyGame'));
 app.use('/api', require('./routes/reports'));
 app.use('/auth', require('./routes/linkedin-auth'));
 app.use('/api/verification/driving-license', require('./routes/driving-license-verification'));
+app.use('/api/spotify', require('./routes/spotify'));
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {

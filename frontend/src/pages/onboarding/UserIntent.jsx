@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { userAPI, uploadAPI } from '../../utils/api';
 import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
 import Cropper from 'react-easy-crop';
+import AutocompleteInput from '../../components/AutocompleteInput';
+import { searchMovies, searchTVShows, searchArtists, searchMoviesAndShows } from '../../utils/externalAPIs';
 
 const createImage = (url) =>
   new Promise((resolve, reject) => {
@@ -267,11 +269,26 @@ export default function UserIntent() {
   }, []);
 
   // TV & Movie helpers
-  const addTvShow = () => {
-    const trimmed = tvInput.trim();
-    if (trimmed && !tvShows.includes(trimmed)) {
-      setTvShows(prev => [...prev, trimmed]);
-      setTvInput('');
+  const addTvShow = (selectedItem) => {
+    // If called from autocomplete with full object
+    if (selectedItem && typeof selectedItem === 'object') {
+      const exists = tvShows.some(item => 
+        typeof item === 'object' ? item.name === selectedItem.name : item === selectedItem.name
+      );
+      if (!exists) {
+        setTvShows(prev => [...prev, selectedItem]);
+        setTvInput('');
+      }
+    } else {
+      // If called manually with string
+      const trimmed = (selectedItem || tvInput).trim();
+      const exists = tvShows.some(item => 
+        typeof item === 'object' ? item.name === trimmed : item === trimmed
+      );
+      if (trimmed && !exists) {
+        setTvShows(prev => [...prev, { name: trimmed, display: trimmed }]);
+        setTvInput('');
+      }
     }
   };
 
@@ -282,14 +299,33 @@ export default function UserIntent() {
   };
 
   const removeTvShow = (item) => {
-    setTvShows(prev => prev.filter(x => x !== item));
+    setTvShows(prev => prev.filter(x => 
+      typeof x === 'object' && typeof item === 'object' 
+        ? x.name !== item.name 
+        : x !== item
+    ));
   };
 
-  const addMovie = () => {
-    const trimmed = movieInput.trim();
-    if (trimmed && !movies.includes(trimmed)) {
-      setMovies(prev => [...prev, trimmed]);
-      setMovieInput('');
+  const addMovie = (selectedItem) => {
+    // If called from autocomplete with full object
+    if (selectedItem && typeof selectedItem === 'object') {
+      const exists = movies.some(item => 
+        typeof item === 'object' ? item.name === selectedItem.name : item === selectedItem.name
+      );
+      if (!exists) {
+        setMovies(prev => [...prev, selectedItem]);
+        setMovieInput('');
+      }
+    } else {
+      // If called manually with string
+      const trimmed = (selectedItem || movieInput).trim();
+      const exists = movies.some(item => 
+        typeof item === 'object' ? item.name === trimmed : item === trimmed
+      );
+      if (trimmed && !exists) {
+        setMovies(prev => [...prev, { name: trimmed, display: trimmed }]);
+        setMovieInput('');
+      }
     }
   };
 
@@ -300,35 +336,81 @@ export default function UserIntent() {
   };
 
   const removeMovie = (item) => {
-    setMovies(prev => prev.filter(x => x !== item));
+    setMovies(prev => prev.filter(x => 
+      typeof x === 'object' && typeof item === 'object' 
+        ? x.name !== item.name 
+        : x !== item
+    ));
   };
 
   // Watchlist helpers
-  const addWatchItem = () => {
-    const items = watchInput.split(',').map(item => item.trim()).filter(item => item !== '');
-    setWatchList(prev => {
-      const newItems = items.filter(item => !prev.includes(item));
-      return [...prev, ...newItems];
-    });
-    setWatchInput('');
+  const addWatchItem = (selectedItem) => {
+    // If called from autocomplete with full object
+    if (selectedItem && typeof selectedItem === 'object') {
+      const exists = watchList.some(item => 
+        typeof item === 'object' ? item.name === selectedItem.name : item === selectedItem.name
+      );
+      if (!exists) {
+        setWatchList(prev => [...prev, selectedItem]);
+        setWatchInput('');
+      }
+    } else {
+      // If called manually with string
+      const inputValue = selectedItem || watchInput;
+      const items = inputValue.split(',').map(item => item.trim()).filter(item => item !== '');
+      setWatchList(prev => {
+        const newItems = items.filter(item => 
+          !prev.some(existing => 
+            typeof existing === 'object' ? existing.name === item : existing === item
+          )
+        ).map(item => ({ name: item, display: item }));
+        return [...prev, ...newItems];
+      });
+      setWatchInput('');
+    }
   };
 
   const removeWatchItem = (item) => {
-    setWatchList(prev => prev.filter(x => x !== item));
+    setWatchList(prev => prev.filter(x => 
+      typeof x === 'object' && typeof item === 'object' 
+        ? x.name !== item.name 
+        : x !== item
+    ));
   };
 
   // Artists/Bands helpers
-  const addArtistBand = () => {
-    const items = artistBandInput.split(',').map(item => item.trim()).filter(item => item !== '');
-    setArtistsBands(prev => {
-      const newItems = items.filter(item => !prev.includes(item));
-      return [...prev, ...newItems];
-    });
-    setArtistBandInput('');
+  const addArtistBand = (selectedItem) => {
+    // If called from autocomplete with full object
+    if (selectedItem && typeof selectedItem === 'object') {
+      const exists = artistsBands.some(item => 
+        typeof item === 'object' ? item.name === selectedItem.name : item === selectedItem.name
+      );
+      if (!exists) {
+        setArtistsBands(prev => [...prev, selectedItem]);
+        setArtistBandInput('');
+      }
+    } else {
+      // If called manually with string
+      const inputValue = selectedItem || artistBandInput;
+      const items = inputValue.split(',').map(item => item.trim()).filter(item => item !== '');
+      setArtistsBands(prev => {
+        const newItems = items.filter(item => 
+          !prev.some(existing => 
+            typeof existing === 'object' ? existing.name === item : existing === item
+          )
+        ).map(item => ({ name: item, display: item }));
+        return [...prev, ...newItems];
+      });
+      setArtistBandInput('');
+    }
   };
 
   const removeArtistBand = (item) => {
-    setArtistsBands(prev => prev.filter(x => x !== item));
+    setArtistsBands(prev => prev.filter(x => 
+      typeof x === 'object' && typeof item === 'object' 
+        ? x.name !== item.name 
+        : x !== item
+    ));
   };
 
   // Profile image upload
@@ -488,10 +570,11 @@ export default function UserIntent() {
           interestedGender,
           preferredAgeRange: ageRange,
           bio,
-          tvShows,
-          movies,
-          watchList,
-          artistsBands,
+          // Extract just the names for backend storage
+          tvShows: tvShows.map(item => typeof item === 'object' ? item.name : item),
+          movies: movies.map(item => typeof item === 'object' ? item.name : item),
+          watchList: watchList.map(item => typeof item === 'object' ? item.name : item),
+          artistsBands: artistsBands.map(item => typeof item === 'object' ? item.name : item),
           lifestyleImageUrls,
         },
         profilePicUrl: profileImageUrl,  // ✅ FIX: Changed from profileImageUrl to profilePicUrl to match backend
@@ -815,7 +898,7 @@ export default function UserIntent() {
             <div>
               <label className="block text-white/80 mb-2">TV show(s) you could rewatch anytime</label>
               <div className="flex gap-2 mb-3">
-                <input
+                <AutocompleteInput
                   value={tvInput}
                   onChange={e => setTvInput(e.target.value)}
                   onKeyDown={e => {
@@ -824,8 +907,9 @@ export default function UserIntent() {
                       addTvShow();
                     }
                   }}
-                  onBlur={handleTvInputBlur}
+                  onSelect={addTvShow}
                   placeholder="e.g. The Office"
+                  searchFn={searchTVShows}
                   className="flex-1 rounded-xl p-3 text-base"
                   style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
                 />
@@ -842,13 +926,48 @@ export default function UserIntent() {
                   Add
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {tvShows.map((s, i) => (
-                  <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ background: 'white', color: 'black' }}>
-                    {s}
-                    <button type="button" onClick={() => removeTvShow(s)} className="ml-1 text-black/60" aria-label={`Remove ${s}`}>×</button>
-                  </span>
-                ))}
+              <div className="flex flex-col gap-3">
+                {tvShows.map((s, i) => {
+                  const itemName = typeof s === 'object' ? s.name : s;
+                  const itemSubtitle = typeof s === 'object' ? s.subtitle : null;
+                  const itemImage = typeof s === 'object' ? s.image : null;
+                  return (
+                    <div 
+                      key={i} 
+                      className="flex items-center gap-2 p-2 rounded-xl"
+                      style={{ background: 'rgba(255,255,255,0.1)' }}
+                    >
+                      {/* Thumbnail */}
+                      {itemImage ? (
+                        <img 
+                          src={itemImage} 
+                          alt=""
+                          className="w-12 h-12 rounded object-cover flex-shrink-0"
+                          style={{ background: 'rgba(255,255,255,0.05)' }}
+                          onError={(e) => { e.target.style.opacity = '0.3'; }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                      )}
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                        {itemSubtitle && (
+                          <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>
+                        )}
+                      </div>
+                      {/* Remove button */}
+                      <button 
+                        type="button" 
+                        onClick={() => removeTvShow(s)} 
+                        className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white"
+                        aria-label={`Remove ${itemName}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -856,7 +975,7 @@ export default function UserIntent() {
             <div>
               <label className="block text-white/80 mb-2">Movie(s) that never get old</label>
               <div className="flex gap-2 mb-3">
-                <input
+                <AutocompleteInput
                   value={movieInput}
                   onChange={e => setMovieInput(e.target.value)}
                   onKeyDown={e => {
@@ -865,8 +984,9 @@ export default function UserIntent() {
                       addMovie();
                     }
                   }}
-                  onBlur={handleMovieInputBlur}
+                  onSelect={addMovie}
                   placeholder="e.g. The Godfather"
+                  searchFn={searchMovies}
                   className="flex-1 rounded-xl p-3 text-base"
                   style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
                 />
@@ -883,13 +1003,48 @@ export default function UserIntent() {
                   Add
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {movies.map((m, i) => (
-                  <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ background: 'white', color: 'black' }}>
-                    {m}
-                    <button type="button" onClick={() => removeMovie(m)} className="ml-1 text-black/60" aria-label={`Remove ${m}`}>×</button>
-                  </span>
-                ))}
+              <div className="flex flex-col gap-3">
+                {movies.map((m, i) => {
+                  const itemName = typeof m === 'object' ? m.name : m;
+                  const itemSubtitle = typeof m === 'object' ? m.subtitle : null;
+                  const itemImage = typeof m === 'object' ? m.image : null;
+                  return (
+                    <div 
+                      key={i} 
+                      className="flex items-center gap-2 p-2 rounded-xl"
+                      style={{ background: 'rgba(255,255,255,0.1)' }}
+                    >
+                      {/* Thumbnail */}
+                      {itemImage ? (
+                        <img 
+                          src={itemImage} 
+                          alt=""
+                          className="w-12 h-12 rounded object-cover flex-shrink-0"
+                          style={{ background: 'rgba(255,255,255,0.05)' }}
+                          onError={(e) => { e.target.style.opacity = '0.3'; }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                      )}
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                        {itemSubtitle && (
+                          <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>
+                        )}
+                      </div>
+                      {/* Remove button */}
+                      <button 
+                        type="button" 
+                        onClick={() => removeMovie(m)} 
+                        className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white"
+                        aria-label={`Remove ${itemName}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -898,7 +1053,7 @@ export default function UserIntent() {
         return (
           <>
             <div className="flex gap-2 mb-3">
-              <input
+              <AutocompleteInput
                 value={watchInput}
                 onChange={e => setWatchInput(e.target.value)}
                 onKeyDown={e => {
@@ -907,7 +1062,9 @@ export default function UserIntent() {
                     addWatchItem();
                   }
                 }}
+                onSelect={addWatchItem}
                 placeholder="e.g. The Bear, Succession, Oppenheimer"
+                searchFn={searchMoviesAndShows}
                 className="flex-1 rounded-xl p-3 text-base"
                 style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               />
@@ -924,13 +1081,48 @@ export default function UserIntent() {
                 Add
               </button>
             </div>
-            <div className="flex flex-wrap gap-3 mt-3">
-              {watchList.map((w, i) => (
-                <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ background: 'white', color: 'black' }}>
-                  {w}
-                  <button onClick={() => removeWatchItem(w)} className="ml-1 text-black/60" aria-label={`Remove ${w}`}>×</button>
-                </span>
-              ))}
+            <div className="flex flex-col gap-3 mt-3">
+              {watchList.map((w, i) => {
+                const itemName = typeof w === 'object' ? w.name : w;
+                const itemSubtitle = typeof w === 'object' ? w.subtitle : null;
+                const itemImage = typeof w === 'object' ? w.image : null;
+                return (
+                  <div 
+                    key={i} 
+                    className="flex items-center gap-2 p-2 rounded-xl"
+                    style={{ background: 'rgba(255,255,255,0.1)' }}
+                  >
+                    {/* Thumbnail */}
+                    {itemImage ? (
+                      <img 
+                        src={itemImage} 
+                        alt=""
+                        className="w-12 h-12 rounded object-cover flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.05)' }}
+                        onError={(e) => { e.target.style.opacity = '0.3'; }}
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                    )}
+                    {/* Text */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                      {itemSubtitle && (
+                        <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>
+                      )}
+                    </div>
+                    {/* Remove button */}
+                    <button 
+                      type="button" 
+                      onClick={() => removeWatchItem(w)} 
+                      className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white"
+                      aria-label={`Remove ${itemName}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </>
         );
@@ -938,7 +1130,7 @@ export default function UserIntent() {
         return (
           <>
             <div className="flex gap-2 mb-3">
-              <input
+              <AutocompleteInput
                 value={artistBandInput}
                 onChange={e => setArtistBandInput(e.target.value)}
                 onKeyDown={e => {
@@ -947,7 +1139,9 @@ export default function UserIntent() {
                     addArtistBand();
                   }
                 }}
+                onSelect={addArtistBand}
                 placeholder="Add an artist/band..."
+                searchFn={searchArtists}
                 className="flex-1 rounded-xl p-3 text-base"
                 style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               />
@@ -964,13 +1158,48 @@ export default function UserIntent() {
                 Add
               </button>
             </div>
-            <div className="flex flex-wrap gap-3 mt-3">
-              {artistsBands.map((b, i) => (
-                <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ background: 'white', color: 'black' }}>
-                  {b}
-                  <button onClick={() => removeArtistBand(b)} className="ml-1 text-black/60" aria-label={`Remove ${b}`}>×</button>
-                </span>
-              ))}
+            <div className="flex flex-col gap-3 mt-3">
+              {artistsBands.map((b, i) => {
+                const itemName = typeof b === 'object' ? b.name : b;
+                const itemSubtitle = typeof b === 'object' ? b.subtitle : null;
+                const itemImage = typeof b === 'object' ? b.image : null;
+                return (
+                  <div 
+                    key={i} 
+                    className="flex items-center gap-2 p-2 rounded-xl"
+                    style={{ background: 'rgba(255,255,255,0.1)' }}
+                  >
+                    {/* Thumbnail */}
+                    {itemImage ? (
+                      <img 
+                        src={itemImage} 
+                        alt=""
+                        className="w-12 h-12 rounded object-cover flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.05)' }}
+                        onError={(e) => { e.target.style.opacity = '0.3'; }}
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                    )}
+                    {/* Text */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                      {itemSubtitle && (
+                        <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>
+                      )}
+                    </div>
+                    {/* Remove button */}
+                    <button 
+                      type="button" 
+                      onClick={() => removeArtistBand(b)} 
+                      className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white"
+                      aria-label={`Remove ${itemName}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </>
         );
