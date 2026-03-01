@@ -702,7 +702,7 @@ export default function UserIntent() {
         return (
           <div>
             <RadioOption label="Date" description="Open to exploring and seeing where things go." checked={purpose === 'Date'} onClick={() => setPurpose('Date')} />
-            <RadioOption label="Serious Dating & Marriage" description="Looking for a meaningful, long-term relationship that could lead to marriage." checked={purpose === 'Seriously Date' || purpose === 'Marriage'} onClick={() => setPurpose('Seriously Date')} />
+            <RadioOption label="Seriously Date" description="Looking for a meaningful, long-term relationship that could lead to marriage." checked={purpose === 'Seriously Date' || purpose === 'Marriage'} onClick={() => setPurpose('Seriously Date')} />
             <RadioOption label="Companionship" description="Wanting someone to share life and experiences with." checked={purpose === 'Companionship'} onClick={() => setPurpose('Companionship')} />
             <RadioOption label="Friends" description="Here to connect and build genuine friendships." checked={purpose === 'Friends'} onClick={() => setPurpose('Friends')} />
           </div>
