@@ -570,11 +570,11 @@ export default function UserIntent() {
           interestedGender,
           preferredAgeRange: ageRange,
           bio,
-          // Extract just the names for backend storage
-          tvShows: tvShows.map(item => typeof item === 'object' ? item.name : item),
-          movies: movies.map(item => typeof item === 'object' ? item.name : item),
-          watchList: watchList.map(item => typeof item === 'object' ? item.name : item),
-          artistsBands: artistsBands.map(item => typeof item === 'object' ? item.name : item),
+          // ✅ Store full objects with metadata for rich media display
+          tvShows,
+          movies,
+          watchList,
+          artistsBands,
           lifestyleImageUrls,
         },
         profilePicUrl: profileImageUrl,  // ✅ FIX: Changed from profileImageUrl to profilePicUrl to match backend

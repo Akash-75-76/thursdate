@@ -116,22 +116,54 @@ router.get('/waitlist', auth, adminAuth, async (req, res) => {
 
     const [users] = await pool.execute(`
       SELECT 
-        id, email, first_name, last_name, gender, dob, 
-        current_location, profile_pic_url, intent, 
-        onboarding_complete, approval, created_at, updated_at,
-        license_photos, license_status, linkedin_verified
-      FROM users 
-      WHERE approval = false
-      ORDER BY created_at ASC
+        u.id, u.email, u.first_name, u.last_name, u.gender, u.dob, 
+        u.current_location, u.profile_pic_url, u.intent, 
+        u.onboarding_complete, u.approval, u.created_at, u.updated_at,
+        u.license_photos, u.license_status, u.linkedin_verified,
+        u.driving_license_verified,
+        dlv.id as verification_id,
+        dlv.front_image_url,
+        dlv.back_image_url,
+        dlv.verification_status,
+        dlv.submitted_at
+      FROM users u
+      LEFT JOIN driving_license_verifications dlv ON u.id = dlv.user_id 
+        AND dlv.verification_status = 'UNDER_REVIEW'
+      WHERE u.approval = false
+      ORDER BY u.created_at ASC
     `);
 
     const transformedUsers = users.map(user => {
       const transformed = transformUser(user);
+      
+      // Determine license status and photos
+      let licenseStatus = 'none';
+      let licensePhotos = null;
+      let verificationId = null;
+      
+      // Check new verification system first
+      if (user.verification_status === 'UNDER_REVIEW') {
+        licenseStatus = 'pending';
+        licensePhotos = {
+          front: user.front_image_url,
+          back: user.back_image_url
+        };
+        verificationId = user.verification_id;
+      } else if (user.driving_license_verified) {
+        licenseStatus = 'verified';
+      } else if (user.license_status) {
+        // Fallback to old system
+        licenseStatus = user.license_status;
+        licensePhotos = safeJsonParse(user.license_photos, null);
+      }
+      
       return {
         ...transformed,
-        licensePhotos: safeJsonParse(user.license_photos, null),
-        licenseStatus: user.license_status || 'none',
-        linkedinVerified: user.linkedin_verified || false
+        licensePhotos,
+        licenseStatus,
+        verificationId,
+        linkedinVerified: user.linkedin_verified || false,
+        drivingLicenseVerified: user.driving_license_verified || false
       };
     });
 
@@ -155,6 +187,7 @@ router.put('/users/:userId/approval', auth, adminAuth, async (req, res) => {
 
     const { userId } = req.params;
     const { approval, reason } = req.body;
+    const adminId = req.user.userId;
 
     const [existingUsers] = await pool.execute(
       'SELECT id, email, license_status FROM users WHERE id = ?',
@@ -167,30 +200,74 @@ router.put('/users/:userId/approval', auth, adminAuth, async (req, res) => {
 
     const currentLicenseStatus = existingUsers[0].license_status;
 
-    // Update approval status AND license status if applicable
-    if (approval) {
-      // If approving user and they have pending license, mark it as verified
-      const newLicenseStatus = currentLicenseStatus === 'pending' ? 'verified' : currentLicenseStatus;
-      await pool.execute(
-        'UPDATE users SET approval = ?, license_status = ? WHERE id = ?',
-        [approval, newLicenseStatus, userId]
-      );
-      console.log(`[Admin Approval] User ${userId} approved. License status: ${currentLicenseStatus} → ${newLicenseStatus}`);
-    } else {
-      // If rejecting user and they have pending license, mark it as rejected
-      const newLicenseStatus = currentLicenseStatus === 'pending' ? 'rejected' : currentLicenseStatus;
-      await pool.execute(
-        'UPDATE users SET approval = ?, license_status = ? WHERE id = ?',
-        [approval, newLicenseStatus, userId]
-      );
-      console.log(`[Admin Rejection] User ${userId} rejected. License status: ${currentLicenseStatus} → ${newLicenseStatus}. Reason: ${reason || 'No reason provided'}`);
-    }
+    // Start transaction to update both users table and driving_license_verifications table
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    res.json({ 
-      message: `User ${approval ? 'approved' : 'rejected'} successfully`,
-      userId: userId,
-      approval: approval
-    });
+    try {
+      // Check if there's a pending driving license verification
+      const [verifications] = await connection.execute(
+        'SELECT id FROM driving_license_verifications WHERE user_id = ? AND verification_status = ?',
+        [userId, 'UNDER_REVIEW']
+      );
+
+      // Update approval status AND license status if applicable
+      if (approval) {
+        // If approving user and they have pending license, mark it as verified
+        const newLicenseStatus = currentLicenseStatus === 'pending' ? 'verified' : currentLicenseStatus;
+        await connection.execute(
+          'UPDATE users SET approval = ?, license_status = ?, driving_license_verified = ? WHERE id = ?',
+          [approval, newLicenseStatus, verifications.length > 0, userId]
+        );
+
+        // Update driving_license_verifications table if pending verification exists
+        if (verifications.length > 0) {
+          await connection.execute(
+            `UPDATE driving_license_verifications 
+             SET verification_status = 'VERIFIED', reviewed_at = NOW(), reviewed_by = ? 
+             WHERE id = ?`,
+            [adminId, verifications[0].id]
+          );
+          console.log(`[Admin Approval] User ${userId} approved. Driving license verification ${verifications[0].id} marked as VERIFIED.`);
+        } else {
+          console.log(`[Admin Approval] User ${userId} approved. License status: ${currentLicenseStatus} → ${newLicenseStatus}`);
+        }
+      } else {
+        // If rejecting user and they have pending license, mark it as rejected
+        const newLicenseStatus = currentLicenseStatus === 'pending' ? 'rejected' : currentLicenseStatus;
+        await connection.execute(
+          'UPDATE users SET approval = ?, license_status = ? WHERE id = ?',
+          [approval, newLicenseStatus, userId]
+        );
+
+        // Update driving_license_verifications table if pending verification exists
+        if (verifications.length > 0) {
+          await connection.execute(
+            `UPDATE driving_license_verifications 
+             SET verification_status = 'REJECTED', reviewed_at = NOW(), reviewed_by = ?, rejection_reason = ? 
+             WHERE id = ?`,
+            [adminId, reason || 'User rejected during waitlist review', verifications[0].id]
+          );
+          console.log(`[Admin Rejection] User ${userId} rejected. Driving license verification ${verifications[0].id} marked as REJECTED. Reason: ${reason || 'No reason provided'}`);
+        } else {
+          console.log(`[Admin Rejection] User ${userId} rejected. License status: ${currentLicenseStatus} → ${newLicenseStatus}. Reason: ${reason || 'No reason provided'}`);
+        }
+      }
+
+      await connection.commit();
+      connection.release();
+
+      res.json({ 
+        message: `User ${approval ? 'approved' : 'rejected'} successfully`,
+        userId: userId,
+        approval: approval
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
 
   } catch (error) {
     console.error('Update approval error:', error);
@@ -301,6 +378,18 @@ router.get('/dashboard', auth, adminAuth, async (req, res) => {
     `);
     const recentRegistrations = recentResult[0].recent;
 
+    // Get license verification stats
+    const [pendingLicensesResult] = await pool.execute(`
+      SELECT COUNT(*) as pending FROM driving_license_verifications 
+      WHERE verification_status = 'UNDER_REVIEW'
+    `);
+    const pendingLicenseVerifications = pendingLicensesResult[0].pending;
+
+    const [verifiedLicensesResult] = await pool.execute(`
+      SELECT COUNT(*) as verified FROM users WHERE driving_license_verified = true
+    `);
+    const verifiedLicenses = verifiedLicensesResult[0].verified;
+
     const stats = {
       totalUsers,
       approvedUsers,
@@ -308,7 +397,9 @@ router.get('/dashboard', auth, adminAuth, async (req, res) => {
       completedOnboarding,
       usersWithProfilePic,
       recentRegistrations,
-      approvalRate: totalUsers > 0 ? ((approvedUsers / totalUsers) * 100).toFixed(1) : 0
+      approvalRate: totalUsers > 0 ? ((approvedUsers / totalUsers) * 100).toFixed(1) : 0,
+      pendingLicenseVerifications,
+      verifiedLicenses
     };
 
     res.json(stats);

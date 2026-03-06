@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { userAPI } from "../../utils/api";
 import { useNavigate } from "react-router-dom";
+import MediaItemCard from "../../components/MediaItemCard";
+import AutocompleteInput from "../../components/AutocompleteInput";
+import { searchMovies, searchTVShows, searchArtists, searchMoviesAndShows } from "../../utils/externalAPIs";
 
 export default function ProfileTab() {
   const [userInfo, setUserInfo] = useState(null);
@@ -380,12 +383,20 @@ export default function ProfileTab() {
     }));
   };
 
-  const handleAddEntertainmentItem = (category, inputField) => {
-    if (editFormData[inputField]?.trim()) {
+  const handleAddEntertainmentItem = (category, selectedItem) => {
+    if (!selectedItem) return;
+    
+    // Check if item already exists (by name/title)
+    const itemName = typeof selectedItem === 'object' ? (selectedItem.title || selectedItem.name) : selectedItem;
+    const exists = editFormData[category]?.some(item => {
+      const existingName = typeof item === 'object' ? (item.title || item.name) : item;
+      return existingName === itemName;
+    });
+    
+    if (!exists) {
       setEditFormData(prev => ({
         ...prev,
-        [category]: [...(prev[category] || []), prev[inputField].trim()],
-        [inputField]: '',
+        [category]: [...(prev[category] || []), selectedItem],
       }));
     }
   };
@@ -1078,151 +1089,155 @@ export default function ProfileTab() {
             {editingSection === 'entertainment' ? (
               // Edit Mode
               <div className="mb-6">
-                <h3 className="text-white text-base font-semibold mb-4">Entertainment</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-white text-base font-semibold">Entertainment</h3>
+                  <button
+                    onClick={() => setEditingSection(null)}
+                    className="text-white/70 text-sm hover:text-white transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
 
-                <div className="bg-white/20 backdrop-blur-lg rounded-2xl p-4 border border-white/30 space-y-4">
+                <div className="backdrop-blur-[25px] bg-white/10 rounded-2xl p-4 border border-white/20 space-y-6 shadow-[inset_0px_0px_60px_20px_rgba(255,255,255,0.15)]">
                   {/* Watchlist */}
                   <div>
-                    <div className="text-white/70 text-xs font-medium mb-2">Watchlist</div>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {editFormData.watchList?.map((item, idx) => (
-                        <div key={idx} className="relative px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 pr-7">
-                          <span className="text-white text-xs">{item}</span>
-                          <button
-                            onClick={() => handleRemoveEntertainmentItem('watchList', idx)}
-                            className="absolute top-1/2 right-1.5 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center hover:bg-gray-100 transition"
-                          >
-                            <svg className="w-2 h-2 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={editFormData.newWatchList || ''}
-                        onChange={(e) => handleInputChange('newWatchList', e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddEntertainmentItem('watchList', 'newWatchList')}
-                        placeholder="Add to watchlist"
-                        className="flex-1 px-3 py-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 text-white placeholder-white/40 text-xs focus:outline-none focus:border-white/40"
-                      />
-                      <button
-                        onClick={() => handleAddEntertainmentItem('watchList', 'newWatchList')}
-                        className="px-3 py-2 bg-white/20 backdrop-blur-md rounded-lg border border-white/20 text-white text-xs hover:bg-white/30 transition"
-                      >
-                        Add
-                      </button>
-                    </div>
+                    <div className="text-white text-sm font-medium mb-3">Watchlist</div>
+                    
+                    {/* Selected Items with Media Cards */}
+                    {editFormData.watchList?.length > 0 && (
+                      <div className="mb-3 space-y-2">
+                        {editFormData.watchList.map((item, idx) => (
+                          <div key={idx} className="relative group">
+                            <MediaItemCard
+                              type={item.first_air_date ? 'tv' : 'movie'}
+                              item={item}
+                            />
+                            <button
+                              onClick={() => handleRemoveEntertainmentItem('watchList', idx)}
+                              className="absolute top-1/2 right-2 -translate-y-1/2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
+                            >
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <AutocompleteInput
+                      value={[]}
+                      onChange={(selected) => handleAddEntertainmentItem('watchList', selected)}
+                      searchFunction={searchMoviesAndShows}
+                      placeholder="Search movies or TV shows..."
+                      multiple={false}
+                    />
                   </div>
 
                   {/* TV Shows */}
                   <div>
-                    <div className="text-white/70 text-xs font-medium mb-2">TV Shows</div>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {editFormData.tvShows?.map((show, idx) => (
-                        <div key={idx} className="relative px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 pr-7">
-                          <span className="text-white text-xs">{show}</span>
-                          <button
-                            onClick={() => handleRemoveEntertainmentItem('tvShows', idx)}
-                            className="absolute top-1/2 right-1.5 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center hover:bg-gray-100 transition"
-                          >
-                            <svg className="w-2 h-2 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={editFormData.newTvShow || ''}
-                        onChange={(e) => handleInputChange('newTvShow', e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddEntertainmentItem('tvShows', 'newTvShow')}
-                        placeholder="Add TV show"
-                        className="flex-1 px-3 py-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 text-white placeholder-white/40 text-xs focus:outline-none focus:border-white/40"
-                      />
-                      <button
-                        onClick={() => handleAddEntertainmentItem('tvShows', 'newTvShow')}
-                        className="px-3 py-2 bg-white/20 backdrop-blur-md rounded-lg border border-white/20 text-white text-xs hover:bg-white/30 transition"
-                      >
-                        Add
-                      </button>
-                    </div>
+                    <div className="text-white text-sm font-medium mb-3">TV Shows</div>
+                    
+                    {/* Selected Items with Media Cards */}
+                    {editFormData.tvShows?.length > 0 && (
+                      <div className="mb-3 space-y-2">
+                        {editFormData.tvShows.map((show, idx) => (
+                          <div key={idx} className="relative group">
+                            <MediaItemCard
+                              type="tv"
+                              item={show}
+                            />
+                            <button
+                              onClick={() => handleRemoveEntertainmentItem('tvShows', idx)}
+                              className="absolute top-1/2 right-2 -translate-y-1/2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
+                            >
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <AutocompleteInput
+                      value={[]}
+                      onChange={(selected) => handleAddEntertainmentItem('tvShows', selected)}
+                      searchFunction={searchTVShows}
+                      placeholder="Search TV shows..."
+                      multiple={false}
+                    />
                   </div>
 
                   {/* Movies */}
                   <div>
-                    <div className="text-white/70 text-xs font-medium mb-2">Movies</div>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {editFormData.movies?.map((movie, idx) => (
-                        <div key={idx} className="relative px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 pr-7">
-                          <span className="text-white text-xs">{movie}</span>
-                          <button
-                            onClick={() => handleRemoveEntertainmentItem('movies', idx)}
-                            className="absolute top-1/2 right-1.5 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center hover:bg-gray-100 transition"
-                          >
-                            <svg className="w-2 h-2 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={editFormData.newMovie || ''}
-                        onChange={(e) => handleInputChange('newMovie', e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddEntertainmentItem('movies', 'newMovie')}
-                        placeholder="Add movie"
-                        className="flex-1 px-3 py-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 text-white placeholder-white/40 text-xs focus:outline-none focus:border-white/40"
-                      />
-                      <button
-                        onClick={() => handleAddEntertainmentItem('movies', 'newMovie')}
-                        className="px-3 py-2 bg-white/20 backdrop-blur-md rounded-lg border border-white/20 text-white text-xs hover:bg-white/30 transition"
-                      >
-                        Add
-                      </button>
-                    </div>
+                    <div className="text-white text-sm font-medium mb-3">Movies</div>
+                    
+                    {/* Selected Items with Media Cards */}
+                    {editFormData.movies?.length > 0 && (
+                      <div className="mb-3 space-y-2">
+                        {editFormData.movies.map((movie, idx) => (
+                          <div key={idx} className="relative group">
+                            <MediaItemCard
+                              type="movie"
+                              item={movie}
+                            />
+                            <button
+                              onClick={() => handleRemoveEntertainmentItem('movies', idx)}
+                              className="absolute top-1/2 right-2 -translate-y-1/2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
+                            >
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <AutocompleteInput
+                      value={[]}
+                      onChange={(selected) => handleAddEntertainmentItem('movies', selected)}
+                      searchFunction={searchMovies}
+                      placeholder="Search movies..."
+                      multiple={false}
+                    />
                   </div>
 
                   {/* Artists/Bands */}
                   <div>
-                    <div className="text-white/70 text-xs font-medium mb-2">Tunes</div>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {editFormData.artistsBands?.map((artist, idx) => (
-                        <div key={idx} className="relative px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 pr-7">
-                          <span className="text-white text-xs">{artist}</span>
-                          <button
-                            onClick={() => handleRemoveEntertainmentItem('artistsBands', idx)}
-                            className="absolute top-1/2 right-1.5 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center hover:bg-gray-100 transition"
-                          >
-                            <svg className="w-2 h-2 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={editFormData.newArtist || ''}
-                        onChange={(e) => handleInputChange('newArtist', e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddEntertainmentItem('artistsBands', 'newArtist')}
-                        placeholder="Add artist/band"
-                        className="flex-1 px-3 py-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 text-white placeholder-white/40 text-xs focus:outline-none focus:border-white/40"
-                      />
-                      <button
-                        onClick={() => handleAddEntertainmentItem('artistsBands', 'newArtist')}
-                        className="px-3 py-2 bg-white/20 backdrop-blur-md rounded-lg border border-white/20 text-white text-xs hover:bg-white/30 transition"
-                      >
-                        Add
-                      </button>
-                    </div>
+                    <div className="text-white text-sm font-medium mb-3">Tunes</div>
+                    
+                    {/* Selected Items with Media Cards */}
+                    {editFormData.artistsBands?.length > 0 && (
+                      <div className="mb-3 space-y-2">
+                        {editFormData.artistsBands.map((artist, idx) => (
+                          <div key={idx} className="relative group">
+                            <MediaItemCard
+                              type="artist"
+                              item={artist}
+                            />
+                            <button
+                              onClick={() => handleRemoveEntertainmentItem('artistsBands', idx)}
+                              className="absolute top-1/2 right-2 -translate-y-1/2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
+                            >
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <AutocompleteInput
+                      value={[]}
+                      onChange={(selected) => handleAddEntertainmentItem('artistsBands', selected)}
+                      searchFunction={searchArtists}
+                      placeholder="Search artists..."
+                      multiple={false}
+                    />
                   </div>
                 </div>
 
@@ -1251,12 +1266,14 @@ export default function ProfileTab() {
                     {/* Watchlist */}
                     {userInfo?.intent?.watchList && userInfo.intent.watchList.length > 0 && (
                       <div className="mb-4">
-                        <div className="text-white/70 text-xs font-medium mb-2">Watchlist</div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="text-white/70 text-sm font-medium mb-2">Watchlist</div>
+                        <div className="flex flex-col">
                           {userInfo.intent.watchList.map((item, idx) => (
-                            <div key={idx} className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                              <span className="text-white text-xs">{item}</span>
-                            </div>
+                            <MediaItemCard
+                              key={idx}
+                              type={item.first_air_date ? 'tv' : 'movie'}
+                              item={item}
+                            />
                           ))}
                         </div>
                       </div>
@@ -1265,12 +1282,14 @@ export default function ProfileTab() {
                     {/* TV Shows */}
                     {userInfo?.intent?.tvShows && userInfo.intent.tvShows.length > 0 && (
                       <div className="mb-4">
-                        <div className="text-white/70 text-xs font-medium mb-2">TV Shows</div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="text-white/70 text-sm font-medium mb-2">TV Shows</div>
+                        <div className="flex flex-col">
                           {userInfo.intent.tvShows.map((show, idx) => (
-                            <div key={idx} className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                              <span className="text-white text-xs">{show}</span>
-                            </div>
+                            <MediaItemCard
+                              key={idx}
+                              type="tv"
+                              item={show}
+                            />
                           ))}
                         </div>
                       </div>
@@ -1279,12 +1298,14 @@ export default function ProfileTab() {
                     {/* Movies */}
                     {userInfo?.intent?.movies && userInfo.intent.movies.length > 0 && (
                       <div className="mb-4">
-                        <div className="text-white/70 text-xs font-medium mb-2">Movies</div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="text-white/70 text-sm font-medium mb-2">Movies</div>
+                        <div className="flex flex-col">
                           {userInfo.intent.movies.map((movie, idx) => (
-                            <div key={idx} className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                              <span className="text-white text-xs">{movie}</span>
-                            </div>
+                            <MediaItemCard
+                              key={idx}
+                              type="movie"
+                              item={movie}
+                            />
                           ))}
                         </div>
                       </div>
@@ -1293,12 +1314,14 @@ export default function ProfileTab() {
                     {/* Artists/Bands */}
                     {userInfo?.intent?.artistsBands && userInfo.intent.artistsBands.length > 0 && (
                       <div>
-                        <div className="text-white/70 text-xs font-medium mb-2">Tunes</div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="text-white/70 text-sm font-medium mb-2">Tunes</div>
+                        <div className="flex flex-col">
                           {userInfo.intent.artistsBands.map((artist, idx) => (
-                            <div key={idx} className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                              <span className="text-white text-xs">{artist}</span>
-                            </div>
+                            <MediaItemCard
+                              key={idx}
+                              type="artist"
+                              item={artist}
+                            />
                           ))}
                         </div>
                       </div>

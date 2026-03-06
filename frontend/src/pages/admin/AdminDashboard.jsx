@@ -122,6 +122,12 @@ export default function AdminDashboard() {
               <div className="text-2xl font-bold text-purple-600">{stats.recentRegistrations}</div>
               <div className="text-xs text-purple-500">New (7 days)</div>
             </div>
+            {stats.pendingLicenseVerifications > 0 && (
+              <div className="bg-orange-50 rounded-xl p-4 text-center col-span-2">
+                <div className="text-2xl font-bold text-orange-600">{stats.pendingLicenseVerifications}</div>
+                <div className="text-xs text-orange-500">Pending License Verifications</div>
+              </div>
+            )}
           </div>
 
           {/* Additional Stats */}
@@ -139,6 +145,10 @@ export default function AdminDashboard() {
               <div className="flex justify-between">
                 <span>Approval Rate:</span>
                 <span className="font-semibold">{stats.approvalRate}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Verified Licenses:</span>
+                <span className="font-semibold">{stats.verifiedLicenses || 0}</span>
               </div>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { userAPI, chatAPI } from "../../utils/api";
 import DailyGamePopup from "../../components/DailyGamePopup";
+import MediaItemCard from "../../components/MediaItemCard";
 
 const navOptions = [
   { key: "matches", label: "Matches", icon: "/matches-icon.svg" },
@@ -674,12 +675,14 @@ export default function HomeTab() {
 
                     {currentCandidate.entertainment.movies && currentCandidate.entertainment.movies.length > 0 && (
                       <div className="mb-3">
-                        <div className="text-white/70 text-xs mb-2">Movies</div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="text-white/70 text-sm mb-1">Movies</div>
+                        <div className="flex flex-col">
                           {currentCandidate.entertainment.movies.map((movie, idx) => (
-                            <span key={idx} className="px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white text-xs">
-                              {movie}
-                            </span>
+                            <MediaItemCard
+                              key={idx}
+                              type="movie"
+                              item={movie}
+                            />
                           ))}
                         </div>
                       </div>
@@ -687,12 +690,14 @@ export default function HomeTab() {
 
                     {currentCandidate.entertainment.tvShows && currentCandidate.entertainment.tvShows.length > 0 && (
                       <div className="mb-3">
-                        <div className="text-white/70 text-xs mb-2">TV Shows</div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="text-white/70 text-sm mb-1">TV Shows</div>
+                        <div className="flex flex-col">
                           {currentCandidate.entertainment.tvShows.map((show, idx) => (
-                            <span key={idx} className="px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white text-xs">
-                              {show}
-                            </span>
+                            <MediaItemCard
+                              key={idx}
+                              type="tv"
+                              item={show}
+                            />
                           ))}
                         </div>
                       </div>
@@ -700,12 +705,14 @@ export default function HomeTab() {
 
                     {currentCandidate.entertainment.music && currentCandidate.entertainment.music.length > 0 && (
                       <div>
-                        <div className="text-white/70 text-xs mb-2">Music</div>
-                        <div className="flex flex-wrap gap-2">
-                          {currentCandidate.entertainment.music.map((genre, idx) => (
-                            <span key={idx} className="px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white text-xs">
-                              {genre}
-                            </span>
+                        <div className="text-white/70 text-sm mb-1">Tunes</div>
+                        <div className="flex flex-col">
+                          {currentCandidate.entertainment.music.map((artist, idx) => (
+                            <MediaItemCard
+                              key={idx}
+                              type="artist"
+                              item={artist}
+                            />
                           ))}
                         </div>
                       </div>

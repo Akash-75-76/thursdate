@@ -111,6 +111,12 @@ router.get('/search', async (req, res) => {
       const results = (data.artists?.items || []).map(artist => ({
         id: artist.id,
         name: artist.name,
+        images: artist.images || [], // Full images array (largest to smallest)
+        genres: artist.genres || [], // Full genres array
+        followers: {
+          total: artist.followers?.total || 0
+        },
+        // Computed fields for autocomplete display
         display: artist.name,
         image: artist.images && artist.images.length > 0 ? artist.images[artist.images.length - 1].url : null,
         subtitle: artist.genres && artist.genres.length > 0 
@@ -122,6 +128,12 @@ router.get('/search', async (req, res) => {
       const results = (data.tracks?.items || []).map(track => ({
         id: track.id,
         name: track.name,
+        album: {
+          images: track.album?.images || [], // Full album images array
+          name: track.album?.name || ''
+        },
+        artists: track.artists || [], // Full artists array with name and id
+        // Computed fields for autocomplete display
         display: track.name,
         image: track.album?.images?.[track.album.images.length - 1]?.url || null,
         subtitle: track.artists?.map(a => a.name).join(', ') || 'Song'
