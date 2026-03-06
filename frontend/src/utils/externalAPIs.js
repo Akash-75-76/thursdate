@@ -35,10 +35,16 @@ export async function searchMovies(query) {
 
     const data = await response.json();
     
-    // Return top 5 results with title, year, poster image, and subtitle
+    // Return top 5 results with full metadata for rich display
     return (data.results || []).slice(0, 5).map(movie => ({
       id: movie.id,
-      name: movie.title,
+      title: movie.title,
+      name: movie.title, // For backward compatibility with existing code
+      poster_path: movie.poster_path,
+      release_date: movie.release_date,
+      overview: movie.overview,
+      vote_average: movie.vote_average,
+      // Computed fields for autocomplete display
       year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
       display: movie.title + (movie.release_date ? ` (${new Date(movie.release_date).getFullYear()})` : ''),
       image: movie.poster_path ? `${TMDB_IMAGE_BASE}${movie.poster_path}` : null,
@@ -78,10 +84,14 @@ export async function searchTVShows(query) {
 
     const data = await response.json();
     
-    // Return top 5 results with name, year, poster image, and subtitle
+    // Return top 5 results with full metadata for rich display
     return (data.results || []).slice(0, 5).map(show => ({
       id: show.id,
       name: show.name,
+      poster_path: show.poster_path,
+      first_air_date: show.first_air_date,
+      overview: show.overview,
+      // Computed fields for autocomplete display
       year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
       display: show.name + (show.first_air_date ? ` (${new Date(show.first_air_date).getFullYear()})` : ''),
       image: show.poster_path ? `${TMDB_IMAGE_BASE}${show.poster_path}` : null,

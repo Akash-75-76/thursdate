@@ -334,29 +334,26 @@ router.post('/upload-license', auth, uploadLicense.fields([
       });
     }
 
-    // Check current license status
-    const [users] = await pool.execute(
-      'SELECT license_status, license_photos FROM users WHERE id = ?',
+    // Check if user already has a pending or verified license verification
+    const [existingVerifications] = await pool.execute(
+      `SELECT id, verification_status FROM driving_license_verifications 
+       WHERE user_id = ? AND verification_status IN ('UNDER_REVIEW', 'VERIFIED')
+       ORDER BY submitted_at DESC LIMIT 1`,
       [userId]
     );
 
-    if (users.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const currentStatus = users[0].license_status;
-    
-    // Prevent duplicate uploads if already pending or verified
-    if (currentStatus === 'pending') {
-      return res.status(400).json({ 
-        error: 'You already have a license verification request under review. Please wait for admin approval.' 
-      });
-    }
-    
-    if (currentStatus === 'verified') {
-      return res.status(400).json({ 
-        error: 'Your license is already verified.' 
-      });
+    if (existingVerifications.length > 0) {
+      const status = existingVerifications[0].verification_status;
+      if (status === 'UNDER_REVIEW') {
+        return res.status(400).json({ 
+          error: 'You already have a license verification request under review. Please wait for admin approval.' 
+        });
+      }
+      if (status === 'VERIFIED') {
+        return res.status(400).json({ 
+          error: 'Your license is already verified.' 
+        });
+      }
     }
 
     const frontImage = req.files.frontImage[0];
@@ -375,13 +372,21 @@ router.post('/upload-license', auth, uploadLicense.fields([
       'back'
     );
 
-    // Store license photos and set status to pending
+    // Store in driving_license_verifications table (new system)
+    await pool.execute(
+      `INSERT INTO driving_license_verifications 
+       (user_id, front_image_url, back_image_url, verification_status, verification_type, submitted_at)
+       VALUES (?, ?, ?, 'UNDER_REVIEW', 'DRIVING_LICENSE', NOW())`,
+      [userId, frontUploadResult.secure_url, backUploadResult.secure_url]
+    );
+
+    // Update old fields for backward compatibility
     const licensePhotos = {
       front: frontUploadResult.secure_url,
       back: backUploadResult.secure_url,
       uploadedAt: new Date().toISOString()
     };
-
+    
     await pool.execute(
       'UPDATE users SET license_photos = ?, license_status = ? WHERE id = ?',
       [JSON.stringify(licensePhotos), 'pending', userId]
@@ -391,7 +396,7 @@ router.post('/upload-license', auth, uploadLicense.fields([
 
     // Non-blocking response - verification happens after onboarding
     res.status(200).json({
-      message: 'Driving license data uploaded successfully. Verification will be done after onboarding.',
+      message: 'Driving license uploaded successfully. Your verification is under review.',
       status: 'pending',
       uploadedAt: licensePhotos.uploadedAt
     });

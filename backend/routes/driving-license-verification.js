@@ -297,6 +297,9 @@ router.get('/admin/pending', auth, adminAuth, async (req, res) => {
         verificationId: v.id,
         userId: v.user_id,
         submittedAt: v.submitted_at,
+        frontImageUrl: v.front_image_url,
+        backImageUrl: v.back_image_url,
+        verificationStatus: v.verification_status,
         user: {
           firstName: v.first_name,
           lastName: v.last_name,
@@ -333,6 +336,8 @@ router.get('/admin/all', auth, adminAuth, async (req, res) => {
       SELECT 
         dlv.id,
         dlv.user_id,
+        dlv.front_image_url,
+        dlv.back_image_url,
         dlv.verification_status,
         dlv.submitted_at,
         dlv.reviewed_at,
@@ -369,6 +374,8 @@ router.get('/admin/all', auth, adminAuth, async (req, res) => {
         submittedAt: v.submitted_at,
         reviewedAt: v.reviewed_at,
         rejectionReason: v.rejection_reason,
+        frontImageUrl: v.front_image_url,
+        backImageUrl: v.back_image_url,
         user: {
           firstName: v.first_name,
           lastName: v.last_name,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { userAPI } from '../../utils/api';
+import MediaItemCard from '../../components/MediaItemCard';
 
 export default function UserProfileInfo() {
     const navigate = useNavigate();
@@ -454,16 +455,18 @@ export default function UserProfileInfo() {
                         <div className="mb-4">
                             <h3 className="text-white text-base font-semibold mb-3">Entertainment</h3>
 
-                            <div className="bg-white/10 rounded-xl p-3 flex flex-col gap-3">
+                            <div className="bg-white/10 rounded-xl p-3 flex flex-col gap-2">
                                 {/* Watchlist */}
                                 {watchlist.length > 0 && (
-                                    <div className="mb-4">
-                                        <div className="text-white/70 text-xs font-medium mb-2">Watchlist</div>
-                                        <div className="flex flex-wrap gap-2">
+                                    <div>
+                                        <div className="text-white/70 text-sm font-medium mb-1">Watchlists</div>
+                                        <div className="flex flex-col">
                                             {watchlist.map((item, idx) => (
-                                                <div key={idx} className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                                                    <span className="text-white text-xs">{item}</span>
-                                                </div>
+                                                <MediaItemCard
+                                                    key={idx}
+                                                    type={item.first_air_date ? 'tv' : 'movie'}
+                                                    item={item}
+                                                />
                                             ))}
                                         </div>
                                     </div>
@@ -471,13 +474,15 @@ export default function UserProfileInfo() {
 
                                 {/* TV Shows */}
                                 {tvShows.length > 0 && (
-                                    <div className="mb-4">
-                                        <div className="text-white/70 text-xs font-medium mb-2">TV Shows</div>
-                                        <div className="flex flex-wrap gap-2">
+                                    <div>
+                                        <div className="text-white/70 text-sm font-medium mb-1">TV Shows</div>
+                                        <div className="flex flex-col">
                                             {tvShows.map((show, idx) => (
-                                                <div key={idx} className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                                                    <span className="text-white text-xs">{show}</span>
-                                                </div>
+                                                <MediaItemCard
+                                                    key={idx}
+                                                    type="tv"
+                                                    item={show}
+                                                />
                                             ))}
                                         </div>
                                     </div>
@@ -485,13 +490,15 @@ export default function UserProfileInfo() {
 
                                 {/* Movies */}
                                 {movies.length > 0 && (
-                                    <div className="mb-4">
-                                        <div className="text-white/70 text-xs font-medium mb-2">Movies</div>
-                                        <div className="flex flex-wrap gap-2">
+                                    <div>
+                                        <div className="text-white/70 text-sm font-medium mb-1">Movies</div>
+                                        <div className="flex flex-col">
                                             {movies.map((movie, idx) => (
-                                                <div key={idx} className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                                                    <span className="text-white text-xs">{movie}</span>
-                                                </div>
+                                                <MediaItemCard
+                                                    key={idx}
+                                                    type="movie"
+                                                    item={movie}
+                                                />
                                             ))}
                                         </div>
                                     </div>
@@ -500,12 +507,14 @@ export default function UserProfileInfo() {
                                 {/* Artists/Bands */}
                                 {artistsBands.length > 0 && (
                                     <div>
-                                        <div className="text-white/70 text-xs font-medium mb-2">Tunes</div>
-                                        <div className="flex flex-wrap gap-2">
+                                        <div className="text-white/70 text-sm font-medium mb-1">Tunes</div>
+                                        <div className="flex flex-col">
                                             {artistsBands.map((artist, idx) => (
-                                                <div key={idx} className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                                                    <span className="text-white text-xs">{artist}</span>
-                                                </div>
+                                                <MediaItemCard
+                                                    key={idx}
+                                                    type="artist"
+                                                    item={artist}
+                                                />
                                             ))}
                                         </div>
                                     </div>

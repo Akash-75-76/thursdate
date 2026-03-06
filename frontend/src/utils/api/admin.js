@@ -50,4 +50,35 @@ export const adminAPI = {
             body: JSON.stringify({ status, adminNotes }),
         });
     },
+
+    // Get pending license verifications
+    getPendingLicenseVerifications: async () => {
+        return authRequest('/verification/driving-license/admin/pending');
+    },
+
+    // Get all license verifications
+    getAllLicenseVerifications: async (status) => {
+        const params = status ? `?status=${status}` : '';
+        return authRequest(`/verification/driving-license/admin/all${params}`);
+    },
+
+    // Get license verification details
+    getLicenseVerificationDetails: async (verificationId) => {
+        return authRequest(`/verification/driving-license/admin/${verificationId}`);
+    },
+
+    // Approve license verification
+    approveLicenseVerification: async (verificationId) => {
+        return authRequest(`/verification/driving-license/admin/${verificationId}/approve`, {
+            method: 'PUT',
+        });
+    },
+
+    // Reject license verification
+    rejectLicenseVerification: async (verificationId, reason) => {
+        return authRequest(`/verification/driving-license/admin/${verificationId}/reject`, {
+            method: 'PUT',
+            body: JSON.stringify({ reason }),
+        });
+    },
 };
