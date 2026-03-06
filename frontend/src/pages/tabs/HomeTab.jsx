@@ -24,6 +24,9 @@ export default function HomeTab() {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  
+  // Image preloading state
+  const [preloadedImages, setPreloadedImages] = useState(new Set());
 
   // Draggable button state
   const [buttonPosition, setButtonPosition] = useState({ x: window.innerWidth - 100, y: window.innerHeight / 2 - 100 });
@@ -131,6 +134,54 @@ export default function HomeTab() {
   useEffect(() => {
     fetchMatches();
   }, []);
+
+  // Optimize Cloudinary URLs for faster loading
+  const optimizeImageUrl = (url) => {
+    if (!url) return url;
+    
+    // If it's a Cloudinary URL, add optimization parameters
+    if (url.includes('cloudinary.com') || url.includes('res.cloudinary.com')) {
+      // Add transformations for optimized loading: quality auto, format auto, width 1200
+      const parts = url.split('/upload/');
+      if (parts.length === 2) {
+        return `${parts[0]}/upload/q_auto,f_auto,w_1200,c_limit/${parts[1]}`;
+      }
+    }
+    return url;
+  };
+
+  // Preload images for current and next candidates
+  useEffect(() => {
+    if (!candidates || candidates.length === 0) return;
+
+    const imagesToPreload = [];
+    
+    // Preload current candidate's images
+    const currentCandidate = candidates[currentCandidateIndex];
+    if (currentCandidate?.lifestyleImages) {
+      imagesToPreload.push(...currentCandidate.lifestyleImages);
+    }
+    
+    // Preload next candidate's images
+    if (currentCandidateIndex + 1 < candidates.length) {
+      const nextCandidate = candidates[currentCandidateIndex + 1];
+      if (nextCandidate?.lifestyleImages) {
+        imagesToPreload.push(...nextCandidate.lifestyleImages);
+      }
+    }
+
+    // Preload all images
+    imagesToPreload.forEach(url => {
+      if (!preloadedImages.has(url)) {
+        const img = new Image();
+        const optimizedUrl = optimizeImageUrl(url);
+        img.src = optimizedUrl;
+        img.onload = () => {
+          setPreloadedImages(prev => new Set([...prev, url]));
+        };
+      }
+    });
+  }, [candidates, currentCandidateIndex]);
 
   const currentCandidate = candidates[currentCandidateIndex];
 
@@ -354,15 +405,19 @@ export default function HomeTab() {
             if (!currentCandidate) return 'url(/bgs/matchesbg.jpg)';
             // ✅ SECURITY: Only show lifestyle images in Discover (no personal photos)
             const currentImages = currentCandidate.lifestyleImages;
-            return currentImages && currentImages.length > 0
-              ? `url(${currentImages[currentLifestyleImageIndex]})`
-              : 'url(/bgs/matchesbg.jpg)';
+            if (currentImages && currentImages.length > 0) {
+              const imageUrl = currentImages[currentLifestyleImageIndex];
+              const optimizedUrl = optimizeImageUrl(imageUrl);
+              return `url(${optimizedUrl})`;
+            }
+            return 'url(/bgs/matchesbg.jpg)';
           })(),
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
           transition: 'background-image 0.3s ease-in-out',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          willChange: 'background-image'
         }}
       >
         {loading ? (
