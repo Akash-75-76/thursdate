@@ -6,6 +6,7 @@ import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE
 import Cropper from 'react-easy-crop';
 import AutocompleteInput from '../../components/AutocompleteInput';
 import { searchMovies, searchTVShows, searchArtists, searchMoviesAndShows } from '../../utils/externalAPIs';
+import { searchInterests } from '../../utils/interests';
 
 const createImage = (url) =>
   new Promise((resolve, reject) => {
@@ -258,7 +259,13 @@ export default function UserIntent() {
 
   // Interest tag logic
   const addInterest = useCallback((val) => {
-    const trimmed = (val || '').trim();
+    if (!val) return;
+    let trimmed = '';
+    if (typeof val === 'object') {
+      trimmed = (val.name || val.display || '').trim();
+    } else {
+      trimmed = (val || '').trim();
+    }
     if (!trimmed) return;
     setInterests(prev => prev.includes(trimmed) ? prev : [...prev, trimmed]);
     setInterestInput('');
@@ -272,7 +279,7 @@ export default function UserIntent() {
   const addTvShow = (selectedItem) => {
     // If called from autocomplete with full object
     if (selectedItem && typeof selectedItem === 'object') {
-      const exists = tvShows.some(item => 
+      const exists = tvShows.some(item =>
         typeof item === 'object' ? item.name === selectedItem.name : item === selectedItem.name
       );
       if (!exists) {
@@ -282,7 +289,7 @@ export default function UserIntent() {
     } else {
       // If called manually with string
       const trimmed = (selectedItem || tvInput).trim();
-      const exists = tvShows.some(item => 
+      const exists = tvShows.some(item =>
         typeof item === 'object' ? item.name === trimmed : item === trimmed
       );
       if (trimmed && !exists) {
@@ -299,9 +306,9 @@ export default function UserIntent() {
   };
 
   const removeTvShow = (item) => {
-    setTvShows(prev => prev.filter(x => 
-      typeof x === 'object' && typeof item === 'object' 
-        ? x.name !== item.name 
+    setTvShows(prev => prev.filter(x =>
+      typeof x === 'object' && typeof item === 'object'
+        ? x.name !== item.name
         : x !== item
     ));
   };
@@ -309,7 +316,7 @@ export default function UserIntent() {
   const addMovie = (selectedItem) => {
     // If called from autocomplete with full object
     if (selectedItem && typeof selectedItem === 'object') {
-      const exists = movies.some(item => 
+      const exists = movies.some(item =>
         typeof item === 'object' ? item.name === selectedItem.name : item === selectedItem.name
       );
       if (!exists) {
@@ -319,7 +326,7 @@ export default function UserIntent() {
     } else {
       // If called manually with string
       const trimmed = (selectedItem || movieInput).trim();
-      const exists = movies.some(item => 
+      const exists = movies.some(item =>
         typeof item === 'object' ? item.name === trimmed : item === trimmed
       );
       if (trimmed && !exists) {
@@ -336,9 +343,9 @@ export default function UserIntent() {
   };
 
   const removeMovie = (item) => {
-    setMovies(prev => prev.filter(x => 
-      typeof x === 'object' && typeof item === 'object' 
-        ? x.name !== item.name 
+    setMovies(prev => prev.filter(x =>
+      typeof x === 'object' && typeof item === 'object'
+        ? x.name !== item.name
         : x !== item
     ));
   };
@@ -347,7 +354,7 @@ export default function UserIntent() {
   const addWatchItem = (selectedItem) => {
     // If called from autocomplete with full object
     if (selectedItem && typeof selectedItem === 'object') {
-      const exists = watchList.some(item => 
+      const exists = watchList.some(item =>
         typeof item === 'object' ? item.name === selectedItem.name : item === selectedItem.name
       );
       if (!exists) {
@@ -359,8 +366,8 @@ export default function UserIntent() {
       const inputValue = selectedItem || watchInput;
       const items = inputValue.split(',').map(item => item.trim()).filter(item => item !== '');
       setWatchList(prev => {
-        const newItems = items.filter(item => 
-          !prev.some(existing => 
+        const newItems = items.filter(item =>
+          !prev.some(existing =>
             typeof existing === 'object' ? existing.name === item : existing === item
           )
         ).map(item => ({ name: item, display: item }));
@@ -371,9 +378,9 @@ export default function UserIntent() {
   };
 
   const removeWatchItem = (item) => {
-    setWatchList(prev => prev.filter(x => 
-      typeof x === 'object' && typeof item === 'object' 
-        ? x.name !== item.name 
+    setWatchList(prev => prev.filter(x =>
+      typeof x === 'object' && typeof item === 'object'
+        ? x.name !== item.name
         : x !== item
     ));
   };
@@ -382,7 +389,7 @@ export default function UserIntent() {
   const addArtistBand = (selectedItem) => {
     // If called from autocomplete with full object
     if (selectedItem && typeof selectedItem === 'object') {
-      const exists = artistsBands.some(item => 
+      const exists = artistsBands.some(item =>
         typeof item === 'object' ? item.name === selectedItem.name : item === selectedItem.name
       );
       if (!exists) {
@@ -394,8 +401,8 @@ export default function UserIntent() {
       const inputValue = selectedItem || artistBandInput;
       const items = inputValue.split(',').map(item => item.trim()).filter(item => item !== '');
       setArtistsBands(prev => {
-        const newItems = items.filter(item => 
-          !prev.some(existing => 
+        const newItems = items.filter(item =>
+          !prev.some(existing =>
             typeof existing === 'object' ? existing.name === item : existing === item
           )
         ).map(item => ({ name: item, display: item }));
@@ -406,9 +413,9 @@ export default function UserIntent() {
   };
 
   const removeArtistBand = (item) => {
-    setArtistsBands(prev => prev.filter(x => 
-      typeof x === 'object' && typeof item === 'object' 
-        ? x.name !== item.name 
+    setArtistsBands(prev => prev.filter(x =>
+      typeof x === 'object' && typeof item === 'object'
+        ? x.name !== item.name
         : x !== item
     ));
   };
@@ -855,7 +862,7 @@ export default function UserIntent() {
         return (
           <>
             <div className="flex gap-2 mb-3">
-              <input
+              <AutocompleteInput
                 value={interestInput}
                 onChange={e => setInterestInput(e.target.value)}
                 onKeyDown={e => {
@@ -864,7 +871,10 @@ export default function UserIntent() {
                     addInterest(interestInput);
                   }
                 }}
+                onSelect={(item) => addInterest(item)}
+                showImage={false}
                 placeholder="Add an interest..."
+                searchFn={searchInterests}
                 className="flex-1 rounded-xl p-3 text-base"
                 style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               />
@@ -932,15 +942,15 @@ export default function UserIntent() {
                   const itemSubtitle = typeof s === 'object' ? s.subtitle : null;
                   const itemImage = typeof s === 'object' ? s.image : null;
                   return (
-                    <div 
-                      key={i} 
+                    <div
+                      key={i}
                       className="flex items-center gap-2 p-2 rounded-xl"
                       style={{ background: 'rgba(255,255,255,0.1)' }}
                     >
                       {/* Thumbnail */}
                       {itemImage ? (
-                        <img 
-                          src={itemImage} 
+                        <img
+                          src={itemImage}
                           alt=""
                           className="w-12 h-12 rounded object-cover flex-shrink-0"
                           style={{ background: 'rgba(255,255,255,0.05)' }}
@@ -957,9 +967,9 @@ export default function UserIntent() {
                         )}
                       </div>
                       {/* Remove button */}
-                      <button 
-                        type="button" 
-                        onClick={() => removeTvShow(s)} 
+                      <button
+                        type="button"
+                        onClick={() => removeTvShow(s)}
                         className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white"
                         aria-label={`Remove ${itemName}`}
                       >
@@ -1009,15 +1019,15 @@ export default function UserIntent() {
                   const itemSubtitle = typeof m === 'object' ? m.subtitle : null;
                   const itemImage = typeof m === 'object' ? m.image : null;
                   return (
-                    <div 
-                      key={i} 
+                    <div
+                      key={i}
                       className="flex items-center gap-2 p-2 rounded-xl"
                       style={{ background: 'rgba(255,255,255,0.1)' }}
                     >
                       {/* Thumbnail */}
                       {itemImage ? (
-                        <img 
-                          src={itemImage} 
+                        <img
+                          src={itemImage}
                           alt=""
                           className="w-12 h-12 rounded object-cover flex-shrink-0"
                           style={{ background: 'rgba(255,255,255,0.05)' }}
@@ -1034,9 +1044,9 @@ export default function UserIntent() {
                         )}
                       </div>
                       {/* Remove button */}
-                      <button 
-                        type="button" 
-                        onClick={() => removeMovie(m)} 
+                      <button
+                        type="button"
+                        onClick={() => removeMovie(m)}
                         className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white"
                         aria-label={`Remove ${itemName}`}
                       >
@@ -1087,15 +1097,15 @@ export default function UserIntent() {
                 const itemSubtitle = typeof w === 'object' ? w.subtitle : null;
                 const itemImage = typeof w === 'object' ? w.image : null;
                 return (
-                  <div 
-                    key={i} 
+                  <div
+                    key={i}
                     className="flex items-center gap-2 p-2 rounded-xl"
                     style={{ background: 'rgba(255,255,255,0.1)' }}
                   >
                     {/* Thumbnail */}
                     {itemImage ? (
-                      <img 
-                        src={itemImage} 
+                      <img
+                        src={itemImage}
                         alt=""
                         className="w-12 h-12 rounded object-cover flex-shrink-0"
                         style={{ background: 'rgba(255,255,255,0.05)' }}
@@ -1112,9 +1122,9 @@ export default function UserIntent() {
                       )}
                     </div>
                     {/* Remove button */}
-                    <button 
-                      type="button" 
-                      onClick={() => removeWatchItem(w)} 
+                    <button
+                      type="button"
+                      onClick={() => removeWatchItem(w)}
                       className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white"
                       aria-label={`Remove ${itemName}`}
                     >
@@ -1164,15 +1174,15 @@ export default function UserIntent() {
                 const itemSubtitle = typeof b === 'object' ? b.subtitle : null;
                 const itemImage = typeof b === 'object' ? b.image : null;
                 return (
-                  <div 
-                    key={i} 
+                  <div
+                    key={i}
                     className="flex items-center gap-2 p-2 rounded-xl"
                     style={{ background: 'rgba(255,255,255,0.1)' }}
                   >
                     {/* Thumbnail */}
                     {itemImage ? (
-                      <img 
-                        src={itemImage} 
+                      <img
+                        src={itemImage}
                         alt=""
                         className="w-12 h-12 rounded object-cover flex-shrink-0"
                         style={{ background: 'rgba(255,255,255,0.05)' }}
@@ -1189,9 +1199,9 @@ export default function UserIntent() {
                       )}
                     </div>
                     {/* Remove button */}
-                    <button 
-                      type="button" 
-                      onClick={() => removeArtistBand(b)} 
+                    <button
+                      type="button"
+                      onClick={() => removeArtistBand(b)}
                       className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white"
                       aria-label={`Remove ${itemName}`}
                     >

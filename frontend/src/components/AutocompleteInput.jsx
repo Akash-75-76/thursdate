@@ -24,7 +24,8 @@ export default function AutocompleteInput({
   placeholder,
   searchFn,
   className = '',
-  style = {}
+  style = {},
+  showImage = true,
 }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -49,7 +50,7 @@ export default function AutocompleteInput({
     }
 
     setIsLoading(true);
-    
+
     try {
       const results = await searchFn(query);
       setSuggestions(results || []);
@@ -85,21 +86,21 @@ export default function AutocompleteInput({
   // Handle suggestion selection
   const handleSuggestionClick = useCallback((suggestion) => {
     const displayValue = suggestion.display || suggestion.name;
-    
+
     // Create a synthetic event to maintain compatibility
     const syntheticEvent = {
       target: {
         value: displayValue
       }
     };
-    
+
     onChange(syntheticEvent);
-    
+
     if (onSelect) {
       // Pass the full suggestion object instead of just the display string
       onSelect(suggestion);
     }
-    
+
     setSuggestions([]);
     setShowSuggestions(false);
     setSelectedIndex(-1);
@@ -115,16 +116,16 @@ export default function AutocompleteInput({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => 
+        setSelectedIndex(prev =>
           prev < suggestions.length - 1 ? prev + 1 : prev
         );
         break;
-      
+
       case 'ArrowUp':
         e.preventDefault();
         setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
         break;
-      
+
       case 'Enter':
         if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
           e.preventDefault();
@@ -133,14 +134,14 @@ export default function AutocompleteInput({
           onKeyDown(e);
         }
         break;
-      
+
       case 'Escape':
         e.preventDefault();
         setSuggestions([]);
         setShowSuggestions(false);
         setSelectedIndex(-1);
         break;
-      
+
       default:
         if (onKeyDown) onKeyDown(e);
         break;
@@ -183,7 +184,7 @@ export default function AutocompleteInput({
   useEffect(() => {
     const currentAbortController = abortControllerRef.current;
     const currentTimer = debounceTimerRef.current;
-    
+
     return () => {
       if (currentTimer) {
         clearTimeout(currentTimer);
@@ -209,7 +210,7 @@ export default function AutocompleteInput({
         style={style}
         autoComplete="off"
       />
-      
+
       {/* Suggestions dropdown */}
       {showSuggestions && suggestions.length > 0 && (
         <div
@@ -230,26 +231,28 @@ export default function AutocompleteInput({
               onClick={() => handleSuggestionClick(suggestion)}
               className="px-3 py-3 cursor-pointer transition-colors flex items-center gap-3"
               style={{
-                background: selectedIndex === index 
-                  ? 'rgba(255, 255, 255, 0.1)' 
+                background: selectedIndex === index
+                  ? 'rgba(255, 255, 255, 0.1)'
                   : 'transparent',
                 borderBottom: index < suggestions.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none'
               }}
               onMouseEnter={() => setSelectedIndex(index)}
             >
-              {/* Thumbnail image */}
-              {suggestion.image ? (
-                <img 
-                  src={suggestion.image} 
-                  alt=""
-                  className="w-12 h-12 rounded object-cover flex-shrink-0"
-                  style={{ background: 'rgba(255, 255, 255, 0.05)' }}
-                  onError={(e) => { e.target.style.opacity = '0.3'; }}
-                />
-              ) : (
-                <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255, 255, 255, 0.05)' }} />
+              {/* Thumbnail image (optional) */}
+              {showImage && (
+                suggestion.image ? (
+                  <img
+                    src={suggestion.image}
+                    alt=""
+                    className="w-12 h-12 rounded object-cover flex-shrink-0"
+                    style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+                    onError={(e) => { e.target.style.opacity = '0.3'; }}
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255, 255, 255, 0.05)' }} />
+                )
               )}
-              
+
               {/* Text content */}
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-white text-sm truncate">
@@ -275,14 +278,14 @@ export default function AutocompleteInput({
           ))}
         </div>
       )}
-      
+
       {/* Loading indicator */}
       {isLoading && (
-        <div 
+        <div
           className="absolute right-3 top-1/2"
           style={{ transform: 'translateY(-50%)' }}
         >
-          <div 
+          <div
             className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
           />
         </div>
