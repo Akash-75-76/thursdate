@@ -385,14 +385,14 @@ export default function ProfileTab() {
 
   const handleAddEntertainmentItem = (category, selectedItem) => {
     if (!selectedItem) return;
-    
+
     // Check if item already exists (by name/title)
     const itemName = typeof selectedItem === 'object' ? (selectedItem.title || selectedItem.name) : selectedItem;
     const exists = editFormData[category]?.some(item => {
       const existingName = typeof item === 'object' ? (item.title || item.name) : item;
       return existingName === itemName;
     });
-    
+
     if (!exists) {
       setEditFormData(prev => ({
         ...prev,
@@ -1103,141 +1103,205 @@ export default function ProfileTab() {
                   {/* Watchlist */}
                   <div>
                     <div className="text-white text-sm font-medium mb-3">Watchlist</div>
-                    
-                    {/* Selected Items with Media Cards */}
-                    {editFormData.watchList?.length > 0 && (
-                      <div className="mb-3 space-y-2">
-                        {editFormData.watchList.map((item, idx) => (
-                          <div key={idx} className="relative group">
-                            <MediaItemCard
-                              type={item.first_air_date ? 'tv' : 'movie'}
-                              item={item}
-                            />
-                            <button
-                              onClick={() => handleRemoveEntertainmentItem('watchList', idx)}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
-                            >
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
+                    <div className="flex flex-col gap-3 mb-3">
+                      {editFormData.watchList?.map((item, idx) => {
+                        const itemName = typeof item === 'object' ? item.name : item;
+                        const itemSubtitle = typeof item === 'object' ? item.subtitle : null;
+                        const itemImage = typeof item === 'object' ? item.image : null;
+                        return (
+                          <div key={idx} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                            {itemImage ? (
+                              <img src={itemImage} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} onError={(e) => { e.target.style.opacity = '0.3'; }} />
+                            ) : (
+                              <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                              {itemSubtitle && <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>}
+                            </div>
+                            <button type="button" onClick={() => handleRemoveEntertainmentItem('watchList', idx)} className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white" aria-label={`Remove ${itemName}`}>×</button>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <AutocompleteInput
-                      value={[]}
-                      onChange={(selected) => handleAddEntertainmentItem('watchList', selected)}
-                      searchFunction={searchMoviesAndShows}
-                      placeholder="Search movies or TV shows..."
-                      multiple={false}
-                    />
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <AutocompleteInput
+                        value={editFormData.newWatchList || ''}
+                        onChange={e => handleInputChange('newWatchList', e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && editFormData.newWatchList?.trim()) {
+                            e.preventDefault();
+                            handleAddEntertainmentItem('watchList', { name: editFormData.newWatchList.trim(), display: editFormData.newWatchList.trim() });
+                            handleInputChange('newWatchList', '');
+                          }
+                        }}
+                        onSelect={(selected) => { handleAddEntertainmentItem('watchList', selected); handleInputChange('newWatchList', ''); }}
+                        searchFn={searchMoviesAndShows}
+                        placeholder="Search movies or TV shows..."
+                        className="flex-1 rounded-xl p-3 text-base"
+                        style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { if (editFormData.newWatchList?.trim()) { handleAddEntertainmentItem('watchList', { name: editFormData.newWatchList.trim(), display: editFormData.newWatchList.trim() }); handleInputChange('newWatchList', ''); } }}
+                        disabled={!editFormData.newWatchList?.trim()}
+                        className="px-5 py-3 rounded-xl font-medium text-sm"
+                        style={editFormData.newWatchList?.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+                      >Add</button>
+                    </div>
                   </div>
 
                   {/* TV Shows */}
                   <div>
                     <div className="text-white text-sm font-medium mb-3">TV Shows</div>
-                    
-                    {/* Selected Items with Media Cards */}
-                    {editFormData.tvShows?.length > 0 && (
-                      <div className="mb-3 space-y-2">
-                        {editFormData.tvShows.map((show, idx) => (
-                          <div key={idx} className="relative group">
-                            <MediaItemCard
-                              type="tv"
-                              item={show}
-                            />
-                            <button
-                              onClick={() => handleRemoveEntertainmentItem('tvShows', idx)}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
-                            >
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
+                    <div className="flex flex-col gap-3 mb-3">
+                      {editFormData.tvShows?.map((show, idx) => {
+                        const itemName = typeof show === 'object' ? show.name : show;
+                        const itemSubtitle = typeof show === 'object' ? show.subtitle : null;
+                        const itemImage = typeof show === 'object' ? show.image : null;
+                        return (
+                          <div key={idx} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                            {itemImage ? (
+                              <img src={itemImage} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} onError={(e) => { e.target.style.opacity = '0.3'; }} />
+                            ) : (
+                              <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                              {itemSubtitle && <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>}
+                            </div>
+                            <button type="button" onClick={() => handleRemoveEntertainmentItem('tvShows', idx)} className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white" aria-label={`Remove ${itemName}`}>×</button>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <AutocompleteInput
-                      value={[]}
-                      onChange={(selected) => handleAddEntertainmentItem('tvShows', selected)}
-                      searchFunction={searchTVShows}
-                      placeholder="Search TV shows..."
-                      multiple={false}
-                    />
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <AutocompleteInput
+                        value={editFormData.newTvShow || ''}
+                        onChange={e => handleInputChange('newTvShow', e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && editFormData.newTvShow?.trim()) {
+                            e.preventDefault();
+                            handleAddEntertainmentItem('tvShows', { name: editFormData.newTvShow.trim(), display: editFormData.newTvShow.trim() });
+                            handleInputChange('newTvShow', '');
+                          }
+                        }}
+                        onSelect={(selected) => { handleAddEntertainmentItem('tvShows', selected); handleInputChange('newTvShow', ''); }}
+                        searchFn={searchTVShows}
+                        placeholder="e.g. The Office"
+                        className="flex-1 rounded-xl p-3 text-base"
+                        style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { if (editFormData.newTvShow?.trim()) { handleAddEntertainmentItem('tvShows', { name: editFormData.newTvShow.trim(), display: editFormData.newTvShow.trim() }); handleInputChange('newTvShow', ''); } }}
+                        disabled={!editFormData.newTvShow?.trim()}
+                        className="px-5 py-3 rounded-xl font-medium text-sm"
+                        style={editFormData.newTvShow?.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+                      >Add</button>
+                    </div>
                   </div>
 
                   {/* Movies */}
                   <div>
                     <div className="text-white text-sm font-medium mb-3">Movies</div>
-                    
-                    {/* Selected Items with Media Cards */}
-                    {editFormData.movies?.length > 0 && (
-                      <div className="mb-3 space-y-2">
-                        {editFormData.movies.map((movie, idx) => (
-                          <div key={idx} className="relative group">
-                            <MediaItemCard
-                              type="movie"
-                              item={movie}
-                            />
-                            <button
-                              onClick={() => handleRemoveEntertainmentItem('movies', idx)}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
-                            >
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
+                    <div className="flex flex-col gap-3 mb-3">
+                      {editFormData.movies?.map((movie, idx) => {
+                        const itemName = typeof movie === 'object' ? movie.name : movie;
+                        const itemSubtitle = typeof movie === 'object' ? movie.subtitle : null;
+                        const itemImage = typeof movie === 'object' ? movie.image : null;
+                        return (
+                          <div key={idx} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                            {itemImage ? (
+                              <img src={itemImage} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} onError={(e) => { e.target.style.opacity = '0.3'; }} />
+                            ) : (
+                              <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                              {itemSubtitle && <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>}
+                            </div>
+                            <button type="button" onClick={() => handleRemoveEntertainmentItem('movies', idx)} className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white" aria-label={`Remove ${itemName}`}>×</button>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <AutocompleteInput
-                      value={[]}
-                      onChange={(selected) => handleAddEntertainmentItem('movies', selected)}
-                      searchFunction={searchMovies}
-                      placeholder="Search movies..."
-                      multiple={false}
-                    />
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <AutocompleteInput
+                        value={editFormData.newMovie || ''}
+                        onChange={e => handleInputChange('newMovie', e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && editFormData.newMovie?.trim()) {
+                            e.preventDefault();
+                            handleAddEntertainmentItem('movies', { name: editFormData.newMovie.trim(), display: editFormData.newMovie.trim() });
+                            handleInputChange('newMovie', '');
+                          }
+                        }}
+                        onSelect={(selected) => { handleAddEntertainmentItem('movies', selected); handleInputChange('newMovie', ''); }}
+                        searchFn={searchMovies}
+                        placeholder="e.g. The Godfather"
+                        className="flex-1 rounded-xl p-3 text-base"
+                        style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { if (editFormData.newMovie?.trim()) { handleAddEntertainmentItem('movies', { name: editFormData.newMovie.trim(), display: editFormData.newMovie.trim() }); handleInputChange('newMovie', ''); } }}
+                        disabled={!editFormData.newMovie?.trim()}
+                        className="px-5 py-3 rounded-xl font-medium text-sm"
+                        style={editFormData.newMovie?.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+                      >Add</button>
+                    </div>
                   </div>
 
                   {/* Artists/Bands */}
                   <div>
                     <div className="text-white text-sm font-medium mb-3">Tunes</div>
-                    
-                    {/* Selected Items with Media Cards */}
-                    {editFormData.artistsBands?.length > 0 && (
-                      <div className="mb-3 space-y-2">
-                        {editFormData.artistsBands.map((artist, idx) => (
-                          <div key={idx} className="relative group">
-                            <MediaItemCard
-                              type="artist"
-                              item={artist}
-                            />
-                            <button
-                              onClick={() => handleRemoveEntertainmentItem('artistsBands', idx)}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
-                            >
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
+                    <div className="flex flex-col gap-3 mb-3">
+                      {editFormData.artistsBands?.map((artist, idx) => {
+                        const itemName = typeof artist === 'object' ? artist.name : artist;
+                        const itemSubtitle = typeof artist === 'object' ? artist.subtitle : null;
+                        const itemImage = typeof artist === 'object' ? artist.image : null;
+                        return (
+                          <div key={idx} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                            {itemImage ? (
+                              <img src={itemImage} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} onError={(e) => { e.target.style.opacity = '0.3'; }} />
+                            ) : (
+                              <div className="w-12 h-12 rounded flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                              {itemSubtitle && <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>}
+                            </div>
+                            <button type="button" onClick={() => handleRemoveEntertainmentItem('artistsBands', idx)} className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/70 hover:text-white" aria-label={`Remove ${itemName}`}>×</button>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <AutocompleteInput
-                      value={[]}
-                      onChange={(selected) => handleAddEntertainmentItem('artistsBands', selected)}
-                      searchFunction={searchArtists}
-                      placeholder="Search artists..."
-                      multiple={false}
-                    />
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <AutocompleteInput
+                        value={editFormData.newArtist || ''}
+                        onChange={e => handleInputChange('newArtist', e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && editFormData.newArtist?.trim()) {
+                            e.preventDefault();
+                            handleAddEntertainmentItem('artistsBands', { name: editFormData.newArtist.trim(), display: editFormData.newArtist.trim() });
+                            handleInputChange('newArtist', '');
+                          }
+                        }}
+                        onSelect={(selected) => { handleAddEntertainmentItem('artistsBands', selected); handleInputChange('newArtist', ''); }}
+                        searchFn={searchArtists}
+                        placeholder="Add an artist/band..."
+                        className="flex-1 rounded-xl p-3 text-base"
+                        style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { if (editFormData.newArtist?.trim()) { handleAddEntertainmentItem('artistsBands', { name: editFormData.newArtist.trim(), display: editFormData.newArtist.trim() }); handleInputChange('newArtist', ''); } }}
+                        disabled={!editFormData.newArtist?.trim()}
+                        className="px-5 py-3 rounded-xl font-medium text-sm"
+                        style={editFormData.newArtist?.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
+                      >Add</button>
+                    </div>
                   </div>
                 </div>
 
