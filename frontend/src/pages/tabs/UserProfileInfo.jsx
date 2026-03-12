@@ -143,6 +143,7 @@ export default function UserProfileInfo() {
         } else if (viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 0) {
             setCurrentPersonalImageIndex((prev) => (prev + 1) % user.facePhotos.length);
         }
+        // Don't cycle when personal tab is locked
     };
 
     return (
@@ -152,10 +153,12 @@ export default function UserProfileInfo() {
             style={{
                 backgroundImage: viewMode === 'lifestyle' && lifestyleImages.length > 0
                     ? `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url(${lifestyleImages[currentLifestyleImageIndex]})`
-                    : viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 0
-                    ? `linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15)), url(${user.facePhotos[currentPersonalImageIndex]})`
+                    : viewMode === 'personal' && user?.facePhotos && user.facePhotos.length > 0
+                    ? user?.personalTabUnlocked === true
+                        ? `linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15)), url(${user.facePhotos[currentPersonalImageIndex]})`
+                        : `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${user.facePhotos[currentPersonalImageIndex]})`
                     : `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url('/bgs/faceverifybg.png')`,
-                backgroundSize: viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 0 ? 'contain' : 'cover',
+                backgroundSize: viewMode === 'personal' && user?.facePhotos && user.facePhotos.length > 0 ? 'contain' : 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
                 transition: 'background-image 0.3s ease-in-out',
@@ -215,7 +218,7 @@ export default function UserProfileInfo() {
                     ))}
                 </div>
             )}
-            {viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 1 && (
+            {viewMode === 'personal' && user?.facePhotos && user.facePhotos.length > 1 && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
                     {user.facePhotos.map((_, idx) => (
                         <div
@@ -223,16 +226,55 @@ export default function UserProfileInfo() {
                             className="h-1 rounded-full transition-all"
                             style={{
                                 width: idx === currentPersonalImageIndex ? '24px' : '8px',
-                                backgroundColor: idx === currentPersonalImageIndex ? 'white' : 'rgba(255, 255, 255, 0.5)'
+                                backgroundColor: idx === currentPersonalImageIndex ? 'white' : 'rgba(255, 255, 255, 0.5)',
+                                opacity: user?.personalTabUnlocked !== true ? 0.5 : 1
                             }}
                         />
                     ))}
                 </div>
             )}
 
+            {/* Personal Tab Locked Overlay - Centered in background */}
+            {viewMode === 'personal' && user?.personalTabUnlocked !== true && (
+                <div className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none pt-32">
+                    <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/30 max-w-sm text-center mx-6">
+                        {/* Lock Icon */}
+                        <div className="w-20 h-20 mx-auto mb-6 bg-white/20 rounded-full flex items-center justify-center">
+                            <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        
+                        {/* Title */}
+                        <h3 className="font-['Poppins'] font-semibold text-[20px] leading-[1.3] text-white mb-3">
+                            Personal Tab Locked
+                        </h3>
+                        
+                        {/* Message */}
+                        <p className="font-['Poppins'] text-[14px] leading-[1.5] text-white/80 mb-4">
+                            The Personal tab unlocks at <span className="font-semibold text-white">Level 3</span> once you start chatting with this match
+                        </p>
+                        
+                        <p className="font-['Poppins'] text-[13px] leading-[1.4] text-white/60">
+                            Exchange messages and build connection to unlock personal photos
+                        </p>
+                        
+                        {/* Progress Indicator */}
+                        <div className="mt-6 pt-6 border-t border-white/20">
+                            <div className="flex items-center justify-center gap-2 text-white/60 text-xs">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                <span>Start your conversation to progress</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Profile Card Container */}
             <div
-                className={`flex-1 px-4 transition-all duration-300 ${isMinimized ? 'overflow-hidden' : 'overflow-y-auto'}`}
+                className={`flex-1 px-4 transition-all duration-300 ${isMinimized ? 'overflow-hidden' : 'overflow-y-auto'} relative z-10`}
                 style={{
                     transform: isMinimized ? 'translateY(calc(100vh - 280px))' : 'translateY(60px)',
                     transition: 'all 0.3s ease-out',
@@ -765,40 +807,9 @@ export default function UserProfileInfo() {
                                     </div>
                                 </div>
                             ) : (
-                                /* LOCKED: Show lock screen with message */
-                                <div className="flex flex-col items-center justify-center py-20 px-6">
-                                    <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/30 max-w-sm text-center">
-                                        {/* Lock Icon */}
-                                        <div className="w-20 h-20 mx-auto mb-6 bg-white/20 rounded-full flex items-center justify-center">
-                                            <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                        
-                                        {/* Title */}
-                                        <h3 className="font-['Poppins'] font-semibold text-[20px] leading-[1.3] text-white mb-3">
-                                            Personal Tab Locked
-                                        </h3>
-                                        
-                                        {/* Message */}
-                                        <p className="font-['Poppins'] text-[14px] leading-[1.5] text-white/80 mb-4">
-                                            The Personal tab unlocks at <span className="font-semibold text-white">Level 3</span> once you start chatting with this match
-                                        </p>
-                                        
-                                        <p className="font-['Poppins'] text-[13px] leading-[1.4] text-white/60">
-                                            Exchange messages and build connection to unlock personal photos
-                                        </p>
-                                        
-                                        {/* Progress Indicator */}
-                                        <div className="mt-6 pt-6 border-t border-white/20">
-                                            <div className="flex items-center justify-center gap-2 text-white/60 text-xs">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                                </svg>
-                                                <span>Start your conversation to progress</span>
-                                            </div>
-                                        </div>
-                                    </div>
+                                /* LOCKED: Slider shows minimal content - lock message is in background overlay */
+                                <div className="flex flex-col gap-4 w-full py-8">
+                                    <div className="h-6"></div>
                                 </div>
                             )}
                             
