@@ -16,6 +16,7 @@
     "@ncdai/react-wheel-picker": "^1.0.13",
     "firebase": "^11.10.0",
     "framer-motion": "^12.23.24",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

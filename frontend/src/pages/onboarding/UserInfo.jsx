@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   WheelPicker,
   WheelPickerWrapper,
@@ -7,6 +7,12 @@ import { useNavigate } from 'react-router-dom';
 import backgroundImage from '/bgs/bg-1.png'; // Adjust path if the image is in a different folder (e.g., '../assets/image_dd0111.jpg')
 import { authAPI, userAPI, uploadAPI } from '../../utils/api';
 import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
+import LocationMapPicker from '../../components/LocationMapPicker';
+import {
+  formatLocationLabel,
+  getCurrentLocationDetails,
+  searchLocations,
+} from '../../services/locationService';
 
 // Helper to get days in a month (handles leap years)
 const getDaysInMonth = (year, month) => {
@@ -23,53 +29,9 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-// Location autocomplete using OpenStreetMap Nominatim API
 const fetchLocationSuggestions = async (query) => {
-  if (!query || query.length < 2) return [];
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=1`,
-      {
-        headers: {
-          'User-Agent': 'Sundate-Dating-App' // Nominatim requires a User-Agent
-        }
-      }
-    );
-    const data = await response.json();
-
-    // Map and normalize city names
-    const suggestions = data.map(item => {
-      const cityName = item.address?.city || item.address?.town || item.address?.village || '';
-      // Normalize: remove District, City, etc.
-      const normalizedCity = cityName
-        .replace(/\s+District$/i, '')
-        .replace(/\s+City$/i, '')
-        .replace(/\s+Metropolitan$/i, '')
-        .replace(/\s+Metro$/i, '')
-        .trim();
-
-      return {
-        name: item.display_name,
-        city: normalizedCity,
-        country: item.address?.country || '',
-        type: item.type
-      };
-    });
-
-    // Remove duplicates based on normalized city name + country
-    const uniqueSuggestions = [];
-    const seen = new Set();
-
-    for (const suggestion of suggestions) {
-      const key = `${suggestion.city.toLowerCase()}-${suggestion.country.toLowerCase()}`;
-      if (!seen.has(key) && suggestion.city) {
-        seen.add(key);
-        uniqueSuggestions.push(suggestion);
-      }
-    }
-
-    // Limit to 5 unique suggestions
-    return uniqueSuggestions.slice(0, 5);
+    return await searchLocations(query, { limit: 5 });
   } catch (error) {
     console.error('Location fetch error:', error);
     return [];
@@ -104,9 +66,15 @@ export default function UserInfo() {
   const [currentLocation, setCurrentLocation] = useState("");
   const [currentLocationSuggestions, setCurrentLocationSuggestions] = useState([]);
   const [loadingCurrentLocation, setLoadingCurrentLocation] = useState(false);
+  const [currentLocationMeta, setCurrentLocationMeta] = useState(null);
   const [fromLocation, setFromLocation] = useState("");
   const [fromLocationSuggestions, setFromLocationSuggestions] = useState([]);
   const [loadingFromLocation, setLoadingFromLocation] = useState(false);
+  const [fromLocationMeta, setFromLocationMeta] = useState(null);
+  const [locationActionField, setLocationActionField] = useState(null);
+  const [locationActionLoading, setLocationActionLoading] = useState(false);
+  const [locationActionError, setLocationActionError] = useState("");
+  const [mapPickerField, setMapPickerField] = useState(null);
   // ✅ SWAPPED: favouriteTravelDestination is now an array (3+ items)
   const [favouriteTravelDestination, setFavouriteTravelDestination] = useState([]);
   const [currentFavouriteDestinationInput, setCurrentFavouriteDestinationInput] = useState("");
@@ -148,7 +116,9 @@ export default function UserInfo() {
         if (savedState.customGender) setCustomGender(savedState.customGender);
         if (savedState.dob) setDob(savedState.dob);
         if (savedState.currentLocation) setCurrentLocation(savedState.currentLocation);
+        if (savedState.currentLocationMeta) setCurrentLocationMeta(savedState.currentLocationMeta);
         if (savedState.fromLocation) setFromLocation(savedState.fromLocation);
+        if (savedState.fromLocationMeta) setFromLocationMeta(savedState.fromLocationMeta);
         if (savedState.favouriteTravelDestination) setFavouriteTravelDestination(savedState.favouriteTravelDestination);
 
         if (savedState.faceVerificationUrl) setFaceVerificationUrl(savedState.faceVerificationUrl);
@@ -216,11 +186,28 @@ export default function UserInfo() {
       setCurrentLocationSuggestions([]);
       return;
     }
+
+    let isActive = true;
     setLoadingCurrentLocation(true);
-    fetchLocationSuggestions(debouncedCurrentLocation).then(suggestions => {
-      setCurrentLocationSuggestions(suggestions);
-      setLoadingCurrentLocation(false);
-    });
+
+    fetchLocationSuggestions(debouncedCurrentLocation)
+      .then((suggestions) => {
+        if (!isActive) return;
+        setCurrentLocationSuggestions(suggestions);
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        console.error('Current location suggestion error:', error);
+        setCurrentLocationSuggestions([]);
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setLoadingCurrentLocation(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, [debouncedCurrentLocation]);
 
   // Effect for from location (origin) autocomplete
@@ -229,11 +216,28 @@ export default function UserInfo() {
       setFromLocationSuggestions([]);
       return;
     }
+
+    let isActive = true;
     setLoadingFromLocation(true);
-    fetchLocationSuggestions(debouncedFromLocation).then(suggestions => {
-      setFromLocationSuggestions(suggestions);
-      setLoadingFromLocation(false);
-    });
+
+    fetchLocationSuggestions(debouncedFromLocation)
+      .then((suggestions) => {
+        if (!isActive) return;
+        setFromLocationSuggestions(suggestions);
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        console.error('From location suggestion error:', error);
+        setFromLocationSuggestions([]);
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setLoadingFromLocation(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, [debouncedFromLocation]);
 
   // Effect for favourite destination suggestions
@@ -242,12 +246,71 @@ export default function UserInfo() {
       setDestinationSuggestions([]);
       return;
     }
+
+    let isActive = true;
     setLoadingDestinationSuggestions(true);
-    fetchLocationSuggestions(debouncedFavouriteDestinationInput).then(suggestions => {
-      setDestinationSuggestions(suggestions);
-      setLoadingDestinationSuggestions(false);
-    });
+
+    fetchLocationSuggestions(debouncedFavouriteDestinationInput)
+      .then((suggestions) => {
+        if (!isActive) return;
+        setDestinationSuggestions(suggestions);
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        console.error('Destination suggestion error:', error);
+        setDestinationSuggestions([]);
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setLoadingDestinationSuggestions(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, [debouncedFavouriteDestinationInput]);
+
+  const applyLocationSelection = useCallback((field, location) => {
+    const formattedLocation = formatLocationLabel(location);
+
+    if (field === 'current') {
+      setCurrentLocation(formattedLocation);
+      setCurrentLocationMeta(location);
+      setCurrentLocationSuggestions([]);
+      return;
+    }
+
+    setFromLocation(formattedLocation);
+    setFromLocationMeta(location);
+    setFromLocationSuggestions([]);
+  }, []);
+
+  const handleUseCurrentLocation = useCallback(async (field) => {
+    setLocationActionField(field);
+    setLocationActionLoading(true);
+    setLocationActionError('');
+
+    try {
+      const location = await getCurrentLocationDetails();
+      applyLocationSelection(field, location);
+    } catch (error) {
+      console.error('Current location error:', error);
+      setLocationActionError('Could not fetch your current location. You can type or use map pin selection.');
+    } finally {
+      setLocationActionLoading(false);
+      setLocationActionField(null);
+    }
+  }, [applyLocationSelection]);
+
+  const handleMapLocationConfirm = useCallback((location) => {
+    if (!mapPickerField) {
+      return;
+    }
+
+    applyLocationSelection(mapPickerField, location);
+    setLocationActionError('');
+    setMapPickerField(null);
+  }, [applyLocationSelection, mapPickerField]);
 
 
 
@@ -269,7 +332,9 @@ export default function UserInfo() {
       customGender,
       dob,
       currentLocation,
+      currentLocationMeta,
       fromLocation,
+      fromLocationMeta,
       favouriteTravelDestination,
 
       faceVerificationUrl,
@@ -285,7 +350,7 @@ export default function UserInfo() {
       hasData: !!firstName || !!lastName
     });
     saveOnboardingState(STORAGE_KEYS.USER_INFO, state);
-  }, [initialLoading, step, firstName, lastName, gender, customGender, dob, currentLocation, fromLocation, favouriteTravelDestination, faceVerificationUrl]);
+  }, [initialLoading, step, firstName, lastName, gender, customGender, dob, currentLocation, currentLocationMeta, fromLocation, fromLocationMeta, favouriteTravelDestination, faceVerificationUrl]);
 
   // Adjust pickerDay if month/year changes and the day becomes invalid
   const updatePickerDayBasedOnMonthYear = useCallback((year, month, day) => {
@@ -311,6 +376,11 @@ export default function UserInfo() {
           dob,
           currentLocation,
           fromLocation,
+          city: currentLocationMeta?.city || null,
+          state: currentLocationMeta?.state || null,
+          country: currentLocationMeta?.country || null,
+          latitude: currentLocationMeta?.latitude ?? null,
+          longitude: currentLocationMeta?.longitude ?? null,
           favouriteTravelDestination,
           faceVerificationUrl, // Stored for later face matching verification
         });
@@ -721,20 +791,24 @@ export default function UserInfo() {
                 <input
                   type="text"
                   value={currentLocation}
-                  onChange={(e) => setCurrentLocation(e.target.value)}
-                  placeholder="Start typing your city... (e.g., Mumbai, India)"
-                  className={`w-full px-4 py-3 border rounded-xl text-sm pr-10 ${INPUT_GLASS}`}
+                  onChange={(e) => {
+                    setCurrentLocation(e.target.value);
+                    setCurrentLocationMeta(null);
+                  }}
+                  placeholder="Start typing your city... "
+                  className={`w-full px-4 py-3 border rounded-xl text-sm pr-16 ${INPUT_GLASS}`}
                   autoComplete="off"
                 />
-                {loadingCurrentLocation && (
+                {(loadingCurrentLocation || (locationActionLoading && locationActionField === 'current')) && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                   </div>
                 )}
-                {currentLocation && !loadingCurrentLocation && (
+                {currentLocation && !loadingCurrentLocation && !(locationActionLoading && locationActionField === 'current') && (
                   <button
                     onClick={() => {
                       setCurrentLocation("");
+                      setCurrentLocationMeta(null);
                       setCurrentLocationSuggestions([]);
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 text-lg transition"
@@ -742,14 +816,44 @@ export default function UserInfo() {
                     ×
                   </button>
                 )}
+
+                {!currentLocation && !loadingCurrentLocation && !(locationActionLoading && locationActionField === 'current') && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleUseCurrentLocation('current')}
+                      className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white/90 flex items-center justify-center transition"
+                      title="Use current location"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M12 18V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M2 12H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M18 12H22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapPickerField('current')}
+                      className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white/90 flex items-center justify-center transition"
+                      title="Pick on map"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22C12 22 19 15.5 19 10.5C19 6.35786 15.866 3 12 3C8.13401 3 5 6.35786 5 10.5C5 15.5 12 22 12 22Z" stroke="currentColor" strokeWidth="2" />
+                        <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="2" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
                 {currentLocationSuggestions.length > 0 && (
                   <ul className="absolute z-20 w-full bg-white/40 backdrop-blur-lg border border-white/40 rounded-xl mt-1 max-h-60 overflow-y-auto shadow-xl">
                     {currentLocationSuggestions.map((suggestion, index) => (
                       <li
                         key={index}
                         onClick={() => {
-                          setCurrentLocation(suggestion.city ? `${suggestion.city}, ${suggestion.country}` : suggestion.name);
-                          setCurrentLocationSuggestions([]);
+                          applyLocationSelection('current', suggestion);
                         }}
                         className="px-4 py-3 text-sm text-white hover:bg-white/20 cursor-pointer transition border-b border-white/10 last:border-b-0"
                       >
@@ -758,6 +862,10 @@ export default function UserInfo() {
                       </li>
                     ))}
                   </ul>
+                )}
+
+                {locationActionError && (
+                  <p className="text-xs text-red-300 mt-2">{locationActionError}</p>
                 )}
               </div>
 
@@ -781,20 +889,24 @@ export default function UserInfo() {
                 <input
                   type="text"
                   value={fromLocation}
-                  onChange={(e) => setFromLocation(e.target.value)}
-                  placeholder="Start typing your hometown... (e.g., Delhi, India)"
-                  className={`w-full px-4 py-3 border rounded-xl text-sm pr-10 ${INPUT_GLASS}`}
+                  onChange={(e) => {
+                    setFromLocation(e.target.value);
+                    setFromLocationMeta(null);
+                  }}
+                  placeholder="Start typing your hometown... "
+                  className={`w-full px-4 py-3 border rounded-xl text-sm pr-16 ${INPUT_GLASS}`}
                   autoComplete="off"
                 />
-                {loadingFromLocation && (
+                {(loadingFromLocation || (locationActionLoading && locationActionField === 'from')) && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                   </div>
                 )}
-                {fromLocation && !loadingFromLocation && (
+                {fromLocation && !loadingFromLocation && !(locationActionLoading && locationActionField === 'from') && (
                   <button
                     onClick={() => {
                       setFromLocation("");
+                      setFromLocationMeta(null);
                       setFromLocationSuggestions([]);
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 text-lg transition"
@@ -802,14 +914,44 @@ export default function UserInfo() {
                     ×
                   </button>
                 )}
+
+                {!fromLocation && !loadingFromLocation && !(locationActionLoading && locationActionField === 'from') && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleUseCurrentLocation('from')}
+                      className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white/90 flex items-center justify-center transition"
+                      title="Use current location"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M12 18V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M2 12H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M18 12H22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapPickerField('from')}
+                      className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white/90 flex items-center justify-center transition"
+                      title="Pick on map"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22C12 22 19 15.5 19 10.5C19 6.35786 15.866 3 12 3C8.13401 3 5 6.35786 5 10.5C5 15.5 12 22 12 22Z" stroke="currentColor" strokeWidth="2" />
+                        <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="2" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
                 {fromLocationSuggestions.length > 0 && (
                   <ul className="absolute z-20 w-full bg-white/40 backdrop-blur-lg border border-white/40 rounded-xl mt-1 max-h-60 overflow-y-auto shadow-xl">
                     {fromLocationSuggestions.map((suggestion, index) => (
                       <li
                         key={index}
                         onClick={() => {
-                          setFromLocation(suggestion.city ? `${suggestion.city}, ${suggestion.country}` : suggestion.name);
-                          setFromLocationSuggestions([]);
+                          applyLocationSelection('from', suggestion);
                         }}
                         className="px-4 py-3 text-sm text-white hover:bg-white/20 cursor-pointer transition border-b border-white/10 last:border-b-0"
                       >
@@ -818,6 +960,10 @@ export default function UserInfo() {
                       </li>
                     ))}
                   </ul>
+                )}
+
+                {locationActionError && (
+                  <p className="text-xs text-red-300 mt-2">{locationActionError}</p>
                 )}
               </div>
 
@@ -1039,6 +1185,14 @@ export default function UserInfo() {
             </div>
           )}
         </div>
+
+        <LocationMapPicker
+          isOpen={Boolean(mapPickerField)}
+          title={mapPickerField === 'from' ? 'Pin your hometown on map' : 'Pin your current location on map'}
+          initialPosition={mapPickerField === 'from' ? fromLocationMeta : currentLocationMeta}
+          onClose={() => setMapPickerField(null)}
+          onConfirm={handleMapLocationConfirm}
+        />
       </div>
     </div>
   );
