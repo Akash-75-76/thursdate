@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { userAPI } from "../../utils/api";
 import { useNavigate } from "react-router-dom";
 import MediaItemCard from "../../components/MediaItemCard";
 import AutocompleteInput from "../../components/AutocompleteInput";
 import { searchMovies, searchTVShows, searchArtists, searchMoviesAndShows } from "../../utils/externalAPIs";
+import { formatLocationLabel, searchLocations } from "../../services/locationService";
 
 export default function ProfileTab() {
   const [userInfo, setUserInfo] = useState(null);
@@ -423,6 +424,20 @@ export default function ProfileTab() {
     setEditFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const searchLocationSuggestions = useCallback(async (query) => {
+    const suggestions = await searchLocations(query, { limit: 5 });
+    return suggestions.map((suggestion) => ({
+      ...suggestion,
+      name: suggestion.city || suggestion.display || suggestion.name,
+      subtitle: suggestion.name,
+      display: formatLocationLabel(suggestion),
+    }));
+  }, []);
+
+  const handleLocationSelect = (field, suggestion) => {
+    handleInputChange(field, formatLocationLabel(suggestion));
+  };
+
   return (
     <div className="h-screen w-full font-sans overflow-hidden fixed inset-0" onClick={(e) => { if (e.target === e.currentTarget) handleBackgroundTap(); }}>
       {/* Blurred Background */}
@@ -584,24 +599,28 @@ export default function ProfileTab() {
                   {/* Currently Living */}
                   <div>
                     <label className="text-white/70 text-xs mb-1 block">Currently living</label>
-                    <input
-                      type="text"
+                    <AutocompleteInput
                       value={editFormData.fromLocation || ''}
                       onChange={(e) => handleInputChange('fromLocation', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/20 backdrop-blur-md rounded-xl border border-white/30 text-white placeholder-white/50 focus:outline-none focus:border-white/50"
+                      onSelect={(suggestion) => handleLocationSelect('fromLocation', suggestion)}
                       placeholder="Bandra, Mumbai"
+                      searchFn={searchLocationSuggestions}
+                      className="w-full px-4 py-3 bg-white/20 backdrop-blur-md rounded-xl border border-white/30 text-white placeholder-white/50 focus:outline-none focus:border-white/50"
+                      showImage={false}
                     />
                   </div>
 
                   {/* City */}
                   <div>
                     <label className="text-white/70 text-xs mb-1 block">City</label>
-                    <input
-                      type="text"
+                    <AutocompleteInput
                       value={editFormData.currentLocation || ''}
                       onChange={(e) => handleInputChange('currentLocation', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/20 backdrop-blur-md rounded-xl border border-white/30 text-white placeholder-white/50 focus:outline-none focus:border-white/50"
+                      onSelect={(suggestion) => handleLocationSelect('currentLocation', suggestion)}
                       placeholder="HSR, Bangalore"
+                      searchFn={searchLocationSuggestions}
+                      className="w-full px-4 py-3 bg-white/20 backdrop-blur-md rounded-xl border border-white/30 text-white placeholder-white/50 focus:outline-none focus:border-white/50"
+                      showImage={false}
                     />
                   </div>
 
