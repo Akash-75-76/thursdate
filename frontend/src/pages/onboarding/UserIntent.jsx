@@ -47,7 +47,7 @@ export default function UserIntent() {
   const navigate = useNavigate();
 
   // Step control
-  const totalSteps = 13;
+  const totalSteps = 14;
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -80,7 +80,8 @@ export default function UserIntent() {
   const [profileImageUrl, setProfileImageUrl] = useState(null); // Step 11
   const [profileImgUploading, setProfileImgUploading] = useState(false);
   const [profileImgError, setProfileImgError] = useState('');
-  const [lifestyleImageUrls, setLifestyleImageUrls] = useState([null, null, null, null, null]); // Step 12
+  const [lifestyleImageUrls, setLifestyleImageUrls] = useState([null, null, null, null, null]); // Step 13
+  const [height, setHeight] = useState(''); // Step 13
   const [imgUploading, setImgUploading] = useState(false);
   const [imgError, setImgError] = useState('');
 
@@ -98,10 +99,8 @@ export default function UserIntent() {
   // Age limits
   const minAge = 35;
   const maxAge = 85;
-
-  // Determine which thumb should become active when the user starts interacting
-  // by checking the pointer position relative to the thumbs. Use capture handlers
-  // on the track so this runs before the invisible range inputs get the event.
+  const [activeAgeThumb, setActiveAgeThumb] = useState(null);
+  const ageSliderRef = useRef(null);
 
 
 
@@ -256,6 +255,43 @@ export default function UserIntent() {
       stopListening();
     }
   }, [bioMode]);
+
+  // ✅ Smooth age range slider drag handler
+  const handleAgeSliderMove = useCallback((e) => {
+    if (activeAgeThumb === null || !ageSliderRef.current) return;
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const rect = ageSliderRef.current.getBoundingClientRect();
+    let percent = (clientX - rect.left) / rect.width;
+    percent = Math.max(0, Math.min(1, percent));
+    let value = Math.round(minAge + percent * (maxAge - minAge));
+    
+    setAgeRange((prevRange) => {
+      let newRange = [...prevRange];
+      if (activeAgeThumb === 0) {
+        newRange[0] = Math.min(value, newRange[1] - 1);
+      } else if (activeAgeThumb === 1) {
+        newRange[1] = Math.max(value, newRange[0] + 1);
+      }
+      return newRange;
+    });
+  }, [activeAgeThumb, minAge, maxAge]);
+
+  useEffect(() => {
+    if (activeAgeThumb === null) return;
+
+    document.addEventListener('mousemove', handleAgeSliderMove);
+    document.addEventListener('touchmove', handleAgeSliderMove, { passive: false });
+    document.addEventListener('mouseup', () => setActiveAgeThumb(null));
+    document.addEventListener('touchend', () => setActiveAgeThumb(null));
+
+    return () => {
+      document.removeEventListener('mousemove', handleAgeSliderMove);
+      document.removeEventListener('touchmove', handleAgeSliderMove);
+      document.removeEventListener('mouseup', () => setActiveAgeThumb(null));
+      document.removeEventListener('touchend', () => setActiveAgeThumb(null));
+    };
+  }, [activeAgeThumb, handleAgeSliderMove]);
 
   // Interest tag logic
   const addInterest = useCallback((val) => {
@@ -536,25 +572,10 @@ export default function UserIntent() {
     }
   }, [closeCrop, cropFile, cropIdx, cropSrc, croppedAreaPixels]);
 
-  // Validation
+  // All steps in UserIntent are skippable
   const isStepValid = useCallback(() => {
-    switch (step) {
-      case 1: return !!purpose;
-      case 2: return !!relationshipVibe;
-      case 3: return !!interestedGender;
-      case 4: return ageRange[0] < ageRange[1];
-      case 5: return bio.trim().length > 0;
-      case 6: return interests.length > 0;
-      case 7: return tvShows.length > 0 && movies.length > 0;
-      case 8: return watchList.length > 0;
-      case 9: return artistsBands.length > 0;
-      case 10: return true;
-      case 11: return !!profileImageUrl;
-      case 12: return true;
-      case 13: return lifestyleImageUrls.filter(Boolean).length === 5;
-      default: return false;
-    }
-  }, [step, purpose, relationshipVibe, interestedGender, ageRange, bio, interests, tvShows, movies, watchList, artistsBands, profileImageUrl, lifestyleImageUrls]);
+    return true; // All fields are optional
+  }, []);
 
   // Save
   const handleFinish = async () => {
@@ -585,6 +606,7 @@ export default function UserIntent() {
           lifestyleImageUrls,
         },
         profilePicUrl: profileImageUrl,  // ✅ FIX: Changed from profileImageUrl to profilePicUrl to match backend
+        height: height ? parseInt(height) : null,
         onboardingComplete: true, // ✅ Onboarding complete - navigate to Home
       };
 
@@ -697,6 +719,13 @@ export default function UserIntent() {
           </>
         );
       case 13:
+        return (
+          <>
+            <h1 className="text-white text-[22px] font-semibold mb-2">How tall are you?</h1>
+            <p className="text-white/70 text-sm mb-6">You can change or delete your answer at any time later.</p>
+          </>
+        );
+      case 14:
         return <h1 className="text-white text-[22px] font-semibold mb-2">Add 5 lifestyle images</h1>;
       default:
         return null;
@@ -752,8 +781,24 @@ export default function UserIntent() {
               <div className="relative w-full px-6">
                 {/* Track background */}
                 <div
-                  className="relative h-3 rounded-full bg-white/10 w-full"
-
+                  ref={ageSliderRef}
+                  className="relative h-3 rounded-full bg-white/10 w-full cursor-pointer"
+                  onMouseDown={(e) => {
+                    if (!ageSliderRef.current) return;
+                    const rect = ageSliderRef.current.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    const value = Math.round(minAge + Math.max(0, Math.min(1, percent)) * (maxAge - minAge));
+                    const middle = (ageRange[0] + ageRange[1]) / 2;
+                    setActiveAgeThumb(value < middle ? 0 : 1);
+                  }}
+                  onTouchStart={(e) => {
+                    if (!ageSliderRef.current || !e.touches[0]) return;
+                    const rect = ageSliderRef.current.getBoundingClientRect();
+                    const percent = (e.touches[0].clientX - rect.left) / rect.width;
+                    const value = Math.round(minAge + Math.max(0, Math.min(1, percent)) * (maxAge - minAge));
+                    const middle = (ageRange[0] + ageRange[1]) / 2;
+                    setActiveAgeThumb(value < middle ? 0 : 1);
+                  }}
                 >
                   {/* Filled segment between thumbs */}
                   <div
@@ -762,41 +807,21 @@ export default function UserIntent() {
                   />
 
                   {/* Left thumb visual (small white pill) */}
-                  <div style={{ left: `${leftPct}%` }} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2">
-                    <div className="w-10 h-6 rounded-full bg-white shadow-md" />
-                  </div>
-
-                  {/* Right thumb visual (small white pill) */}
-                  <div style={{ left: `${rightPct}%` }} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2">
-                    <div className="w-10 h-6 rounded-full bg-white shadow-md" />
-                  </div>
-
-                  {/* Invisible range inputs layered for keyboard/mouse control */}
-                  {/* MIN INPUT */}
-                  {/* MIN INPUT */}
-                  <input
-                    type="range"
-                    min={minAge}
-                    max={ageRange[1] - 1}
-                    value={ageRange[0]}
-                    onChange={e => {
-                      const newMin = Math.min(parseInt(e.target.value, 10), ageRange[1] - 1);
-                      setAgeRange([newMin, ageRange[1]]);
-                    }}
-                    className="absolute left-0 top-0 w-1/2 h-full opacity-0 cursor-pointer"
+                  <button
+                    type="button"
+                    style={{ left: `${leftPct}%` }}
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-10 h-6 rounded-full bg-white shadow-md cursor-grab active:cursor-grabbing"
+                    onMouseDown={() => setActiveAgeThumb(0)}
+                    onTouchStart={() => setActiveAgeThumb(0)}
                   />
 
-                  {/* MAX INPUT */}
-                  <input
-                    type="range"
-                    min={ageRange[0] + 1}
-                    max={maxAge}
-                    value={ageRange[1]}
-                    onChange={e => {
-                      const newMax = Math.max(parseInt(e.target.value, 10), ageRange[0] + 1);
-                      setAgeRange([ageRange[0], newMax]);
-                    }}
-                    className="absolute right-0 top-0 w-1/2 h-full opacity-0 cursor-pointer"
+                  {/* Right thumb visual (small white pill) */}
+                  <button
+                    type="button"
+                    style={{ left: `${rightPct}%` }}
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-10 h-6 rounded-full bg-white shadow-md cursor-grab active:cursor-grabbing"
+                    onMouseDown={() => setActiveAgeThumb(1)}
+                    onTouchStart={() => setActiveAgeThumb(1)}
                   />
                 </div>
               </div>
@@ -1268,6 +1293,43 @@ export default function UserIntent() {
         );
       case 13:
         return (
+          <div className="space-y-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border-2 border-white/20">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/20">
+                <div className="text-white font-medium">Height</div>
+                <div className="text-white/70 text-sm">{height ? `${height} cm` : 'Select height'}</div>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {[160, 165, 170, 172, 175, 180, 185, 190].map(h => (
+                  <button
+                    key={h}
+                    onClick={() => setHeight(String(h))}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                      height === String(h)
+                        ? 'bg-white text-black'
+                        : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
+                    }`}
+                  >
+                    {h} cm
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 pt-4 border-t border-white/20">
+                <input
+                  type="number"
+                  min="140"
+                  max="220"
+                  placeholder="Or enter custom height"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                  className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 border border-white/20 focus:outline-none focus:border-white"
+                />
+              </div>
+            </div>
+          </div>
+        );
+      case 14:
+        return (
           <>
             <div className="flex flex-wrap gap-4 justify-center mb-3">
               {[0, 1, 2, 3, 4].map(idx => (
@@ -1302,7 +1364,7 @@ export default function UserIntent() {
     }
   }, [
     step, purpose, relationshipVibe, interestedGender, ageRange,
-    bio, interests, interestInput, tvShows, movies, tvInput, movieInput, watchList, watchInput, artistsBands, artistBandInput, profileImageUrl, lifestyleImageUrls,
+    bio, interests, interestInput, tvShows, movies, tvInput, movieInput, watchList, watchInput, artistsBands, artistBandInput, profileImageUrl, lifestyleImageUrls, height,
     imgUploading, imgError, addInterest, removeInterest, addTvShow, removeTvShow, addMovie, removeMovie, addWatchItem, removeWatchItem, addArtistBand, removeArtistBand, handleLifestyleFilePicked, handleProfileImageChange, profileImgUploading, profileImgError
   ]);
 
@@ -1358,8 +1420,8 @@ export default function UserIntent() {
                 else setStep(s => Math.min(totalSteps, s + 1));
               }}
               className="w-full py-3 rounded-full font-semibold text-base shadow-lg"
-              style={isStepValid() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.8)', cursor: 'not-allowed' }}
-              disabled={!isStepValid() || loading || imgUploading}
+              style={{ background: 'white', color: 'black' }}
+              disabled={loading || imgUploading}
             >
               {loading || imgUploading ? 'Saving...' : (step === totalSteps ? 'Finish' : 'Next')}
             </button>

@@ -208,6 +208,17 @@ export const userAPI = {
 
         if (!response.ok) {
             const error = await response.json();
+            console.error('License upload error response:', error);
+            
+            // Check for specific error cases
+            if (error.hint) {
+                throw new Error(`${error.error}\n\nHint: ${error.hint}`);
+            }
+            
+            if (error.error && error.error.includes('foreign key')) {
+                throw new Error('Account not found. Please log out and log in again.\n\nDetails: ' + error.error);
+            }
+            
             throw new Error(error.error || 'Failed to upload license');
         }
 

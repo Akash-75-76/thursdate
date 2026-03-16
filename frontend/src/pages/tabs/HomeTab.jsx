@@ -25,6 +25,7 @@ export default function HomeTab() {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [likedUsers, setLikedUsers] = useState(new Set()); // Track liked user IDs
   
   // Image preloading state
   const [preloadedImages, setPreloadedImages] = useState(new Set());
@@ -271,6 +272,13 @@ export default function HomeTab() {
     try {
       const response = await userAPI.recordMatchAction(currentCandidate.id, 'like');
 
+      // ✅ Mark user as liked (store in likedUsers set)
+      setLikedUsers(prev => new Set([...prev, currentCandidate.id]));
+
+      // ✅ Remove liked user from candidates (whether mutual match or just one-way like)
+      // This prevents showing matched users in the discover feed
+      setCandidates(prev => prev.filter(candidate => candidate.id !== currentCandidate.id));
+
       // Check if it's a mutual match
       if (response.isMutualMatch) {
         setMatchedUser(response.matchData);
@@ -286,19 +294,23 @@ export default function HomeTab() {
         }
       }
 
-      // Move to next candidate
+      // Move to next candidate (use current index since we removed the current one)
+      // The array length has decreased by 1, so we stay at the same index which now points to the next user
       if (currentCandidateIndex < candidates.length - 1) {
-        setCurrentCandidateIndex(currentCandidateIndex + 1);
+        // Index remains the same since array shifted - no need to increment
+        setCurrentCandidateIndex(currentCandidateIndex);
       } else {
-        // No more candidates
+        // No more candidates after removal
         setCurrentCandidateIndex(-1);
       }
       setIsMinimized(false);
     } catch (error) {
       console.error('Error liking user:', error);
-      // Still move to next candidate even if API fails
+      // Still remove from candidates even if API fails to prevent repeated attempts
+      setCandidates(prev => prev.filter(candidate => candidate.id !== currentCandidate.id));
+      
       if (currentCandidateIndex < candidates.length - 1) {
-        setCurrentCandidateIndex(currentCandidateIndex + 1);
+        setCurrentCandidateIndex(currentCandidateIndex);
       } else {
         setCurrentCandidateIndex(-1);
       }
@@ -533,7 +545,11 @@ export default function HomeTab() {
               onTouchStart={handleButtonTouchStart}
             >
               <button
-                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/30 flex items-center justify-center transition-all hover:bg-white/20"
+                className={`w-12 h-12 rounded-full backdrop-blur-md border transition-all flex items-center justify-center ${
+                  likedUsers.has(currentCandidate?.id) 
+                    ? 'bg-rose-500/70 border-rose-400/50 hover:bg-rose-600/80' 
+                    : 'bg-white/10 border-white/30 hover:bg-white/20'
+                }`}
                 onClick={(e) => { e.stopPropagation(); handleLike(); }}
               >
                 <img src="/like.svg" alt="Like" className="w-6 h-6" />

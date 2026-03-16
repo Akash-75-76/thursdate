@@ -101,6 +101,9 @@ export default function SocialPresence() {
         }
     };
 
+    // Require at least one verification method (LinkedIn OR Driver's License)
+    const isVerificationComplete = linkedinVerified || licenseVerified;
+
     // === RENDER ===
     return (
         <div
@@ -399,8 +402,9 @@ export default function SocialPresence() {
                                     <div className="text-white/80 text-sm mb-4 text-center">Thanks — your driver's license photos were received.</div>
                                     <div className="w-full flex gap-3">
                                         <button
-                                            className="flex-1 py-3 rounded-xl bg-green-500 text-white font-medium"
+                                            className="flex-1 py-3 rounded-xl bg-green-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                                             onClick={() => navigate('/face-verification')}
+                                            disabled={!isVerificationComplete}
                                         >
                                             Continue
                                         </button>
@@ -429,8 +433,9 @@ export default function SocialPresence() {
                                     <div className="text-white/80 text-sm mb-4 text-center">Your LinkedIn profile has been successfully verified.</div>
                                     <div className="w-full flex gap-3">
                                         <button
-                                            className="flex-1 py-3 rounded-xl bg-green-500 text-white font-medium"
+                                            className="flex-1 py-3 rounded-xl bg-green-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                                             onClick={() => navigate('/face-verification')}
+                                            disabled={!isVerificationComplete}
                                         >
                                             Continue
                                         </button>
