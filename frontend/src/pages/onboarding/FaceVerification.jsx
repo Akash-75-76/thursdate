@@ -41,9 +41,7 @@ const FaceVerification = () => {
         setShowUploadOptions(true);
     };
 
-    const handleUploadFromDevice = () => {
-        fileInputRef.current && fileInputRef.current.click();
-    };
+    // Removed handleUploadFromDevice to disable gallery upload
     const [showSuccess, setShowSuccess] = useState(false);
 
     const handleTakePhoto = () => {
@@ -204,18 +202,38 @@ const FaceVerification = () => {
                         />
                         {!showUploadOptions ? (
                             photoPreview ? (
-                                <div className="flex flex-col items-center w-full h-full justify-center cursor-pointer" onClick={() => setPhoto(null)}>
-                                    <img
-                                        src={photoPreview}
-                                        alt="Preview"
-                                        className="w-full max-w-md object-cover rounded-2xl border border-white/20 shadow-md"
-                                        style={{ aspectRatio: '4/3', height: '220px', background: 'none' }}
-                                    />
+                                <div
+                                    className="flex flex-col items-center w-full h-full justify-center cursor-pointer"
+                                    onClick={() => setPhoto(null)}
+                                >
+                                    <div
+                                        style={{
+                                            width: '135px', // 135/240 = 9/16
+                                            height: '240px',
+                                            maxWidth: '100%',
+                                            borderRadius: '1rem',
+                                            overflow: 'hidden',
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                        }}
+                                    >
+                                        <img
+                                            src={photoPreview}
+                                            alt="Preview"
+                                            style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'cover',
+                                                background: 'none',
+                                                display: 'block',
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             ) : (
                                 <div
                                     className="flex flex-col items-center cursor-pointer hover:bg-white/20 w-full h-full"
-                                    onClick={handleUploadCardClick}
+                                    onClick={handleTakePhoto}
                                 >
                                     <div className="w-12 h-12 mb-3 flex items-center justify-center rounded-full bg-white/20">
                                         <svg width="32" height="32" fill="none" viewBox="0 0 24 24">
@@ -223,33 +241,12 @@ const FaceVerification = () => {
                                         </svg>
                                     </div>
                                     <div className="text-white/90 font-medium text-base mb-1">
-                                        Tap to upload your photo
+                                        Tap to take your photo
                                     </div>
                                     <div className="text-white/60 text-xs">JPG, PNG or JPEG (max 10MB)</div>
                                 </div>
                             )
-                        ) : (
-                            <div className="flex flex-col gap-3 w-full px-4">
-                                <button
-                                    className="w-full py-3 rounded-xl bg-white/80 text-black font-semibold text-base hover:bg-white"
-                                    onClick={handleUploadFromDevice}
-                                >
-                                    Upload from device
-                                </button>
-                                <button
-                                    className="w-full py-3 rounded-xl bg-white/20 text-white font-semibold text-base hover:bg-white/30"
-                                    onClick={handleTakePhoto}
-                                >
-                                    Take a photo
-                                </button>
-                                <button
-                                    className="w-full py-2 rounded-xl text-white/60 text-xs mt-2 hover:underline"
-                                    onClick={() => setShowUploadOptions(false)}
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        )}
+                        ) : null}
                         {/* Camera Modal */}
                         {showCamera && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -309,8 +306,8 @@ const FaceVerification = () => {
                     {/* Next Button */}
                     <button
                         className={`w-full max-w-md py-4 rounded-xl font-medium text-lg transition ${uploading ? "bg-white/40 text-white cursor-wait" :
-                                photo ? "bg-white text-black hover:bg-white/90" :
-                                    "bg-white/20 text-white/60 cursor-not-allowed"
+                            photo ? "bg-white text-black hover:bg-white/90" :
+                                "bg-white/20 text-white/60 cursor-not-allowed"
                             }`}
                         disabled={!photo || uploading}
                         onClick={handleUploadPhoto}
