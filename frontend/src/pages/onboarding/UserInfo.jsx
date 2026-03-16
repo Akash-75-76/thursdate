@@ -19,6 +19,46 @@ const getDaysInMonth = (year, month) => {
   return new Date(year, month + 1, 0).getDate();
 };
 
+const parseDobParts = (dobValue) => {
+  if (!dobValue) return null;
+
+  const normalizedDob = String(dobValue).split('T')[0];
+  const match = normalizedDob.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  if (month < 1 || month > 12) {
+    return null;
+  }
+
+  const maxDays = getDaysInMonth(year, month - 1);
+  if (day < 1 || day > maxDays) {
+    return null;
+  }
+
+  return { year, month, day };
+};
+
+const formatDobValue = (year, month, day) => {
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+const formatDobForDisplay = (dobValue) => {
+  const parsedDob = parseDobParts(dobValue);
+  if (!parsedDob) {
+    return "DD/MM/YYYY";
+  }
+
+  return `${String(parsedDob.day).padStart(2, '0')}/${String(parsedDob.month).padStart(2, '0')}/${parsedDob.year}`;
+};
+
 // Debounce helper for API calls
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -89,6 +129,9 @@ export default function UserInfo() {
   const [uploadingPic, setUploadingPic] = useState(false);
   const [picError, setPicError] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
+  const [autoGeolocationAttempted, setAutoGeolocationAttempted] = useState(false);
+  const [showLocationPermissionPrompt, setShowLocationPermissionPrompt] = useState(false);
+  const [permissionPromptShown, setPermissionPromptShown] = useState(false);
 
   const navigate = useNavigate();
 
@@ -163,11 +206,34 @@ export default function UserInfo() {
 
   // Effect to synchronize picker states when DOB changes or picker is shown
   useEffect(() => {
-    const initialDate = dob ? new Date(dob) : new Date();
+    const parsedDob = parseDobParts(dob);
+    if (parsedDob) {
+      setPickerDay(String(parsedDob.day));
+      setPickerMonth(String(parsedDob.month));
+      setPickerYear(String(parsedDob.year));
+      return;
+    }
+
+    const initialDate = new Date();
     setPickerDay(String(initialDate.getDate()));
     setPickerMonth(String(initialDate.getMonth() + 1));
     setPickerYear(String(initialDate.getFullYear()));
   }, [dob, showDatePicker]);
+
+  // ✅ Auto-fetch geolocation on onboarding start
+  useEffect(() => {
+    // Only run once, after initial profile loading completes, and only if currentLocation is empty
+    if (initialLoading || autoGeolocationAttempted || currentLocation.trim()) {
+      return;
+    }
+
+    // Show permission prompt instead of auto-fetching
+    if (!permissionPromptShown) {
+      setShowLocationPermissionPrompt(true);
+      setPermissionPromptShown(true);
+      setAutoGeolocationAttempted(true);
+    }
+  }, [initialLoading, autoGeolocationAttempted, permissionPromptShown, currentLocation]);
 
   // Debounced values for API calls
   const debouncedCurrentLocation = useDebounce(currentLocation, 500);
@@ -312,6 +378,35 @@ export default function UserInfo() {
     setMapPickerField(null);
   }, [applyLocationSelection, mapPickerField]);
 
+  // ✅ Permission prompt handlers
+  const handleAllowLocation = useCallback(async () => {
+    setShowLocationPermissionPrompt(false);
+    setLocationActionLoading(true);
+    setLocationActionError('');
+
+    try {
+      const location = await getCurrentLocationDetails();
+      setCurrentLocation(formatLocationLabel(location));
+      setCurrentLocationMeta(location);
+      setCurrentLocationSuggestions([]);
+      console.log('[UserInfo] Auto-geolocation from prompt success:', location);
+    } catch (error) {
+      console.warn('[UserInfo] Auto-geolocation from prompt failed:', error);
+      setLocationActionError('Could not fetch your location. You can use map or type manually.');
+    } finally {
+      setLocationActionLoading(false);
+    }
+  }, []);
+
+  const handleUseMapInstead = useCallback(() => {
+    setShowLocationPermissionPrompt(false);
+    setMapPickerField('current');
+  }, []);
+
+  const handleEnterManually = useCallback(() => {
+    setShowLocationPermissionPrompt(false);
+  }, []);
+
 
 
 
@@ -437,8 +532,7 @@ export default function UserInfo() {
     const month = Number(pickerMonth);
     const day = Number(updatePickerDayBasedOnMonthYear(pickerYear, pickerMonth, pickerDay));
 
-    const selectedDate = new Date(year, month - 1, day);
-    setDob(selectedDate.toISOString().split('T')[0]);
+    setDob(formatDobValue(year, month, day));
     setShowDatePicker(false);
   };
 
@@ -473,25 +567,25 @@ export default function UserInfo() {
 
 
   // Validation for each step's input fields
+
+  // Mandatory fields: First Name, Last Name (Step 1), Gender (Step 2), Age (Step 3), Current Location (Step 4), Origin Location (Step 5), Face Verification (Step 7)
+  // Skippable: Travel Destinations (Step 6)
   const isStepOneValid = firstName.trim() && lastName.trim();
   const isStepTwoValid = gender && (gender !== "Other" || customGender.trim());
   const isStepThreeValid = useMemo(() => {
     if (!dob) return false;
-    const dobDate = new Date(dob);
+    const parsedDob = parseDobParts(dob);
+    if (!parsedDob) return false;
     const today = new Date();
-    let age = today.getFullYear() - dobDate.getFullYear();
-    const m = today.getMonth() - dobDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+    let age = today.getFullYear() - parsedDob.year;
+    const m = (today.getMonth() + 1) - parsedDob.month;
+    if (m < 0 || (m === 0 && today.getDate() < parsedDob.day)) {
       age--;
     }
     return age >= 35;
   }, [dob]);
   const isStepFourValid = currentLocation.trim();
   const isStepFiveValid = fromLocation.trim();
-  // ✅ SWAPPED: favouriteTravelDestination now needs 3+ items
-  const isStepSixValid = favouriteTravelDestination.length >= 3;
-
-
   const isStepSevenValid = !!faceVerificationUrl;
 
   const getNextButtonDisabled = () => {
@@ -501,7 +595,7 @@ export default function UserInfo() {
       case 3: return !isStepThreeValid;
       case 4: return !isStepFourValid;
       case 5: return !isStepFiveValid;
-      case 6: return !isStepSixValid;
+      case 6: return false; // Travel Destinations are skippable
       case 7: return !isStepSevenValid;
       default: return true;
     }
@@ -701,7 +795,7 @@ export default function UserInfo() {
                   setShowDatePicker(true);
                 }}
               >
-                <span className="font-medium">{dob ? new Date(dob).toLocaleDateString('en-GB') : "DD/MM/YYYY"}</span>
+                <span className="font-medium">{formatDobForDisplay(dob)}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar text-white/70"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>
               </div>
               <p className={`text-xs mb-auto text-white/60 ${isStepThreeValid ? 'text-white/60' : 'text-red-300'}`}>
@@ -982,8 +1076,8 @@ export default function UserInfo() {
           {step === 6 && (
             <div className="flex flex-col flex-grow">
               <h1 className="text-xl font-semibold mb-4 text-white drop-shadow-md">What are your three favourite travel destinations?</h1>
-              <p className={`text-sm mb-6 ${isStepSixValid ? 'text-white/70' : 'text-red-300'}`}>
-                {isStepSixValid ? 'Great! You can add more if you like.' : 'Enter minimum 3 destinations'}
+              <p className="text-sm mb-6 text-white/70">
+                Add your favorite travel destinations (optional).
               </p>
 
               {/* Input for new tags - with location suggestions */}
@@ -1193,6 +1287,70 @@ export default function UserInfo() {
           onClose={() => setMapPickerField(null)}
           onConfirm={handleMapLocationConfirm}
         />
+
+        {/* ✅ Location Permission Prompt Modal */}
+        {showLocationPermissionPrompt && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-black/50 backdrop-blur-xl overflow-hidden">
+              <div className="px-6 py-6">
+                <div className="text-center mb-4">
+                  <div className="text-lg font-semibold text-white mb-2">Share Your Location</div>
+                  <div className="text-sm text-white/70">
+                    We need your current location to help find better matches and show relevant suggestions.
+                  </div>
+                </div>
+
+                {locationActionError && (
+                  <div className="text-xs text-red-300 mb-4 p-2 bg-red-500/10 rounded-lg">
+                    {locationActionError}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={handleAllowLocation}
+                    disabled={locationActionLoading}
+                    className="w-full py-3 rounded-xl bg-white text-black font-medium hover:bg-white/90 transition disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {locationActionLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent"></div>
+                        Fetching...
+                      </>
+                    ) : (
+                      <>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5z" />
+                        </svg>
+                        Allow Location
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleUseMapInstead}
+                    disabled={locationActionLoading}
+                    className="w-full py-3 rounded-xl bg-white/20 text-white font-medium hover:bg-white/30 transition border border-white/30 disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 22C12 22 19 15.5 19 10.5C19 6.35786 15.866 3 12 3C8.13401 3 5 6.35786 5 10.5C5 15.5 12 22 12 22Z" />
+                      <circle cx="12" cy="10" r="2.5" />
+                    </svg>
+                    Pick on Map
+                  </button>
+
+                  <button
+                    onClick={handleEnterManually}
+                    disabled={locationActionLoading}
+                    className="w-full py-3 rounded-xl bg-white/10 text-white/80 font-medium hover:bg-white/20 transition border border-white/20 disabled:opacity-60"
+                  >
+                    Enter Manually
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

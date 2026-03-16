@@ -327,10 +327,26 @@ router.post('/upload-license', auth, uploadLicense.fields([
   try {
     const userId = req.user.userId;
 
+    console.log(`[License Upload] Starting for user ${userId}...`);
+
     // Validate that both images are provided
     if (!req.files || !req.files.frontImage || !req.files.backImage) {
       return res.status(400).json({ 
         error: 'Both front and back images of driving license are required' 
+      });
+    }
+
+    // ✅ NEW: Validate that user exists in database
+    const [userExists] = await pool.execute(
+      'SELECT id FROM users WHERE id = ? LIMIT 1',
+      [userId]
+    );
+
+    if (!userExists || userExists.length === 0) {
+      console.error(`[License Upload] User ${userId} not found in database`);
+      return res.status(404).json({ 
+        error: 'User account not found. Please log in again.',
+        hint: 'Your account may have been deleted or the token is invalid.'
       });
     }
 
@@ -403,6 +419,16 @@ router.post('/upload-license', auth, uploadLicense.fields([
 
   } catch (error) {
     console.error('[License Upload] Error:', error);
+    console.error('[License Upload] Error details:', {
+      message: error.message,
+      code: error?.status_code || 'UNKNOWN',
+      errorType: error?.constructor?.name,
+      cloudinaryConfig: {
+        hasCloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
+        hasApiKey: !!process.env.CLOUDINARY_API_KEY,
+        hasApiSecret: !!process.env.CLOUDINARY_API_SECRET,
+      }
+    });
     
     // Handle multer errors
     if (error instanceof multer.MulterError) {
@@ -410,6 +436,15 @@ router.post('/upload-license', auth, uploadLicense.fields([
         return res.status(400).json({ error: 'File size exceeds 5MB limit' });
       }
       return res.status(400).json({ error: error.message });
+    }
+
+    // Handle Cloudinary errors
+    if (error.message && error.message.includes('Cloudinary')) {
+      return res.status(500).json({
+        error: 'Cloudinary upload failed. Check server configuration.',
+        details: error.message,
+        hint: 'Ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set in .env'
+      });
     }
     
     res.status(500).json({ 

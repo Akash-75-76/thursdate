@@ -73,7 +73,7 @@ export default function Permissions() {
             />
           </svg>
         </button>
-        <img src="/logo.png" alt="Sundate" className="h-6 mx-auto" />
+        <img src="/logo_dark.png" alt="Sundate" className="h-6 mx-auto" />
         <div style={{ width: 24 }}></div>
       </div>
 

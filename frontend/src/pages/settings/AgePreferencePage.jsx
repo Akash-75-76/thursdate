@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { userAPI } from '../../utils/api';
 
@@ -49,34 +49,45 @@ export default function AgePreferencePage() {
     }
   };
 
-  useEffect(() => {
-    const onMove = (e) => {
-      if (activeThumb === null || !sliderRef.current) return;
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const rect = sliderRef.current.getBoundingClientRect();
-      let percent = (clientX - rect.left) / rect.width;
-      percent = Math.max(0, Math.min(1, percent));
-      let value = Math.round(minAge + percent * (maxAge - minAge));
-      let newRange = [...ageRange];
+  const handleMove = useCallback((e) => {
+    if (!sliderRef.current) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const rect = sliderRef.current.getBoundingClientRect();
+    let percent = (clientX - rect.left) / rect.width;
+    percent = Math.max(0, Math.min(1, percent));
+    let value = Math.round(minAge + percent * (maxAge - minAge));
+    
+    setAgeRange((prevRange) => {
+      let newRange = [...prevRange];
       if (activeThumb === 0) {
         newRange[0] = Math.min(value, newRange[1] - 1);
-      } else {
+      } else if (activeThumb === 1) {
         newRange[1] = Math.max(value, newRange[0] + 1);
       }
-      setAgeRange(newRange);
-    };
-    const onUp = () => setActiveThumb(null);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('touchmove', onMove);
-    document.addEventListener('mouseup', onUp);
-    document.addEventListener('touchend', onUp);
+      return newRange;
+    });
+  }, [activeThumb, minAge, maxAge]);
+
+  const handleMoveEnd = useCallback(() => {
+    setActiveThumb(null);
+  }, []);
+
+  useEffect(() => {
+    // Only attach listeners when actually dragging
+    if (activeThumb === null) return;
+
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('touchmove', handleMove, { passive: false });
+    document.addEventListener('mouseup', handleMoveEnd);
+    document.addEventListener('touchend', handleMoveEnd);
+
     return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('touchmove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      document.removeEventListener('touchend', onUp);
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('mouseup', handleMoveEnd);
+      document.removeEventListener('touchend', handleMoveEnd);
     };
-  }, [activeThumb, ageRange, minAge, maxAge]);
+  }, [activeThumb, handleMove, handleMoveEnd]);
 
   if (initialLoading) {
     return (

@@ -60,7 +60,7 @@ export default function WaitlistStatus() {
         >
           <img src="/backarrow.svg" alt="Back" width={24} height={24} />
         </button>
-        <img src="/logo.png" alt="Sundate" className="h-6 mx-auto" />
+        <img src="/logo_dark.png" alt="Sundate" className="h-6 mx-auto" />
         <div style={{ width: 24 }}></div> {/* Spacer */}
       </div>
 

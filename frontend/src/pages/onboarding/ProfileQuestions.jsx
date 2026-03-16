@@ -1,10 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { userAPI, chatAPI, uploadAPI } from '../../utils/api';
-import {
-    WheelPicker,
-    WheelPickerWrapper,
-} from "@ncdai/react-wheel-picker";
 import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
 
 export default function ProfileQuestions() {
@@ -32,7 +28,6 @@ export default function ProfileQuestions() {
     const [sleepSchedule, setSleepSchedule] = useState('');
     const [drinking, setDrinking] = useState('');
     const [smoking, setSmoking] = useState('');
-    const [height, setHeight] = useState('172');
     const [dateBill, setDateBill] = useState('');
     const [kids, setKids] = useState('');
     const [religiousLevel, setReligiousLevel] = useState('moderately'); // 'not', 'moderately', 'deeply'
@@ -45,7 +40,7 @@ export default function ProfileQuestions() {
     const [facePhotos, setFacePhotos] = useState([null, null, null, null, null, null]);
     const [uploading, setUploading] = useState(false);
 
-    const totalSteps = 16; // Updated to include all questions + face photos
+    const totalSteps = 15; // Updated to remove height (now in onboarding)
 
     // Load existing profile data and saved onboarding state
     useEffect(() => {
@@ -59,7 +54,6 @@ export default function ProfileQuestions() {
                 if (userData.pets) setPets(userData.pets);
                 if (userData.drinking) setDrinking(userData.drinking);
                 if (userData.smoking) setSmoking(userData.smoking);
-                if (userData.height) setHeight(String(userData.height));
                 if (userData.religiousLevel) setReligiousLevel(userData.religiousLevel);
                 if (userData.kidsPreference) setKids(userData.kidsPreference);
                 if (userData.foodPreference) setFoodPreference(userData.foodPreference);
@@ -108,7 +102,6 @@ export default function ProfileQuestions() {
                     if (savedState.sleepSchedule) setSleepSchedule(savedState.sleepSchedule);
                     if (savedState.drinking) setDrinking(savedState.drinking);
                     if (savedState.smoking) setSmoking(savedState.smoking);
-                    if (savedState.height) setHeight(savedState.height);
                     if (savedState.dateBill) setDateBill(savedState.dateBill);
                     if (savedState.kids) setKids(savedState.kids);
                     if (savedState.religiousLevel) setReligiousLevel(savedState.religiousLevel);
@@ -130,25 +123,6 @@ export default function ProfileQuestions() {
         return () => { mounted = false; };
     }, []);
 
-    // Helper function to convert cm to feet and inches
-    const cmToFeet = (cm) => {
-        const totalInches = cm / 2.54;
-        const feet = Math.floor(totalInches / 12);
-        const inches = Math.round(totalInches % 12);
-        return `${feet}'${inches}"`;
-    };
-
-    // Generate height options (150cm - 200cm)
-    const heightOptions = useMemo(() => {
-        return Array.from({ length: 51 }, (_, i) => {
-            const cm = 150 + i;
-            return {
-                value: String(cm),
-                label: `(${cmToFeet(cm)}) ${cm} cm`,
-            };
-        });
-    }, []);
-
     // Auto-save onboarding state to localStorage whenever key fields change
   // ✅ FIX: Only save after initial loading is complete to avoid race condition
   useEffect(() => {
@@ -168,7 +142,6 @@ export default function ProfileQuestions() {
       sleepSchedule,
       drinking,
       smoking,
-      height,
       dateBill,
       kids,
       religiousLevel,
@@ -182,7 +155,7 @@ export default function ProfileQuestions() {
     };
     console.log('[ProfileQuestions] Auto-saving state:', { step, hasData: !!education || languages.length > 0 });
     saveOnboardingState(STORAGE_KEYS.PROFILE_QUESTIONS, state);
-  }, [initialLoading, step, education, educationDetail, languages, canCode, codingLanguages, jobTitle, companyName, pets, foodPreference, sleepSchedule, drinking, smoking, height, dateBill, kids, religiousLevel, religion, customReligion, favoriteCafe, relationshipValues, livingSituation, livingSituationCustom, facePhotos]);
+  }, [initialLoading, step, education, educationDetail, languages, canCode, codingLanguages, jobTitle, companyName, pets, foodPreference, sleepSchedule, drinking, smoking, dateBill, kids, religiousLevel, religion, customReligion, favoriteCafe, relationshipValues, livingSituation, livingSituationCustom, facePhotos]);
     const canProceed = () => {
         switch (step) {
             case 1: return !!education && !!educationDetail;
@@ -198,17 +171,16 @@ export default function ProfileQuestions() {
             case 6: return !!sleepSchedule;
             case 7: return !!drinking;
             case 8: return !!smoking;
-            case 9: return !!height;
-            case 10: return !!dateBill;
-            case 11: return !!kids;
-            case 12: {
+            case 9: return !!dateBill;
+            case 10: return !!kids;
+            case 11: {
                 if (religiousLevel === 'not') return true;
                 return !!religion && (religion !== 'Other' || !!customReligion);
             }
-            case 13: return !!favoriteCafe;
-            case 14: return relationshipValues.length > 0;
-            case 15: return !!livingSituation && (livingSituation !== 'Other' || !!livingSituationCustom);
-            case 16: return facePhotos.filter(Boolean).length >= 4;
+            case 12: return !!favoriteCafe;
+            case 13: return relationshipValues.length > 0;
+            case 14: return !!livingSituation && (livingSituation !== 'Other' || !!livingSituationCustom);
+            case 15: return facePhotos.filter(Boolean).length >= 4;
             default: return false;
         }
     };
@@ -998,47 +970,8 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Height Question */}
-                    {step === 9 && (
-                        <div className="space-y-4">
-                            <div>
-                                <h2 className="text-white text-2xl font-bold mb-2">
-                                    How tall are you?
-                                </h2>
-                                <p className="text-white/70 text-sm mb-6">
-                                    You can change or delete your answer at any time later.
-                                </p>
-                            </div>
-
-                            {/* Height Display */}
-                            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border-2 border-white/20">
-                                <WheelPickerWrapper
-                                    className="flex w-full justify-center h-48 py-2 relative"
-                                    style={{
-                                        backgroundImage: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.2) 45%, rgba(255,255,255,0.2) 55%, transparent)',
-                                        backgroundSize: '100% 100%',
-                                        backgroundRepeat: 'no-repeat',
-                                        backgroundPosition: 'center',
-                                    }}
-                                >
-                                    <WheelPicker
-                                        options={heightOptions}
-                                        value={height}
-                                        onValueChange={setHeight}
-                                        classNames={{
-                                            optionItem: "text-white/40",
-                                            highlightWrapper: "bg-white rounded-md",
-                                            highlightItem: "text-black font-semibold",
-                                        }}
-                                        infinite={false}
-                                    />
-                                </WheelPickerWrapper>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Date Bill Question */}
-                    {step === 10 && (
+                    {step === 9 && (
                         <div className="space-y-4">
                             <div>
                                 <h2 className="text-white text-2xl font-bold mb-2">
@@ -1078,7 +1011,7 @@ export default function ProfileQuestions() {
                     )}
 
                     {/* Kids Question */}
-                    {step === 11 && (
+                    {step === 10 && (
                         <div className="space-y-4">
                             <div>
                                 <h2 className="text-white text-2xl font-bold mb-2">
@@ -1118,7 +1051,7 @@ export default function ProfileQuestions() {
                     )}
 
                     {/* Religion Question */}
-                    {step === 12 && (
+                    {step === 11 && (
                         <div className="space-y-4">
                             <div>
                                 <h2 className="text-white text-2xl font-bold mb-2">
@@ -1240,8 +1173,8 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Step 13: Favorite Cafe/Restaurant */}
-                    {step === 13 && (
+                    {/* Step 12: Favorite Cafe/Restaurant */}
+                    {step === 12 && (
                         <div className="space-y-6">
                             <div>
                                 <h2 className="text-white text-2xl font-bold mb-3">
@@ -1276,8 +1209,8 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Step 14: Relationship Values */}
-                    {step === 14 && (
+                    {/* Step 13: Relationship Values */}
+                    {step === 13 && (
                         <div className="space-y-6">
                             <div>
                                 <h2 className="text-white text-2xl font-bold mb-3">
@@ -1301,8 +1234,8 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Step 15: Living Situation */}
-                    {step === 15 && (
+                    {/* Step 14: Living Situation */}
+                    {step === 14 && (
                         <div className="space-y-6">
                             <div>
                                 <h2 className="text-white text-2xl font-bold mb-3">
@@ -1348,8 +1281,8 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Step 16: Face Photos */}
-                    {step === 16 && (
+                    {/* Step 15: Face Photos */}
+                    {step === 15 && (
                         <div className="space-y-6">
                             <div>
                                 <h2 className="text-white text-2xl font-bold mb-3">
