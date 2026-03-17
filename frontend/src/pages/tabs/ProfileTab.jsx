@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { userAPI } from "../../utils/api";
 import { useNavigate } from "react-router-dom";
 import MediaItemCard from "../../components/MediaItemCard";
@@ -12,6 +12,7 @@ export default function ProfileTab() {
   const [error, setError] = useState("");
   const [editingSection, setEditingSection] = useState(null);
   const [editFormData, setEditFormData] = useState({});
+  const profilePhotoInputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -358,6 +359,53 @@ export default function ProfileTab() {
     }
   };
 
+  // ✅ Profile photo upload handler
+  const handleProfilePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/upload/face`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+
+      const data = await response.json();
+      const imageUrl = data.url;
+
+      // Update userInfo immediately
+      setUserInfo(prev => ({
+        ...prev,
+        profilePicUrl: imageUrl,
+      }));
+
+      // Optionally save to backend
+      await userAPI.updateProfile({
+        profilePicUrl: imageUrl,
+      });
+
+      setError('');
+      setEditingSection(null);
+    } catch (err) {
+      setError(err.message || 'Failed to upload profile photo');
+    } finally {
+      setLoading(false);
+      // Reset file input
+      if (profilePhotoInputRef.current) {
+        profilePhotoInputRef.current.value = '';
+      }
+    }
+  };
+
   // Interests handlers
   const handleRemoveInterest = (index) => {
     setEditFormData(prev => ({
@@ -500,7 +548,10 @@ export default function ProfileTab() {
                         <div className="w-full h-full bg-white/30"></div>
                       )}
                     </div>
-                    <button className="absolute bottom-0 right-0 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center border-2 border-white">
+                    <button 
+                      onClick={() => profilePhotoInputRef.current?.click()}
+                      className="absolute bottom-0 right-0 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center border-2 border-white hover:bg-white transition cursor-pointer"
+                    >
                       <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                       </svg>
@@ -632,6 +683,15 @@ export default function ProfileTab() {
                     Save changes
                   </button>
                 </div>
+
+                {/* Hidden File Input for Profile Photo */}
+                <input
+                  ref={profilePhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfilePhotoChange}
+                  style={{ display: 'none' }}
+                />
               </div>
             ) : (
               // View Mode

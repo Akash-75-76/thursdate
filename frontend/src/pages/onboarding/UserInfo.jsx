@@ -771,7 +771,7 @@ export default function UserInfo() {
           {/* Step 1: Name Details */}
           {step === 1 && (
             <div className="flex flex-col flex-grow ml-4">
-              <h1 className="text-xl font-semibold mb-6 text-white drop-shadow-md">Let's start with your Full name.</h1>
+              <h1 className="text-xl font-semibold mb-6 text-white drop-shadow-md">Let's start with your name.</h1>
               <label htmlFor="firstName" className="text-sm font-medium text-white/90 mb-1">First Name</label>
               <div className="flex gap-2 mb-4 ">
                 <input
@@ -792,14 +792,18 @@ export default function UserInfo() {
                 placeholder="Last name"
                 className={`w-[320px] px-4 py-3 border rounded-xl text-sm mb-auto transition ${INPUT_GLASS}`}
               />
-              <button
-                disabled={getNextButtonDisabled()}
-                onClick={handleNext}
-                className={`w-full py-4 rounded-[9999px] font-medium text-lg transition ${getNextButtonDisabled() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE
-                  }`}
-              >
-                {getNextButtonText()}
-              </button>
+             
+
+              <div className="mt-auto pt-6">
+                <button
+                  disabled={getNextButtonDisabled()}
+                  onClick={handleNext}
+                  className={`w-full py-4 rounded-[9999px] font-medium text-lg transition ${getNextButtonDisabled() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE
+                    }`}
+                >
+                  {getNextButtonText()}
+                </button>
+              </div>
             </div>
           )}
 

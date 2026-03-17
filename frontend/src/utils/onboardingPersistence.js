@@ -7,6 +7,42 @@ const STORAGE_KEYS = {
   PROFILE_QUESTIONS: 'onboarding_profile_questions',
 };
 
+const STORAGE_SCOPE_SEPARATOR = '__scope__';
+
+const sanitizeScopeValue = (value) => {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, '_');
+};
+
+const decodeTokenPayload = (token) => {
+  try {
+    const payload = token?.split('.')?.[1];
+    if (!payload) return null;
+    return JSON.parse(atob(payload));
+  } catch {
+    return null;
+  }
+};
+
+const getStorageScope = () => {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return 'guest';
+  }
+
+  const payload = decodeTokenPayload(token);
+  const userIdentifier = payload?.userId ?? payload?.id ?? payload?.sub ?? payload?.email;
+  if (userIdentifier !== undefined && userIdentifier !== null && userIdentifier !== '') {
+    return `user_${sanitizeScopeValue(userIdentifier)}`;
+  }
+
+  const tokenSuffix = sanitizeScopeValue(token).slice(-48);
+  return `token_${tokenSuffix || 'unknown'}`;
+};
+
+const getScopedStorageKey = (key) => {
+  return `${key}${STORAGE_SCOPE_SEPARATOR}${getStorageScope()}`;
+};
+
 /**
  * Save onboarding state to localStorage
  * @param {string} key - One of STORAGE_KEYS
@@ -14,12 +50,15 @@ const STORAGE_KEYS = {
  */
 export function saveOnboardingState(key, data) {
   try {
+    const scopedKey = getScopedStorageKey(key);
     const stateWithTimestamp = {
       ...data,
       timestamp: Date.now(),
     };
-    localStorage.setItem(key, JSON.stringify(stateWithTimestamp));
-    console.log(`[Persistence] Saved ${key}:`, { 
+    localStorage.setItem(scopedKey, JSON.stringify(stateWithTimestamp));
+    // Cleanup any old unscoped key to avoid cross-account leakage.
+    localStorage.removeItem(key);
+    console.log(`[Persistence] Saved ${scopedKey}:`, {
       step: data.step, 
       dataSize: JSON.stringify(stateWithTimestamp).length 
     });
@@ -36,9 +75,14 @@ export function saveOnboardingState(key, data) {
  */
 export function loadOnboardingState(key, maxAge = 7 * 24 * 60 * 60 * 1000) {
   try {
-    const saved = localStorage.getItem(key);
+    const scopedKey = getScopedStorageKey(key);
+    const saved = localStorage.getItem(scopedKey);
     if (!saved) {
-      console.log(`[Persistence] No saved state for ${key}`);
+      if (localStorage.getItem(key)) {
+        // Ignore legacy global key because it can belong to a different account.
+        localStorage.removeItem(key);
+      }
+      console.log(`[Persistence] No saved state for ${scopedKey}`);
       return null;
     }
 
@@ -47,12 +91,12 @@ export function loadOnboardingState(key, maxAge = 7 * 24 * 60 * 60 * 1000) {
 
     // Clear expired data
     if (age > maxAge) {
-      console.log(`[Persistence] Expired state for ${key} (${Math.round(age / 1000 / 60 / 60 / 24)} days old)`);
-      localStorage.removeItem(key);
+      console.log(`[Persistence] Expired state for ${scopedKey} (${Math.round(age / 1000 / 60 / 60 / 24)} days old)`);
+      localStorage.removeItem(scopedKey);
       return null;
     }
 
-    console.log(`[Persistence] Loaded ${key}:`, { 
+    console.log(`[Persistence] Loaded ${scopedKey}:`, {
       step: parsed.step, 
       ageHours: Math.round(age / 1000 / 60 / 60) 
     });
@@ -69,8 +113,11 @@ export function loadOnboardingState(key, maxAge = 7 * 24 * 60 * 60 * 1000) {
  */
 export function clearOnboardingState(key) {
   try {
+    const scopedKey = getScopedStorageKey(key);
+    localStorage.removeItem(scopedKey);
+    // Also clear old legacy key if present.
     localStorage.removeItem(key);
-    console.log(`[Persistence] Cleared ${key}`);
+    console.log(`[Persistence] Cleared ${scopedKey}`);
   } catch (err) {
     console.error('[Persistence] Failed to clear onboarding state:', err);
   }

@@ -99,7 +99,7 @@ export default function WaitlistStatus() {
                 <img src="/success.svg" alt="Success Check" className="w-10 h-10" />
               </div>
             </div>
-            <h1 className="text-xl font-semibold mb-2">Hey {userName}, you're on the waitlist!</h1>
+            <h1 className="text-xl font-semibold mb-2">Hi {userName}, your application is under review</h1>
             <p className="text-gray-500 mb-8">
               Your application is in the hands of the pros. Sit tight, sip your favourite beverage, and let us work our magic—matches coming soon.
             </p>
