@@ -84,7 +84,7 @@ export default function ChatConversation() {
             if (socketService.isConnected()) {
                 console.log('✅ Socket connected, joining conversation:', conversationId);
                 socketService.joinConversation(conversationId);
-                // Request user status after socket is connected
+                // Request user status immediately
                 socketService.requestUserStatus(otherUser.id);
             } else {
                 console.log('⏳ Waiting for socket connection...');
@@ -93,12 +93,12 @@ export default function ChatConversation() {
         };
         waitForConnection();
 
-        // Poll user status every 30 seconds to keep it fresh
+        // Poll user status every 5 seconds (instead of 30) for real-time updates
         const statusPollInterval = setInterval(() => {
             if (socketService.isConnected()) {
                 socketService.requestUserStatus(otherUser.id);
             }
-        }, 30000);
+        }, 5000);
 
         // Listen for new messages
         socketService.onNewMessage(({ conversationId: msgConvId, message: newMsg }) => {
