@@ -88,9 +88,9 @@ export default function SocialPresence() {
         try {
             setUploadingLicense(true);
             console.log('📤 Uploading license photos...');
-            
+
             await userAPI.uploadLicense(licenseFrontFile, licenseBackFile);
-            
+
             console.log('✅ License uploaded successfully');
             setLicenseVerified(true);
         } catch (error) {
@@ -403,7 +403,7 @@ export default function SocialPresence() {
                                     <div className="w-full flex gap-3">
                                         <button
                                             className="flex-1 py-3 rounded-xl bg-green-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                            onClick={() => navigate('/face-verification')}
+                                            onClick={() => navigate('/referral')}
                                             disabled={!isVerificationComplete}
                                         >
                                             Continue
@@ -434,7 +434,7 @@ export default function SocialPresence() {
                                     <div className="w-full flex gap-3">
                                         <button
                                             className="flex-1 py-3 rounded-xl bg-green-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                            onClick={() => navigate('/face-verification')}
+                                            onClick={() => navigate('/referral')}
                                             disabled={!isVerificationComplete}
                                         >
                                             Continue

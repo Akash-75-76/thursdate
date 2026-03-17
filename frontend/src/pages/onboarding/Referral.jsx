@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { userAPI } from '../../utils/api';
 
 export default function Referral() {
   // State management for component's flow and data
@@ -15,6 +16,7 @@ export default function Referral() {
   const [showContactPermissionModal, setShowContactPermissionModal] = useState(false); // Controls visibility of the contact permission modal
   const [resendTimer, setResendTimer] = useState(60); // Countdown for OTP resend
   const [canResendOtp, setCanResendOtp] = useState(false); // Flag to enable/disable resend OTP button
+  const [isSubmitting, setIsSubmitting] = useState(false); // Tracks referral submission
 
   // Progress bar calculation
   const totalSteps = 2;
@@ -80,13 +82,20 @@ export default function Referral() {
   const isOtpComplete = otp.every(digit => digit !== '' && /^\d$/.test(digit));
 
   // Function to handle OTP submission
-  const handleSubmitOtp = () => {
+  const handleSubmitOtp = async () => {
     const fullOtp = otp.join('');
     // Validate for a 6-digit numeric OTP
     if (fullOtp.length === 6 && /^\d{6}$/.test(fullOtp)) {
-      console.log("OTP Submitted:", fullOtp);
-      // Since the request is to allow any 6-digit code, we directly navigate
-      navigate('/application-status'); // Navigate on successful verification
+      try {
+        setIsSubmitting(true);
+        await userAPI.applyReferralCode(fullOtp);
+        navigate('/face-verification');
+      } catch (error) {
+        console.error('Referral code apply failed:', error);
+        setShowInvalidCodeModal(true);
+      } finally {
+        setIsSubmitting(false);
+      }
     } else {
       // If the code is not 6 digits or contains non-numeric characters, show invalid modal
       setShowInvalidCodeModal(true);
@@ -164,140 +173,170 @@ export default function Referral() {
   };
 
   return (
-    <div className="h-screen bg-white px-6 py-6 flex flex-col font-sans">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={handleBack}
-          className="w-6 h-6 flex items-center justify-center"
-        >
-          <img src="/backarrow.svg" alt="Back" width={24} height={24} />
-        </button>
-        <img src="/logo_dark.png" alt="Sundate" className="h-6 mx-auto" />
-        <div style={{ width: 24 }}></div> {/* Spacer to balance header */}
-      </div>
+    <div
+      className="h-screen flex flex-col font-sans relative"
+      style={{
+        backgroundImage: "url('/bgs/bg-referral.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/40 z-0" />
 
-      {/* Top Progress Bar */}
-      <div className="w-full bg-gray-200 rounded-full h-1.5 mb-6">
-        <div
-          className="bg-[#222222] h-1.5 rounded-full transition-all duration-300"
-          style={{ width: `${progress}%` }}
-        ></div>
-      </div>
-
-      {/* Step 1: Add Referrals Introduction */}
-      {step === 1 && (
-        <>
-          <div className="flex flex-col items-center justify-center flex-1">
-            <img src="/referral.png" alt="Referral Icon" className="h-32 mb-4" />
-            <h1 className="text-xl font-semibold text-black mb-2 text-center">
-              Add your referrals
-            </h1>
-            <p className="text-center text-gray-500 text-sm max-w-md">
-              You’re not getting in alone. Drop a name,
-            </p>
-            <p className="text-center text-gray-500 text-sm max-w-md mb-6">
-              get their nod, and we’ll hold the door.
-            </p>
-          </div>
-
-          {/* CTA Button for Step 1 */}
-          <div className="w-full mb-10">
-            <button
-              onClick={handleNext}
-              className="w-full py-4 rounded-xl bg-[#222222] text-white text-sm font-medium hover:bg-[#333333] transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* Step 2: Enter OTP Verification */}
-      {step === 2 && (
-        <div className="flex flex-col flex-1">
-          <h1 className="text-xl font-semibold mb-1">Verify referral code</h1>
-          <p className="text-sm text-gray-500 mb-6">Enter your 6-digit referral code below</p>
-
-          {/* OTP input fields */}
-          <div className="flex justify-center gap-2 mb-4">
-            {otp.map((digit, index) => (
-              <input
-                key={index}
-                type="text"
-                inputMode="numeric" // Suggest numeric keyboard on mobile
-                maxLength="1"
-                value={digit}
-                onChange={(e) => handleOtpChange(e, index)}
-                onKeyDown={(e) => handleOtpKeyDown(e, index)}
-                ref={el => otpInputRefs.current[index] = el}
-                className="w-12 h-16 text-center text-2xl font-bold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ))}
-          </div>
-
-          {/* Next button for Step 2 */}
+      {/* Main content */}
+      <div className="relative z-10 flex flex-col flex-1 px-6 pt-10 pb-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
           <button
-            disabled={!isOtpComplete} // Disable button if OTP is not complete
-            onClick={handleSubmitOtp}
-            className={`w-full py-4 rounded-xl text-white font-medium text-sm ${isOtpComplete ? "bg-black" : "bg-gray-300 cursor-not-allowed" // Dynamic styling
-              }`}
+            onClick={handleBack}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-sm border border-white/20 text-white"
           >
-            Next
+            <img src="/backarrow.svg" alt="Back" width={18} height={18} />
           </button>
+          <img src="/logo.png" alt="Sundate" className="h-7 mx-auto" />
+          <div style={{ width: 32 }}></div> {/* Spacer to balance header */}
         </div>
-      )}
 
-      {/* --- Modals --- */}
-      {/* Simulated iOS-style Invalid Code/OTP Modal */}
-      {showInvalidCodeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-lg p-6 max-w-xs w-full text-center">
-            <p className="text-lg font-semibold mb-2">Invalid Code</p>
-            <p className="text-gray-600 text-sm mb-6">
-              Please enter a valid 6-digit code.
-            </p>
-            <div className="flex flex-col space-y-2">
+        {/* Top Progress Bar */}
+        <div className="w-full bg-white/20 rounded-full h-1 mb-8">
+          <div
+            className="bg-white h-1 rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+
+        {/* Step 1: Add Referrals Introduction */}
+        {step === 1 && (
+          <div className="flex flex-col flex-1 justify-between">
+            <div className="mt-4">
+              <div className="bg-white/10 backdrop-blur-xl rounded-3xl px-6 py-6 border border-white/15 shadow-[0_18px_40px_rgba(0,0,0,0.6)]">
+                <div className="flex items-center justify-center gap-4">
+                  <div className="w-30 h-30 flex items-center justify-center">
+                    <img src="/people.svg" alt="Referral Icon" className="w-30 h-30" />
+                  </div>
+                </div>
+                <h1 className="text-[20px] font-semibold text-white mb-2 text-center">
+                  Add your referrals
+                </h1>
+                <p className="text-[13px] text-white/80 leading-snug max-w-xs text-center mx-auto">
+                  You’re not getting in alone. Drop a name, get their nod, and we’ll hold the door.
+                </p>
+              </div>
+            </div>
+
+            {/* CTA Button for Step 1 */}
+            <div className="w-full mt-10">
               <button
-                onClick={handleCloseInvalidCodeModal}
-                className="w-full py-3 rounded-lg text-blue-600 font-bold border-t border-gray-200 pt-3"
+                onClick={handleNext}
+                className="w-full py-4 rounded-full bg-white text-black text-sm font-semibold shadow-[0_10px_30px_rgba(0,0,0,0.6)] active:scale-[0.98] transition-transform"
               >
-                OK
+                Next
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* NEW: Simulated iOS-style Contact Permission Modal */}
-      {showContactPermissionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-[#515151] rounded-xl shadow-lg w-72 text-center overflow-hidden">
-            <div className="p-4 pt-5">
-              <p className="text-white text-[17px] font-semibold mb-1">
-                "Sundate" would like to access your contacts
-              </p>
-              <p className="text-[#D0D0D0] text-[13px] leading-tight px-2">
-                To better understand your connection to our community, we recommend allowing full access on the next steps
-              </p>
+        {/* Step 2: Enter OTP Verification */}
+        {step === 2 && (
+          <div className="flex flex-col flex-1 justify-between">
+            <div className="mt-4">
+              <div className="bg-white/10 backdrop-blur-xl rounded-3xl px-6 py-6 border border-white/15 shadow-[0_18px_40px_rgba(0,0,0,0.6)]">
+                <h1 className="text-lg font-semibold text-white mb-2">Verify referral code</h1>
+                <p className="text-xs text-white/75 mb-6">Enter your 6-digit referral code below</p>
+
+                {/* OTP input fields */}
+                <div className="flex justify-center gap-2 mb-2">
+                  {otp.map((digit, index) => (
+                    <input
+                      key={index}
+                      type="text"
+                      inputMode="numeric" // Suggest numeric keyboard on mobile
+                      maxLength="1"
+                      value={digit}
+                      onChange={(e) => handleOtpChange(e, index)}
+                      onKeyDown={(e) => handleOtpKeyDown(e, index)}
+                      ref={el => otpInputRefs.current[index] = el}
+                      className="w-11 h-14 text-center text-xl font-semibold border border-white/40 rounded-xl bg-black/30 text-white focus:outline-none focus:ring-2 focus:ring-white/80"
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex border-t border-[#636363]">
+
+            {/* Next button for Step 2 */}
+            <div className="w-full mt-8 space-y-3">
               <button
-                onClick={() => handleContactModalAction('deny')}
-                className="flex-1 py-2 text-blue-400 font-normal text-[17px] border-r border-[#636363]"
+                disabled={!isOtpComplete || isSubmitting} // Disable button if OTP is not complete or submitting
+                onClick={handleSubmitOtp}
+                className={`w-full py-4 rounded-full text-sm font-semibold shadow-[0_10px_30px_rgba(0,0,0,0.6)] active:scale-[0.98] transition-transform ${isOtpComplete ? "bg-white text-black" : "bg-white/40 text-black/40 cursor-not-allowed"}`}
               >
-                Don't allow
+                {isSubmitting ? 'Checking code…' : 'Next'}
               </button>
+
+              {/* Optional path: continue without referral advantage */}
               <button
-                onClick={() => handleContactModalAction('allow')}
-                className="flex-1 py-2 text-blue-400 font-normal tsext-[17px]"
+                type="button"
+                onClick={() => navigate('/face-verification')}
+                className="w-full py-2 text-xs text-white/80 underline underline-offset-2"
               >
-                Allow
+                Continue without a referral
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* --- Modals --- */}
+        {/* Simulated iOS-style Invalid Code/OTP Modal */}
+        {showInvalidCodeModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-lg p-6 max-w-xs w-full text-center">
+              <p className="text-lg font-semibold mb-2">Invalid Code</p>
+              <p className="text-gray-600 text-sm mb-6">
+                Please enter a valid 6-digit code.
+              </p>
+              <div className="flex flex-col space-y-2">
+                <button
+                  onClick={handleCloseInvalidCodeModal}
+                  className="w-full py-3 rounded-lg text-blue-600 font-bold border-t border-gray-200 pt-3"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* NEW: Simulated iOS-style Contact Permission Modal */}
+        {showContactPermissionModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-[#515151] rounded-xl shadow-lg w-72 text-center overflow-hidden">
+              <div className="p-4 pt-5">
+                <p className="text-white text-[17px] font-semibold mb-1">
+                  "Sundate" would like to access your contacts
+                </p>
+                <p className="text-[#D0D0D0] text-[13px] leading-tight px-2">
+                  To better understand your connection to our community, we recommend allowing full access on the next steps
+                </p>
+              </div>
+              <div className="flex border-t border-[#636363]">
+                <button
+                  onClick={() => handleContactModalAction('deny')}
+                  className="flex-1 py-2 text-blue-400 font-normal text-[17px] border-r border-[#636363]"
+                >
+                  Don't allow
+                </button>
+                <button
+                  onClick={() => handleContactModalAction('allow')}
+                  className="flex-1 py-2 text-blue-400 font-normal tsext-[17px]"
+                >
+                  Allow
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

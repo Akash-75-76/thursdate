@@ -240,4 +240,18 @@ export const userAPI = {
 
         return authRequest('/user/license-status');
     },
+
+    // Apply a referral code to the current user
+    applyReferralCode: async (code) => {
+        if (isMockMode()) {
+            console.log('MOCK MODE: Simulating referral code apply', code);
+            await new Promise(resolve => setTimeout(resolve, 200));
+            return { success: true, codeStatus: 'applied', mock: true };
+        }
+
+        return authRequest('/referral/apply', {
+            method: 'POST',
+            body: JSON.stringify({ code }),
+        });
+    },
 };
