@@ -4,13 +4,13 @@ import { userAPI } from '../../utils/api';
 
 export default function AgePreferencePage() {
   const navigate = useNavigate();
-  const [ageRange, setAgeRange] = useState([40, 60]);
+  const minAge = 35;
+  const maxAge = 85;
+  const [ageRange, setAgeRange] = useState([35, 60]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const minAge = 30;
-  const maxAge = 85;
   const [activeThumb, setActiveThumb] = useState(null);
   const sliderRef = useRef(null);
 
@@ -19,7 +19,11 @@ export default function AgePreferencePage() {
       try {
         const userData = await userAPI.getProfile();
         if (userData.intent?.preferredAgeRange) {
-          setAgeRange(userData.intent.preferredAgeRange);
+          const [loadedMin, loadedMax] = userData.intent.preferredAgeRange;
+          // Cap minimum at 35, maximum at 85
+          const cappedMin = Math.max(loadedMin, minAge);
+          const cappedMax = Math.min(loadedMax, maxAge);
+          setAgeRange([cappedMin, cappedMax]);
         }
       } catch (err) {
         setError("Failed to load your preference.");

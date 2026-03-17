@@ -1,12 +1,21 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import backgroundImage from '../../../public/bgs/bg-gateway.png';
 import tick from '../../../public/tick.svg';
+import { clearAllOnboardingStates } from '../../utils/onboardingPersistence';
+import { removeToken } from '../../utils/tokenManager';
 
 const CARD_GLASS_ACTIVE = 'bg-white/20 backdrop-blur-sm border border-white/30 text-white shadow-xl';
 const BUTTON_GLASS_BORDERED = 'bg-black/20 text-white border border-white/40';
 
 export default function Gateway() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Gateway is the entry point for a fresh onboarding flow.
+    clearAllOnboardingStates();
+    removeToken();
+  }, []);
 
   return (
     <div 
