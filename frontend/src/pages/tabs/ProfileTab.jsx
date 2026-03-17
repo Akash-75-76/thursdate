@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { userAPI } from "../../utils/api";
+import { userAPI, uploadAPI } from "../../utils/api";
 import { useNavigate } from "react-router-dom";
 import MediaItemCard from "../../components/MediaItemCard";
 import AutocompleteInput from "../../components/AutocompleteInput";
@@ -366,37 +366,45 @@ export default function ProfileTab() {
 
     try {
       setLoading(true);
-      const formData = new FormData();
-      formData.append('image', file);
+      setError('');
 
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/upload/face`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      const imageUrl = data.url;
+      console.log('[ProfileTab] Uploading profile photo:', file.name, 'Size:', file.size);
+      
+      // Validate file size (max 20MB)
+      if (file.size > 20 * 1024 * 1024) {
+        throw new Error('File size too large. Maximum 20MB allowed.');
+      }
+      
+      // Use the uploadAPI which has proper token handling and configuration
+      const result = await uploadAPI.uploadProfilePicture(file);
+      
+      console.log('[ProfileTab] Upload successful:', result.url);
 
       // Update userInfo immediately
       setUserInfo(prev => ({
         ...prev,
-        profilePicUrl: imageUrl,
+        profilePicUrl: result.url,
       }));
 
-      // Optionally save to backend
+      // Save to backend
       await userAPI.updateProfile({
-        profilePicUrl: imageUrl,
+        profilePicUrl: result.url,
       });
 
-      setError('');
+      console.log('[ProfileTab] Profile updated successfully');
       setEditingSection(null);
     } catch (err) {
-      setError(err.message || 'Failed to upload profile photo');
+      console.error('[ProfileTab] Upload error:', err);
+      // Provide specific error messages
+      if (err.message?.includes('No authentication token')) {
+        setError('Authentication failed. Please log in again.');
+      } else if (err.message?.includes('File size')) {
+        setError(err.message);
+      } else if (err.message?.includes('Upload failed')) {
+        setError('Failed to upload. Please check your network and try again.');
+      } else {
+        setError(err.message || 'Failed to upload profile photo');
+      }
     } finally {
       setLoading(false);
       // Reset file input

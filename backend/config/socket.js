@@ -323,7 +323,9 @@ const initializeSocketHandlers = (io) => {
     socket.on('request_user_status', (userId) => {
       const isOnline = onlineUsers.has(userId);
       console.log(`🔍 User ${socket.userId} requested status of user ${userId}: ${isOnline ? 'online' : 'offline'}`);
+      // Send status response to the requesting user immediately
       socket.emit('user_status', { userId, isOnline });
+      console.log(`📨 Sent user_status event to requester: ${userId} is ${isOnline ? 'online' : 'offline'}`);
     });
     
     // Handle disconnection

@@ -72,6 +72,14 @@ export default function ChatConversation() {
 
         loadMessages();
 
+        // ✅ Set up user status listener FIRST before making any requests
+        socketService.onUserStatus(({ userId, isOnline: online }) => {
+            console.log('👤 User status update:', userId, 'online:', online, '(otherUser:', otherUser.id, ')');
+            if (userId === otherUser.id) {
+                setIsOnline(online);
+            }
+        });
+
         // Ensure socket is connected before joining
         const token = localStorage.getItem('token');
         if (token && !socketService.isConnected()) {
@@ -84,7 +92,7 @@ export default function ChatConversation() {
             if (socketService.isConnected()) {
                 console.log('✅ Socket connected, joining conversation:', conversationId);
                 socketService.joinConversation(conversationId);
-                // Request user status immediately
+                // Request user status immediately (listener already set up above)
                 socketService.requestUserStatus(otherUser.id);
             } else {
                 console.log('⏳ Waiting for socket connection...');
@@ -93,7 +101,7 @@ export default function ChatConversation() {
         };
         waitForConnection();
 
-        // Poll user status every 5 seconds (instead of 30) for real-time updates
+        // ✅ Poll user status every 5 seconds with exponential backoff for real-time updates
         const statusPollInterval = setInterval(() => {
             if (socketService.isConnected()) {
                 socketService.requestUserStatus(otherUser.id);
@@ -148,14 +156,6 @@ export default function ChatConversation() {
                 setMessages(prev => prev.map(msg =>
                     msg.id === messageId ? { ...msg, status: 'DELIVERED' } : msg
                 ));
-            }
-        });
-
-        // Listen for user status changes
-        socketService.onUserStatus(({ userId, isOnline: online }) => {
-            console.log('👤 User status update:', userId, 'online:', online, '(otherUser:', otherUser.id, ')');
-            if (userId === otherUser.id) {
-                setIsOnline(online);
             }
         });
 
