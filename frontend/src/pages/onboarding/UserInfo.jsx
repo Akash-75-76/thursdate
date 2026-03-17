@@ -278,7 +278,7 @@ export default function UserInfo() {
         if (video) {
           video.srcObject = stream;
           // Some browsers require play() to be called explicitly
-          await video.play().catch(() => {});
+          await video.play().catch(() => { });
         } else {
           stream.getTracks().forEach(t => t.stop());
         }
