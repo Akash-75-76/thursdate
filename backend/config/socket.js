@@ -17,7 +17,7 @@ const initializeSocketHandlers = (io) => {
     onlineUsers.set(socket.userId, socket.id);
     console.log(`👥 Online users: [${Array.from(onlineUsers.keys()).join(', ')}]`);
     
-    // Broadcast user online status
+    // ✅ Broadcast immediately to ALL connected users (real-time update)
     io.emit('user_status', { userId: socket.userId, isOnline: true });
     console.log(`📡 Broadcasted online status for user ${socket.userId}`);
     
