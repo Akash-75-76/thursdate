@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   WheelPicker,
   WheelPickerWrapper,
@@ -125,9 +125,12 @@ export default function UserInfo() {
   // Face verification reference photo step state
   const [faceVerificationPic, setFaceVerificationPic] = useState(null);
   const [faceVerificationUrl, setFaceVerificationUrl] = useState("");
-  const [showPicModal, setShowPicModal] = useState(false);
   const [uploadingPic, setUploadingPic] = useState(false);
   const [picError, setPicError] = useState("");
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [autoGeolocationAttempted, setAutoGeolocationAttempted] = useState(false);
   const [showLocationPermissionPrompt, setShowLocationPermissionPrompt] = useState(false);
@@ -234,6 +237,62 @@ export default function UserInfo() {
       setAutoGeolocationAttempted(true);
     }
   }, [initialLoading, autoGeolocationAttempted, permissionPromptShown, currentLocation]);
+
+  // --- Face verification camera handling ---
+  const stopCamera = useCallback(() => {
+    const video = videoRef.current;
+    if (video && video.srcObject) {
+      const tracks = video.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      video.srcObject = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showCameraModal) {
+      stopCamera();
+      return;
+    }
+
+    setCameraError("");
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera not supported on this device/browser.');
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          // Some browsers require play() to be called explicitly
+          await video.play().catch(() => { });
+        } else {
+          stream.getTracks().forEach(t => t.stop());
+        }
+      } catch (err) {
+        console.error('Camera error:', err);
+        setCameraError('Could not access camera. Please check permissions and try again.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  }, [showCameraModal, stopCamera]);
 
   // Debounced values for API calls
   const debouncedCurrentLocation = useDebounce(currentLocation, 500);
@@ -603,6 +662,55 @@ export default function UserInfo() {
 
   const getNextButtonText = () => {
     return step === totalSteps ? "Finish" : "Next";
+  };
+
+  // Capture photo from live camera feed for face verification
+  const handleCapturePhoto = async () => {
+    setPicError("");
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas) {
+      setPicError('Camera not ready. Please try again.');
+      return;
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+      setPicError('Camera not ready. Please wait a moment and try again.');
+      return;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, width, height);
+
+    setUploadingPic(true);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        setUploadingPic(false);
+        setPicError('Could not capture image. Please try again.');
+        return;
+      }
+
+      try {
+        const file = new File([blob], 'face-verification.jpg', { type: 'image/jpeg' });
+        setFaceVerificationPic(file);
+        const result = await uploadAPI.uploadFacePhoto(file);
+        setFaceVerificationUrl(result.url);
+        setShowCameraModal(false);
+      } catch (err) {
+        console.error('Face verification upload error:', err);
+        setPicError('Failed to upload image. Please try again.');
+      } finally {
+        setUploadingPic(false);
+      }
+    }, 'image/jpeg', 0.9);
   };
 
   // Face verification photo upload handler
@@ -1202,7 +1310,7 @@ export default function UserInfo() {
               <div className="flex flex-col items-center mb-auto">
                 <div
                   className="w-36 h-36 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center overflow-hidden mb-4 border-4 border-white/50 relative cursor-pointer shadow-xl transition"
-                  onClick={() => setShowPicModal(true)}
+                  onClick={() => setShowCameraModal(true)}
                 >
                   {faceVerificationUrl ? (
                     <img src={faceVerificationUrl} alt="Face Verification Preview" className="object-cover w-full h-full" />
@@ -1235,51 +1343,6 @@ export default function UserInfo() {
               >
                 {getNextButtonText()}
               </button>
-
-              {/* Modal for Gallery/Camera selection (Using a darker Glassmorphism for pop-ups) */}
-              {showPicModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50">
-                  <div className={`w-full p-6 pb-8 shadow-2xl rounded-t-3xl bg-black/30 backdrop-blur-xl border-t border-white/20`}>
-                    <div className="mb-4 text-center font-semibold text-white">Upload verification photo</div>
-                    <div className="flex flex-col gap-3">
-                      {/* Gallery Button - Styled for Glassmorphism */}
-                      <label className="w-full py-3 rounded-xl bg-white/20 backdrop-blur-sm text-center cursor-pointer text-sm font-medium text-white/90 border border-white/30 hover:bg-white/30 transition">
-                        Gallery
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            setShowPicModal(false);
-                            handlePicInput(e);
-                          }}
-                        />
-                      </label>
-                      {/* Camera Button - Styled for Glassmorphism */}
-                      <label className="w-full py-3 rounded-xl bg-white/20 backdrop-blur-sm text-center cursor-pointer text-sm font-medium text-white/90 border border-white/30 hover:bg-white/30 transition">
-                        Camera
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="user"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            setShowPicModal(false);
-                            handlePicInput(e);
-                          }}
-                        />
-                      </label>
-                    </div>
-                    {/* Cancel Button - Styled for Glassmorphism */}
-                    <button
-                      className="w-full mt-4 py-3 rounded-xl bg-black/30 backdrop-blur-sm text-white/70 text-sm font-medium border border-white/20 hover:bg-black/40 transition"
-                      onClick={() => setShowPicModal(false)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -1291,6 +1354,57 @@ export default function UserInfo() {
           onClose={() => setMapPickerField(null)}
           onConfirm={handleMapLocationConfirm}
         />
+
+        {/* Face verification camera modal */}
+        {showCameraModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-black/60 backdrop-blur-xl overflow-hidden flex flex-col">
+              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                <span className="text-white font-semibold text-sm">Capture verification photo</span>
+                <button
+                  onClick={() => setShowCameraModal(false)}
+                  className="text-white/70 hover:text-white text-lg leading-none px-2"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="px-4 pt-4 pb-3 flex flex-col items-center">
+                <div className="w-full rounded-xl overflow-hidden bg-black/80 border border-white/20 mb-3">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-64 object-cover bg-black"
+                  />
+                </div>
+                {cameraError && (
+                  <p className="text-xs text-red-300 mb-2 text-center px-2">{cameraError}</p>
+                )}
+                <p className="text-xs text-white/70 mb-3 text-center">
+                  Position your face clearly in the frame, look at the camera, and tap capture.
+                </p>
+                <button
+                  onClick={handleCapturePhoto}
+                  disabled={uploadingPic || !!cameraError}
+                  className="w-full py-3 rounded-full bg-white text-black font-medium text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {uploadingPic ? (
+                    <>
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent" />
+                      Uploading...
+                    </>
+                  ) : (
+                    'Capture & Continue'
+                  )}
+                </button>
+                {/* Hidden canvas used only for extracting the captured frame */}
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ✅ Location Permission Prompt Modal */}
         {showLocationPermissionPrompt && (
