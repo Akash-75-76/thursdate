@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api';
 
@@ -8,6 +9,8 @@ export default function DailyGamePopup({ onClose }) {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+
+    const navigate = useNavigate();
 
     useEffect(() => {
         loadTodaysGame();
@@ -85,6 +88,22 @@ export default function DailyGamePopup({ onClose }) {
         }
     };
 
+    const handleSeeMembers = () => {
+        if (!game || !selectedOption) return;
+
+        const selectedOptionData = selectedOption === 1 ? game.option1 : game.option2;
+
+        navigate('/today-game', {
+            state: {
+                gameId: game.id,
+                userChoice: selectedOption,
+                question: game.question,
+                selectedOptionText: selectedOptionData?.text,
+                selectedOptionImage: selectedOptionData?.image,
+            }
+        });
+    };
+
     if (loading) {
         return (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
@@ -127,14 +146,16 @@ export default function DailyGamePopup({ onClose }) {
                     <button
                         onClick={() => handleOptionSelect(1)}
                         disabled={selectedOption !== null || submitting}
-                        className={`flex flex-col items-center transition ${selectedOption === 1
-                            ? 'ring-4 ring-blue-500'
-                            : selectedOption === 2
-                                ? 'opacity-50'
-                                : 'hover:scale-105'
+                        className={`flex flex-col items-center transition ${selectedOption === 2
+                            ? 'opacity-50'
+                            : 'hover:scale-105'
                             } ${selectedOption !== null ? 'cursor-default' : 'cursor-pointer'}`}
                     >
-                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-2">
+                        <div
+                            className={`w-full aspect-square rounded-xl overflow-hidden mb-2 ${selectedOption === 1
+                                ? 'ring-4 ring-green-500 ring-offset-2 ring-offset-white'
+                                : ''}`}
+                        >
                             <img
                                 src={game.option1.image}
                                 alt={game.option1.text}
@@ -151,14 +172,16 @@ export default function DailyGamePopup({ onClose }) {
                     <button
                         onClick={() => handleOptionSelect(2)}
                         disabled={selectedOption !== null || submitting}
-                        className={`flex flex-col items-center transition ${selectedOption === 2
-                            ? 'ring-4 ring-blue-500'
-                            : selectedOption === 1
-                                ? 'opacity-50'
-                                : 'hover:scale-105'
+                        className={`flex flex-col items-center transition ${selectedOption === 1
+                            ? 'opacity-50'
+                            : 'hover:scale-105'
                             } ${selectedOption !== null ? 'cursor-default' : 'cursor-pointer'}`}
                     >
-                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-2">
+                        <div
+                            className={`w-full aspect-square rounded-xl overflow-hidden mb-2 ${selectedOption === 2
+                                ? 'ring-4 ring-green-500 ring-offset-2 ring-offset-white'
+                                : ''}`}
+                        >
                             <img
                                 src={game.option2.image}
                                 alt={game.option2.text}
@@ -172,10 +195,17 @@ export default function DailyGamePopup({ onClose }) {
                     </button>
                 </div>
 
-                {/* Stats summary */}
-                {stats && (
+                {/* Stats summary + see members link */}
+                {stats && selectedOption && (
                     <div className="text-center text-sm text-gray-500">
-                        see who else selected the same answer: see members
+                        <span>See who else selected the same answer: </span>
+                        <button
+                            type="button"
+                            onClick={handleSeeMembers}
+                            className="text-blue-600 font-medium hover:underline"
+                        >
+                            See members
+                        </button>
                     </div>
                 )}
             </div>

@@ -41,6 +41,7 @@ import LocationPermission from "./pages/onboarding/LocationPermission";
 import SubmissionProgress from "./pages/onboarding/SubmissionProgress";
 import ProfileQuestions from "./pages/onboarding/ProfileQuestions";
 import ProfilePhotos from "./pages/onboarding/ProfilePhotos";
+import TodayGameMembers from "./components/TodayGameMembers";
 
 export default function App() {
   return (
@@ -92,6 +93,7 @@ export default function App() {
         <Route path="/chat-conversation" element={<ChatConversation />} />
         <Route path="/game-connection" element={<GameConnection />} />
         <Route path="/user-profile-info" element={<UserProfileInfo />} />
+        <Route path="/today-game" element={<TodayGameMembers />} />
 
       </Routes>
     </Router>

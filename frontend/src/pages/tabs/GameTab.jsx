@@ -109,6 +109,7 @@ export default function GameTab() {
         const todayData = await todayResponse.json();
 
         if (todayData.hasGame) {
+          todayData.hasPlayed = false;
           setTodayGame(todayData);
         }
       } else {
@@ -179,7 +180,7 @@ export default function GameTab() {
                     onClick={() => handlePlayGame(todayGame.game.id, 1)}
                     className="flex flex-col items-center"
                   >
-                    <div className="w-full aspect-square rounded-2xl overflow-hidden mb-2 border-2 border-transparent hover:border-pink-400 transition">
+                    <div className="w-full aspect-square rounded-2xl overflow-hidden mb-2 border-2 border-transparent hover:border-green-500 transition">
                       <img
                         src={todayGame.game.option1.image}
                         alt={todayGame.game.option1.text}
@@ -193,7 +194,7 @@ export default function GameTab() {
                     onClick={() => handlePlayGame(todayGame.game.id, 2)}
                     className="flex flex-col items-center"
                   >
-                    <div className="w-full aspect-square rounded-2xl overflow-hidden mb-2 border-2 border-transparent hover:border-pink-400 transition">
+                    <div className="w-full aspect-square rounded-2xl overflow-hidden mb-2 border-2 border-transparent hover:border-green-500 transition">
                       <img
                         src={todayGame.game.option2.image}
                         alt={todayGame.game.option2.text}
