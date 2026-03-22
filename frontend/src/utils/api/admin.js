@@ -27,6 +27,14 @@ export const adminAPI = {
         });
     },
 
+    // ✅ Reject user with reason
+    rejectUser: async (userId, reason = '') => {
+        return authRequest(`/admin/users/${userId}/reject`, {
+            method: 'POST',
+            body: JSON.stringify({ reason }),
+        });
+    },
+
     // Get dashboard stats
     getDashboardStats: async () => {
         return authRequest('/admin/dashboard');

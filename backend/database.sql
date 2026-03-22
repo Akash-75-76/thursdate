@@ -20,6 +20,7 @@ CREATE TABLE users (
   profile_pic_url VARCHAR(500),
   intent TEXT,
   onboarding_complete BOOLEAN DEFAULT FALSE,
+  onboarding_current_step INT DEFAULT 1,
   approval BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

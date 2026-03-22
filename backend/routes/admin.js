@@ -275,6 +275,80 @@ router.put('/users/:userId/approval', auth, adminAuth, async (req, res) => {
   }
 });
 
+// ✅ Reject a user
+router.post('/users/:userId/reject', auth, adminAuth, async (req, res) => {
+  try {
+    if (!(await validateConnection())) {
+      return res.status(500).json({ error: 'Database connection failed' });
+    }
+
+    const { userId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.userId;
+
+    const [existingUsers] = await pool.execute(
+      'SELECT id, email, license_status FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (existingUsers.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentLicenseStatus = existingUsers[0].license_status;
+
+    // Start transaction
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Check if there's a pending driving license verification
+      const [verifications] = await connection.execute(
+        'SELECT id FROM driving_license_verifications WHERE user_id = ? AND verification_status = ?',
+        [userId, 'UNDER_REVIEW']
+      );
+
+      // Mark user as not approved and update license status if pending
+      const newLicenseStatus = currentLicenseStatus === 'pending' ? 'rejected' : currentLicenseStatus;
+      await connection.execute(
+        'UPDATE users SET approval = ?, license_status = ? WHERE id = ?',
+        [false, newLicenseStatus, userId]
+      );
+
+      // Update driving_license_verifications if pending verification exists
+      if (verifications.length > 0) {
+        await connection.execute(
+          `UPDATE driving_license_verifications 
+           SET verification_status = 'REJECTED', reviewed_at = NOW(), reviewed_by = ?, rejection_reason = ? 
+           WHERE id = ?`,
+          [adminId, reason || 'User profile did not meet current criteria', verifications[0].id]
+        );
+        console.log(`[Admin Rejection] User ${userId} rejected. License verification ${verifications[0].id} marked as REJECTED. Reason: ${reason || 'No reason provided'}`);
+      } else {
+        console.log(`[Admin Rejection] User ${userId} rejected. License status: ${currentLicenseStatus} → ${newLicenseStatus}. Reason: ${reason || 'No reason provided'}`);
+      }
+
+      await connection.commit();
+      connection.release();
+
+      res.json({
+        message: 'User rejected successfully',
+        userId: userId,
+        approval: false
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Reject user error:', error);
+    res.status(500).json({ error: 'Internal server error: ' + error.message });
+  }
+});
+
 // Get user details (admin only)
 router.get('/users/:userId', auth, adminAuth, async (req, res) => {
   try {
