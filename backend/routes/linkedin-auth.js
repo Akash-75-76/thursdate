@@ -3,6 +3,7 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../config/db');
+const AccountUniquenessService = require('../services/accountUniquenessService');
 const router = express.Router();
 
 /**
@@ -212,35 +213,57 @@ router.get('/linkedin/callback', async (req, res) => {
         console.log('✅ LinkedIn profile received');
         console.log('   Email:', linkedinProfile.email);
         console.log('   Name:', linkedinProfile.name);
+        console.log('   LinkedIn ID:', linkedinProfile.sub);
+        
+        // Check if this LinkedIn ID is already linked to a different user
+        if (linkedinProfile.sub) {
+            const linkedinCheck = await AccountUniquenessService.checkLinkedinIdExists(linkedinProfile.sub);
+            
+            if (linkedinCheck.exists) {
+                // Check if it's the same user (by email)
+                const emailCheck = await AccountUniquenessService.checkEmailExists(linkedinProfile.email);
+                
+                // LinkedIn ID exists for a different user
+                if (!emailCheck.exists || (emailCheck.exists && emailCheck.user.id !== linkedinCheck.user.id)) {
+                    console.error('❌ LinkedIn ID already linked to different account');
+                    return res.redirect(`${frontendUrl}/social-presence?error=linkedin_already_linked`);
+                }
+            }
+        }
         
         // Find or create user in database
         let userId;
+        const emailCheck = await AccountUniquenessService.checkEmailExists(linkedinProfile.email);
         
-        const [existingUsers] = await pool.execute(
-            'SELECT id, linkedin_verified FROM users WHERE email = ?',
-            [linkedinProfile.email]
-        );
-        
-        if (existingUsers.length > 0) {
-            // Update existing user
-            userId = existingUsers[0].id;
+        if (emailCheck.exists) {
+            // UPDATE existing user with LinkedIn credentials
+            userId = emailCheck.user.id;
             
             await pool.execute(
-                'UPDATE users SET linkedin = ?, linkedin_verified = TRUE WHERE id = ?',
+                'UPDATE users SET linkedin_id = ?, linkedin_verified = TRUE WHERE id = ?',
                 [linkedinProfile.sub || '', userId]
             );
             
-            console.log('✅ Updated existing user:', userId);
+            console.log('✅ Updated existing user with LinkedIn:', userId);
         } else {
-            // Create new user
+            // CREATE new user with LinkedIn credentials
             const [result] = await pool.execute(
-                'INSERT INTO users (email, linkedin, linkedin_verified, approval, onboarding_complete) VALUES (?, ?, TRUE, FALSE, FALSE)',
+                'INSERT INTO users (email, linkedin_id, linkedin_verified, approval, onboarding_complete) VALUES (?, ?, TRUE, FALSE, FALSE)',
                 [linkedinProfile.email, linkedinProfile.sub || '']
             );
             
             userId = result.insertId;
-            console.log('✅ Created new user:', userId);
+            console.log('✅ Created new user with LinkedIn:', userId);
         }
+        
+        // Get full user status for frontend routing
+        const [userRows] = await pool.execute(
+            'SELECT id, email, phone_number, onboarding_complete, onboarding_current_step, account_status FROM users WHERE id = ?',
+            [userId]
+        );
+        const userStatus = userRows.length > 0 ? 
+            AccountUniquenessService.getUserStatus(userRows[0]) : 
+            { userId, redirectPath: '/dashboard' };
         
         // Generate JWT token for authentication
         const token = jwt.sign(
@@ -256,8 +279,8 @@ router.get('/linkedin/callback', async (req, res) => {
         console.log('✅ JWT token generated');
         console.log('🎉 LinkedIn verification complete for user:', userId);
         
-        // Redirect to frontend with success status
-        const redirectUrl = `${frontendUrl}/social-presence?linkedin_verified=true&token=${encodeURIComponent(token)}`;
+        // Redirect to frontend with success status and user info
+        const redirectUrl = `${frontendUrl}/social-presence?linkedin_verified=true&token=${encodeURIComponent(token)}&userId=${userId}&redirectPath=${encodeURIComponent(userStatus.redirectPath)}`;
         res.redirect(redirectUrl);
         
     } catch (error) {
