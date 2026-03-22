@@ -73,7 +73,7 @@ export function saveOnboardingState(key, data) {
  * @param {number} maxAge - Maximum age in milliseconds (default: 7 days)
  * @returns {object|null} - Saved state or null if not found/expired
  */
-export function loadOnboardingState(key, maxAge = 7 * 24 * 60 * 60 * 1000) {
+export function loadOnboardingState(key, maxAge = 30 * 24 * 60 * 60 * 1000) {
   try {
     const scopedKey = getScopedStorageKey(key);
     const saved = localStorage.getItem(scopedKey);
@@ -89,6 +89,7 @@ export function loadOnboardingState(key, maxAge = 7 * 24 * 60 * 60 * 1000) {
     const parsed = JSON.parse(saved);
     const age = Date.now() - (parsed.timestamp || 0);
 
+    // BUG FIX #5: Extended maxAge from 7 days to 30 days
     // Clear expired data
     if (age > maxAge) {
       console.log(`[Persistence] Expired state for ${scopedKey} (${Math.round(age / 1000 / 60 / 60 / 24)} days old)`);

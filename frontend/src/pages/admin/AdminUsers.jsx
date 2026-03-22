@@ -11,6 +11,10 @@ export default function AdminUsers() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [filter, setFilter] = useState('all'); // all, approved, pending
   const [searchTerm, setSearchTerm] = useState('');
+  // ✅ Rejection modal state
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingUserId, setRejectingUserId] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -61,6 +65,46 @@ export default function AdminUsers() {
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  // ✅ Handle reject with reason
+  const handleReject = async (userId, reason = '') => {
+    try {
+      await adminAPI.rejectUser(userId, reason);
+      
+      // Update local state
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === userId ? { ...user, approval: false } : user
+        )
+      );
+      
+      // Close modals
+      setShowRejectModal(false);
+      setRejectingUserId(null);
+      setRejectionReason('');
+      
+      if (showUserModal) {
+        setShowUserModal(false);
+        setSelectedUser(null);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // ✅ Open rejection modal
+  const openRejectModal = (userId) => {
+    setRejectingUserId(userId);
+    setRejectionReason('');
+    setShowRejectModal(true);
+  };
+
+  // ✅ Close rejection modal
+  const closeRejectModal = () => {
+    setShowRejectModal(false);
+    setRejectingUserId(null);
+    setRejectionReason('');
   };
 
   const viewUserDetails = async (userId) => {
@@ -308,16 +352,25 @@ export default function AdminUsers() {
                       View Details
                     </button>
                     {!user.approval ? (
-                      <button
-                        onClick={() => handleApprove(user.id, true)}
-                        className="flex-1 px-3 py-2 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                      >
-                        Approve
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleApprove(user.id, true)}
+                          className="flex-1 px-3 py-2 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                        >
+                          Approve
+                        </button>
+                        {/* ✅ Reject button */}
+                        <button
+                          onClick={() => openRejectModal(user.id)}
+                          className="flex-1 px-3 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </>
                     ) : (
                       <button
                         onClick={() => handleApprove(user.id, false)}
-                        className="flex-1 px-3 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                        className="flex-1 px-3 py-2 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
                       >
                         Revoke
                       </button>
@@ -434,20 +487,71 @@ export default function AdminUsers() {
               {/* Action Buttons */}
               <div className="flex gap-2 pt-4">
                 {!selectedUser.approval ? (
-                  <button
-                    onClick={() => handleApprove(selectedUser.id, true)}
-                    className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                  >
-                    Approve User
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleApprove(selectedUser.id, true)}
+                      className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                    >
+                      Approve User
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUserModal(false);
+                        setSelectedUser(null);
+                        openRejectModal(selectedUser.id);
+                      }}
+                      className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    >
+                      Reject User
+                    </button>
+                  </>
                 ) : (
                   <button
                     onClick={() => handleApprove(selectedUser.id, false)}
-                    className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
                   >
                     Revoke Approval
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Rejection Reason Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full">
+            <div className="p-4 border-b">
+              <h2 className="text-lg font-semibold">Reject User</h2>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rejection Reason (Optional)
+                </label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Provide a reason for rejection (optional). User will see a soft message about their profile not meeting criteria."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                  rows="4"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={closeRejectModal}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleReject(rejectingUserId, rejectionReason)}
+                  className="flex-1 px-3 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  Confirm Reject
+                </button>
               </div>
             </div>
           </div>

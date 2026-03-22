@@ -119,6 +119,12 @@ router.get('/profile', auth, async (req, res) => {
             [req.user.userId]
         );
         
+        // BUG FIX #3: Fetch rejection status from driving_license_verifications
+        const [verifications] = await pool.execute(
+            'SELECT id, verification_status, rejection_reason, submitted_at FROM driving_license_verifications WHERE user_id = ? ORDER BY submitted_at DESC LIMIT 1',
+            [req.user.userId]
+        );
+        
         if (users.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -165,6 +171,8 @@ router.get('/profile', auth, async (req, res) => {
             facePhotos: safeJsonParse(user.face_photos, []),
             licensePhotos: safeJsonParse(user.license_photos, []),
             licenseStatus: user.license_status || 'none',
+            // BUG FIX #3: Return rejection status information
+            drivingLicenseVerifications: verifications && verifications.length > 0 ? verifications : null,
         };
         
         res.json(transformedUser);
@@ -528,11 +536,13 @@ router.post('/profile', auth, async (req, res) => {
         
         await pool.execute(
             // 🛑 is_private REMOVED from UPDATE query
+            // BUG FIX #2 & #6: Added onboarding_current_step to track progression
             `UPDATE users SET 
                 first_name = ?, last_name = ?, gender = ?, dob = ?, 
                 current_location = ?, city = ?, from_location = ?, favourite_travel_destination = ?, 
                 last_holiday_places = ?, 
-                profile_pic_url = ?, face_photo_url = ?, approval = false
+                profile_pic_url = ?, face_photo_url = ?, approval = false,
+                onboarding_current_step = 7
             WHERE id = ?`,
             [
                 firstName || null, 
@@ -654,6 +664,7 @@ router.put('/profile', auth, async (req, res) => {
         await pool.execute(
             // 🛑 is_private REMOVED from UPDATE query
             // ✅ NEW: Added profile columns for hybrid storage + city & location_preference
+            // BUG FIX #2 & #6: Added onboarding_current_step to track step 14 completion
             `UPDATE users SET 
                 first_name = ?, last_name = ?, gender = ?, dob = ?, 
                 current_location = ?, city = ?, location_preference = ?, favourite_travel_destination = ?, 
@@ -665,7 +676,8 @@ router.put('/profile', auth, async (req, res) => {
                 relationship_status = ?, from_location = ?, instagram = ?, linkedin = ?,
                 face_photos = ?,
                 license_photos = ?,
-                license_status = ?
+                license_status = ?,
+                onboarding_current_step = 14
             WHERE id = ?`,
             updateData 
         );

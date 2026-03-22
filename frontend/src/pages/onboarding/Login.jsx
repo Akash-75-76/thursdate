@@ -63,27 +63,25 @@ export default function Login() {
       }
 
       // Navigation logic based on approval and onboarding status
-      if (userData.approval && userData.onboardingComplete) {
-        navigate("/home");
+      // BUG FIX #1: Check onboardingComplete first, then check partial progress
+      if (userData.onboardingComplete) {
+        if (userData.approval) {
+          navigate("/home");
+        } else {
+          navigate("/waitlist-status");
+        }
         return;
       }
-      // If not approved and not onboarding complete, go to user-info (new user)
-      if (!userData.approval && !userData.onboardingComplete) {
-        navigate("/user-info");
-        return;
-      }
-      // If not approved but onboarding complete, go to waitlist status
-      if (!userData.approval && userData.onboardingComplete) {
-        navigate("/waitlist-status");
-        return;
-      }
-      // If approved but onboarding not complete, go to user-intent
-      if (userData.approval && !userData.onboardingComplete) {
+      // User has not completed full onboarding
+      // Check if they completed UserInfo (has firstName and lastName)
+      if (userData.firstName && userData.lastName) {
+        // Completed UserInfo, move to UserIntent
         navigate("/user-intent");
         return;
       }
-      // Default fallback
-      navigate("/waitlist-status");
+      // Not started or in the middle of UserInfo
+      navigate("/user-info");
+      return;
     } catch (err) {
       setError(err.message || 'Invalid OTP');
     } finally {

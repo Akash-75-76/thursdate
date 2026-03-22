@@ -1,12 +1,12 @@
 // src/components/onboarding/UserIntent.jsx
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { userAPI, uploadAPI } from '../../utils/api';
 import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
 import Cropper from 'react-easy-crop';
 import AutocompleteInput from '../../components/AutocompleteInput';
 import { searchMovies, searchTVShows, searchArtists, searchMoviesAndShows } from '../../utils/externalAPIs';
-import { searchInterests } from '../../utils/interests';
+import { searchInterests, createDebouncedSearch } from '../../utils/interests';
 
 const createImage = (url) =>
   new Promise((resolve, reject) => {
@@ -66,6 +66,9 @@ export default function UserIntent() {
   const [sttSupported, setSttSupported] = useState(true);
   const [interests, setInterests] = useState([]); // Step 6
   const [interestInput, setInterestInput] = useState('');
+  const [interestSuggestions, setInterestSuggestions] = useState([]); // API suggestions
+  const [interestSuggestionsLoading, setInterestSuggestionsLoading] = useState(false);
+  const debouncedInterestSearchRef = useRef(null);
 
   // Step 7: Multiple TV shows & movies
   const [tvShows, setTvShows] = useState([]);
@@ -81,9 +84,15 @@ export default function UserIntent() {
   const [profileImgUploading, setProfileImgUploading] = useState(false);
   const [profileImgError, setProfileImgError] = useState('');
   const [lifestyleImageUrls, setLifestyleImageUrls] = useState([null, null, null, null, null]); // Step 13
-  const [height, setHeight] = useState(''); // Step 13
+  const [height, setHeight] = useState('175'); // Step 13 - default to 175cm
   const [imgUploading, setImgUploading] = useState(false);
   const [imgError, setImgError] = useState('');
+
+  // ✅ Height slider state
+  const heightMinCm = 140;
+  const heightMaxCm = 220;
+  const [activeHeightThumb, setActiveHeightThumb] = useState(null);
+  const heightSliderRef = useRef(null);
 
   // Lifestyle image crop state
   const [cropOpen, setCropOpen] = useState(false);
@@ -194,7 +203,7 @@ export default function UserIntent() {
 
     return () => {
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch (e) { /* ignore */ }
+        try { recognitionRef.current.stop(); } catch { /* ignore */ }
         recognitionRef.current = null;
       }
     };
@@ -226,6 +235,38 @@ export default function UserIntent() {
     if (listening) stopListening(); else startListening();
   };
 
+  // Setup debounced interest search - Initialize once on component mount
+  useEffect(() => {
+    debouncedInterestSearchRef.current = createDebouncedSearch(async (query) => {
+      if (!query || query.trim().length < 2) {
+        setInterestSuggestions([]);
+        return;
+      }
+
+      setInterestSuggestionsLoading(true);
+      try {
+        const suggestions = await searchInterests(query);
+        setInterestSuggestions(suggestions);
+      } catch (err) {
+        console.error('[UserIntent] Interest search failed:', err);
+        setInterestSuggestions([]);
+      } finally {
+        setInterestSuggestionsLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      debouncedInterestSearchRef.current = null;
+    };
+  }, []);
+
+  // Trigger debounced search when interest input changes
+  useEffect(() => {
+    if (debouncedInterestSearchRef.current) {
+      debouncedInterestSearchRef.current(interestInput);
+    }
+  }, [interestInput]);
+
   // Auto-save onboarding state to localStorage whenever key fields change
   // ✅ FIX: Only save after initial loading is complete to avoid race condition
   useEffect(() => {
@@ -254,7 +295,7 @@ export default function UserIntent() {
     if (bioMode !== 'Listen' && listening) {
       stopListening();
     }
-  }, [bioMode]);
+  }, [bioMode, listening]);
 
   // ✅ Smooth age range slider drag handler
   const handleAgeSliderMove = useCallback((e) => {
@@ -335,7 +376,7 @@ export default function UserIntent() {
     }
   };
 
-  const handleTvInputBlur = () => {
+  const _handleTvInputBlur = () => {
     if (tvInput.trim()) {
       addTvShow();
     }
@@ -372,7 +413,7 @@ export default function UserIntent() {
     }
   };
 
-  const handleMovieInputBlur = () => {
+  const _handleMovieInputBlur = () => {
     if (movieInput.trim()) {
       addMovie();
     }
@@ -572,10 +613,34 @@ export default function UserIntent() {
     }
   }, [closeCrop, cropFile, cropIdx, cropSrc, croppedAreaPixels]);
 
-  // All steps in UserIntent are skippable
-  const isStepValid = useCallback(() => {
-    return true; // All fields are optional
+  // ✅ Height slider handlers - moved to top level (outside switch statement)
+  const handleHeightMove = useCallback((e) => {
+    if (!heightSliderRef.current) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const rect = heightSliderRef.current.getBoundingClientRect();
+    let percent = (clientX - rect.left) / rect.width;
+    percent = Math.max(0, Math.min(1, percent));
+    let value = Math.round(heightMinCm + percent * (heightMaxCm - heightMinCm));
+    setHeight(String(value));
   }, []);
+
+  const handleHeightMoveEnd = useCallback(() => {
+    setActiveHeightThumb(null);
+  }, []);
+
+  useEffect(() => {
+    if (activeHeightThumb === null) return;
+    document.addEventListener('mousemove', handleHeightMove);
+    document.addEventListener('touchmove', handleHeightMove, { passive: false });
+    document.addEventListener('mouseup', handleHeightMoveEnd);
+    document.addEventListener('touchend', handleHeightMoveEnd);
+    return () => {
+      document.removeEventListener('mousemove', handleHeightMove);
+      document.removeEventListener('touchmove', handleHeightMove);
+      document.removeEventListener('mouseup', handleHeightMoveEnd);
+      document.removeEventListener('touchend', handleHeightMoveEnd);
+    };
+  }, [activeHeightThumb, handleHeightMove, handleHeightMoveEnd]);
 
   // Save
   const handleFinish = async () => {
@@ -616,7 +681,12 @@ export default function UserIntent() {
       await userAPI.updateProfile(updateData);
       // Clear saved onboarding state on successful completion
       clearOnboardingState(STORAGE_KEYS.USER_INTENT);
-      navigate('/');
+      // BUG FIX #7: Direct navigation based on approval status instead of navigating to '/'
+      if (currentProfile.approval) {
+        navigate('/home', { replace: true });
+      } else {
+        navigate('/waitlist-status', { replace: true });
+      }
     } catch (err) {
       console.error('Save failed', err);
       alert('Failed to save. ' + (err.message || ''));
@@ -738,7 +808,7 @@ export default function UserIntent() {
         return (
           <div>
             <RadioOption label="Date" description="Open to exploring and seeing where things go." checked={purpose === 'Date'} onClick={() => setPurpose('Date')} />
-            <RadioOption label="Seriously Date" description="Looking for a meaningful, long-term relationship that could lead to marriage." checked={purpose === 'Seriously Date' || purpose === 'Marriage'} onClick={() => setPurpose('Seriously Date')} />
+            <RadioOption label="Marriage" description="Looking for a meaningful, long-term relationship that could lead to marriage." checked={purpose === 'Seriously Date' || purpose === 'Marriage'} onClick={() => setPurpose('Seriously Date')} />
             <RadioOption label="Companionship" description="Wanting someone to share life and experiences with." checked={purpose === 'Companionship'} onClick={() => setPurpose('Companionship')} />
             <RadioOption label="Friends" description="Here to connect and build genuine friendships." checked={purpose === 'Friends'} onClick={() => setPurpose('Friends')} />
           </div>
@@ -1291,43 +1361,57 @@ export default function UserIntent() {
             </div>
           </div>
         );
-      case 13:
+      case 13: {
+        // ✅ Height slider calculation
+        const heightPercent = ((Number(height) - heightMinCm) / (heightMaxCm - heightMinCm)) * 100;
+
         return (
           <div className="space-y-4">
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border-2 border-white/20">
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/20">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/20">
                 <div className="text-white font-medium">Height</div>
                 <div className="text-white/70 text-sm">{height ? `${height} cm` : 'Select height'}</div>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {[160, 165, 170, 172, 175, 180, 185, 190].map(h => (
+              
+              {/* ✅ Height slider */}
+              <div ref={heightSliderRef} className="relative w-full max-w-sm">
+                {/* Height label above slider */}
+                <div className="absolute w-full" style={{ top: '-48px' }}>
+                  <div className="absolute transform -translate-x-1/2" style={{ left: `${heightPercent}%` }}>
+                    <div className="bg-white/90 text-gray-900 text-base font-medium rounded-lg px-4 py-1.5 relative z-10 shadow-lg">
+                      {height} cm
+                    </div>
+                  </div>
+                </div>
+
+                {/* Slider track and thumb */}
+                <div className="relative h-3 flex items-center mt-4">
+                  <div className="absolute left-0 right-0 h-2 rounded-full bg-white/20"></div>
+                  <div
+                    className="absolute h-2 rounded-full bg-white"
+                    style={{ left: 0, width: `${heightPercent}%` }}
+                  ></div>
                   <button
-                    key={h}
-                    onClick={() => setHeight(String(h))}
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                      height === String(h)
-                        ? 'bg-white text-black'
-                        : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
-                    }`}
+                    type="button"
+                    className="absolute z-10 w-7 h-7 rounded-full bg-white shadow-lg flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/50 cursor-grab active:cursor-grabbing transition-all"
+                    style={{ left: `calc(${heightPercent}% - 14px)` }}
+                    onMouseDown={() => setActiveHeightThumb(0)}
+                    onTouchStart={() => setActiveHeightThumb(0)}
                   >
-                    {h} cm
+                    <div className="w-3 h-3 bg-gray-800 rounded-full"></div>
                   </button>
-                ))}
-              </div>
-              <div className="mt-4 pt-4 border-t border-white/20">
-                <input
-                  type="number"
-                  min="140"
-                  max="220"
-                  placeholder="Or enter custom height"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                  className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 border border-white/20 focus:outline-none focus:border-white"
-                />
+                </div>
+
+                {/* Min and max labels */}
+                <div className="flex justify-between mt-6 px-2">
+                  <span className="text-white/60 text-xs font-medium">{heightMinCm} cm</span>
+                  <span className="text-white/60 text-xs font-medium">{heightMaxCm} cm</span>
+                </div>
               </div>
             </div>
           </div>
         );
+      }
       case 14:
         return (
           <>
@@ -1365,7 +1449,8 @@ export default function UserIntent() {
   }, [
     step, purpose, relationshipVibe, interestedGender, ageRange,
     bio, interests, interestInput, tvShows, movies, tvInput, movieInput, watchList, watchInput, artistsBands, artistBandInput, profileImageUrl, lifestyleImageUrls, height,
-    imgUploading, imgError, addInterest, removeInterest, addTvShow, removeTvShow, addMovie, removeMovie, addWatchItem, removeWatchItem, addArtistBand, removeArtistBand, handleLifestyleFilePicked, handleProfileImageChange, profileImgUploading, profileImgError
+    imgUploading, imgError, addInterest, removeInterest, addTvShow, removeTvShow, addMovie, removeMovie, addWatchItem, removeWatchItem, addArtistBand, removeArtistBand, handleLifestyleFilePicked, handleProfileImageChange, profileImgUploading, profileImgError,
+    bioMode, listening, sttSupported, interimTranscript, toggleListening
   ]);
 
   if (initialLoading) {
