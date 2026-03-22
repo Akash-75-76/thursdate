@@ -156,6 +156,7 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/phone-auth', require('./routes/phone-auth'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/admin', require('./routes/admin'));
