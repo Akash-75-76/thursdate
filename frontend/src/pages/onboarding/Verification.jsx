@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 const API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api';
 
 const BUTTON_SOLID =
-  "bg-white text-black text-base font-medium rounded-lg transition duration-200 hover:bg-gray-100 disabled:opacity-60";
+  "bg-white text-black text-base font-medium rounded-full transition duration-200 hover:bg-gray-100 disabled:opacity-60";
 const INPUT_CLEAN =
   "w-full p-4 rounded-lg bg-black/40 text-white border border-white/20 placeholder-white/60 focus:ring-1 focus:ring-white focus:border-white transition";
 
@@ -126,14 +126,6 @@ export default function Verification() {
       {error && (
         <p className="text-red-400 text-sm mb-4">{error}</p>
       )}
-
-      <button
-        onClick={handleSendOtp}
-        disabled={loading || mobileNumber.length < 10}
-        className={BUTTON_SOLID + " w-full py-4 mt-4"}
-      >
-        {loading ? 'Sending...' : 'Next'}
-      </button>
     </>
   );
 
@@ -182,14 +174,6 @@ export default function Verification() {
           </button>
         )}
       </div>
-
-      <button
-        onClick={handleVerifyOtp}
-        disabled={loading || otp.length !== 6}
-        className={BUTTON_SOLID + " w-full py-4"}
-      >
-        {loading ? 'Verifying...' : 'Next'}
-      </button>
     </>
   );
 
@@ -216,12 +200,6 @@ export default function Verification() {
       <p className="text-white/80 text-sm mb-10">
         Start your application process
       </p>
-      <button
-        onClick={() => navigate("/login")}
-        className={BUTTON_SOLID + " w-full py-4"}
-      >
-        Next
-      </button>
     </div>
   );
   // Uses the same pulse animation classes as WaitlistStatus.jsx for reliable movement
@@ -253,6 +231,38 @@ export default function Verification() {
       {/* Content pinned to top, not middle */}
       <div className="relative z-10 w-full max-w-sm mt-12">
         {content}
+      </div>
+
+      {/* Bottom button section */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 px-6 pb-8 flex justify-center">
+        <div className="w-full max-w-sm">
+          {step === "mobile" && (
+            <button
+              onClick={handleSendOtp}
+              disabled={loading || mobileNumber.length < 10}
+              className={BUTTON_SOLID + " w-full py-4 rounded-full"}
+            >
+              {loading ? 'Sending...' : 'Next'}
+            </button>
+          )}
+          {step === "otp" && (
+            <button
+              onClick={handleVerifyOtp}
+              disabled={loading || otp.length !== 6}
+              className={BUTTON_SOLID + " w-full py-4 rounded-full"}
+            >
+              {loading ? 'Verifying...' : 'Next'}
+            </button>
+          )}
+          {step === "success" && (
+            <button
+              onClick={() => navigate("/login")}
+              className={BUTTON_SOLID + " w-full py-4 rounded-full"}
+            >
+              Next
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

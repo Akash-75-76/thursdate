@@ -57,7 +57,7 @@ export default function Different() {
         <div className="w-full">
           <button
             onClick={() => navigate("/verification")}
-            className={`w-full py-4 rounded-xl text-base font-medium transition duration-200 ${BUTTON_GLASS_ACTIVE_SOLID}`}
+            className={`w-full py-4 rounded-full text-base font-medium transition duration-200 ${BUTTON_GLASS_ACTIVE_SOLID}`}
           >
             Next
           </button>

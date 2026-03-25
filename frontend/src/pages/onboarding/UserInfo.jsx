@@ -641,7 +641,7 @@ export default function UserInfo() {
     if (m < 0 || (m === 0 && today.getDate() < parsedDob.day)) {
       age--;
     }
-    return age >= 35;
+    return age >= 30;
   }, [dob]);
   const isStepFourValid = currentLocation.trim();
   const isStepFiveValid = fromLocation.trim();
@@ -911,7 +911,7 @@ export default function UserInfo() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar text-white/70"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>
               </div>
               <p className={`text-xs mb-auto text-white/60 ${isStepThreeValid ? 'text-white/60' : 'text-red-300'}`}>
-                {isStepThreeValid ? 'You meet the minimum age requirement.' : 'Must be at least 35 years old.'}
+                {isStepThreeValid ? 'You meet the minimum age requirement.' : 'Must be at least 30 years old.'}
               </p>
               <button
                 disabled={getNextButtonDisabled()}

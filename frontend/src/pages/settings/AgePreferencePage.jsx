@@ -4,9 +4,9 @@ import { userAPI } from '../../utils/api';
 
 export default function AgePreferencePage() {
   const navigate = useNavigate();
-  const minAge = 35;
+  const minAge = 30;
   const maxAge = 85;
-  const [ageRange, setAgeRange] = useState([35, 60]);
+  const [ageRange, setAgeRange] = useState([30, 60]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -20,7 +20,7 @@ export default function AgePreferencePage() {
         const userData = await userAPI.getProfile();
         if (userData.intent?.preferredAgeRange) {
           const [loadedMin, loadedMax] = userData.intent.preferredAgeRange;
-          // Cap minimum at 35, maximum at 85
+          // Cap minimum at 30, maximum at 85
           const cappedMin = Math.max(loadedMin, minAge);
           const cappedMax = Math.min(loadedMax, maxAge);
           setAgeRange([cappedMin, cappedMax]);
