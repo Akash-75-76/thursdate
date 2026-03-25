@@ -38,7 +38,7 @@ export default function Gateway() {
         </h2>
 
         <p className="text-white text-sm leading-relaxed mb-6 text-center">
-          Welcome to the premium dating experience for 35+ professionals. Membership is by invitation only - referrals from existing members are your pathway to join our exclusive community.
+          Welcome to the premium dating experience for 30-35 professionals. Membership is by invitation only - referrals from existing members are your pathway to join our exclusive community.
         </p>
 
         <div className="flex items-center mb-10">
@@ -51,14 +51,14 @@ export default function Gateway() {
         <div className="w-full space-y-3">
           <button
             onClick={() => navigate("/privacy")}
-            className="w-full py-4 rounded-xl bg-white text-black text-base font-medium transition duration-200 hover:bg-gray-100"
+            className="w-full py-4 rounded-full bg-white text-black text-base font-medium transition duration-200 hover:bg-gray-100"
           >
             Request to join
           </button>
 
           <button
             onClick={() => navigate("/login")}
-            className={`w-full py-4 rounded-xl text-base font-medium transition duration-200 hover:bg-black/50 ${BUTTON_GLASS_BORDERED}`}
+            className={`w-full py-4 rounded-full text-base font-medium transition duration-200 hover:bg-black/50 ${BUTTON_GLASS_BORDERED}`}
           >
             Sign in
           </button>

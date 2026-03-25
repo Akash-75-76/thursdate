@@ -743,7 +743,7 @@ router.get('/matches/potential', auth, async (req, res) => {
         }
 
         const currentUserIntent = safeJsonParse(currentUserData[0].intent, {});
-        const preferredAgeRange = currentUserIntent.preferredAgeRange || [35, 85];
+        const preferredAgeRange = currentUserIntent.preferredAgeRange || [30, 85];
         const interestedGender = currentUserIntent.interestedGender;
         const userCity = currentUserData[0].city;
         const locationPreference = currentUserData[0].location_preference || 'anywhere';

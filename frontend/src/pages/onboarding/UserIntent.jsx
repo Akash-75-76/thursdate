@@ -56,7 +56,7 @@ export default function UserIntent() {
   const [purpose, setPurpose] = useState(''); // Step 1
   const [relationshipVibe, setRelationshipVibe] = useState(''); // Step 2
   const [interestedGender, setInterestedGender] = useState(''); // Step 3
-  const [ageRange, setAgeRange] = useState([35, 45]); // Step 4 - default to 35-45 to match UI
+  const [ageRange, setAgeRange] = useState([30, 50]); // Step 4 - default to 30-50 to match UI
 
   const [bio, setBio] = useState(''); // Step 5
   const [bioMode, setBioMode] = useState('Read'); // 'Read' or 'Listen'
@@ -66,8 +66,6 @@ export default function UserIntent() {
   const [sttSupported, setSttSupported] = useState(true);
   const [interests, setInterests] = useState([]); // Step 6
   const [interestInput, setInterestInput] = useState('');
-  const [interestSuggestions, setInterestSuggestions] = useState([]); // API suggestions
-  const [interestSuggestionsLoading, setInterestSuggestionsLoading] = useState(false);
   const debouncedInterestSearchRef = useRef(null);
 
   // Step 7: Multiple TV shows & movies
@@ -106,7 +104,7 @@ export default function UserIntent() {
   const [cropError, setCropError] = useState('');
 
   // Age limits
-  const minAge = 35;
+  const minAge = 30;
   const maxAge = 85;
   const [activeAgeThumb, setActiveAgeThumb] = useState(null);
   const ageSliderRef = useRef(null);
@@ -230,28 +228,22 @@ export default function UserIntent() {
     setInterimTranscript('');
   };
 
-  const toggleListening = () => {
+  const toggleListening = useCallback(() => {
     if (!sttSupported) return;
     if (listening) stopListening(); else startListening();
-  };
+  }, [sttSupported, listening]);
 
   // Setup debounced interest search - Initialize once on component mount
   useEffect(() => {
     debouncedInterestSearchRef.current = createDebouncedSearch(async (query) => {
       if (!query || query.trim().length < 2) {
-        setInterestSuggestions([]);
         return;
       }
 
-      setInterestSuggestionsLoading(true);
       try {
-        const suggestions = await searchInterests(query);
-        setInterestSuggestions(suggestions);
+        await searchInterests(query);
       } catch (err) {
         console.error('[UserIntent] Interest search failed:', err);
-        setInterestSuggestions([]);
-      } finally {
-        setInterestSuggestionsLoading(false);
       }
     }, 300);
 
@@ -353,7 +345,7 @@ export default function UserIntent() {
   }, []);
 
   // TV & Movie helpers
-  const addTvShow = (selectedItem) => {
+  const addTvShow = useCallback((selectedItem) => {
     // If called from autocomplete with full object
     if (selectedItem && typeof selectedItem === 'object') {
       const exists = tvShows.some(item =>
@@ -374,7 +366,7 @@ export default function UserIntent() {
         setTvInput('');
       }
     }
-  };
+  }, [tvShows, tvInput]);
 
   const _handleTvInputBlur = () => {
     if (tvInput.trim()) {
@@ -382,15 +374,15 @@ export default function UserIntent() {
     }
   };
 
-  const removeTvShow = (item) => {
+  const removeTvShow = useCallback((item) => {
     setTvShows(prev => prev.filter(x =>
       typeof x === 'object' && typeof item === 'object'
         ? x.name !== item.name
         : x !== item
     ));
-  };
+  }, []);
 
-  const addMovie = (selectedItem) => {
+  const addMovie = useCallback((selectedItem) => {
     // If called from autocomplete with full object
     if (selectedItem && typeof selectedItem === 'object') {
       const exists = movies.some(item =>
@@ -411,7 +403,7 @@ export default function UserIntent() {
         setMovieInput('');
       }
     }
-  };
+  }, [movies, movieInput]);
 
   const _handleMovieInputBlur = () => {
     if (movieInput.trim()) {
@@ -419,16 +411,16 @@ export default function UserIntent() {
     }
   };
 
-  const removeMovie = (item) => {
+  const removeMovie = useCallback((item) => {
     setMovies(prev => prev.filter(x =>
       typeof x === 'object' && typeof item === 'object'
         ? x.name !== item.name
         : x !== item
     ));
-  };
+  }, []);
 
   // Watchlist helpers
-  const addWatchItem = (selectedItem) => {
+  const addWatchItem = useCallback((selectedItem) => {
     // If called from autocomplete with full object
     if (selectedItem && typeof selectedItem === 'object') {
       const exists = watchList.some(item =>
@@ -452,18 +444,18 @@ export default function UserIntent() {
       });
       setWatchInput('');
     }
-  };
+  }, [watchList, watchInput]);
 
-  const removeWatchItem = (item) => {
+  const removeWatchItem = useCallback((item) => {
     setWatchList(prev => prev.filter(x =>
       typeof x === 'object' && typeof item === 'object'
         ? x.name !== item.name
         : x !== item
     ));
-  };
+  }, []);
 
   // Artists/Bands helpers
-  const addArtistBand = (selectedItem) => {
+  const addArtistBand = useCallback((selectedItem) => {
     // If called from autocomplete with full object
     if (selectedItem && typeof selectedItem === 'object') {
       const exists = artistsBands.some(item =>
@@ -487,18 +479,18 @@ export default function UserIntent() {
       });
       setArtistBandInput('');
     }
-  };
+  }, [artistsBands, artistBandInput]);
 
-  const removeArtistBand = (item) => {
+  const removeArtistBand = useCallback((item) => {
     setArtistsBands(prev => prev.filter(x =>
       typeof x === 'object' && typeof item === 'object'
         ? x.name !== item.name
         : x !== item
     ));
-  };
+  }, []);
 
   // Profile image upload
-  const handleProfileImageChange = async (file) => {
+  const handleProfileImageChange = useCallback(async (file) => {
     if (!file) return;
     // Set a preview URL directly from the file object
     setProfileImageUrl(URL.createObjectURL(file));
@@ -517,7 +509,7 @@ export default function UserIntent() {
     } finally {
       setProfileImgUploading(false);
     }
-  };
+  }, []);
 
   // Lifestyle image upload
   const uploadLifestyleImage = async (idx, file) => {
@@ -956,7 +948,7 @@ export default function UserIntent() {
       case 6:
         return (
           <>
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-3 w-full">
               <AutocompleteInput
                 value={interestInput}
                 onChange={e => setInterestInput(e.target.value)}
@@ -970,7 +962,7 @@ export default function UserIntent() {
                 showImage={false}
                 placeholder="Add an interest..."
                 searchFn={searchInterests}
-                className="flex-1 rounded-xl p-3 text-base"
+                className="flex-1 min-w-0 rounded-xl p-3 text-base"
                 style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               />
               <button
@@ -980,7 +972,7 @@ export default function UserIntent() {
                   addInterest(interestInput);
                 }}
                 disabled={!interestInput.trim()}
-                className="px-5 py-3 rounded-xl font-medium text-sm"
+                className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
                 style={interestInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
               >
                 Add
@@ -1002,7 +994,7 @@ export default function UserIntent() {
             {/* TV Shows */}
             <div>
               <label className="block text-white/80 mb-2">TV show(s) you could rewatch anytime</label>
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-2 mb-3 w-full">
                 <AutocompleteInput
                   value={tvInput}
                   onChange={e => setTvInput(e.target.value)}
@@ -1015,7 +1007,7 @@ export default function UserIntent() {
                   onSelect={addTvShow}
                   placeholder="e.g. The Office"
                   searchFn={searchTVShows}
-                  className="flex-1 rounded-xl p-3 text-base"
+                  className="flex-1 min-w-0 rounded-xl p-3 text-base"
                   style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
                 />
                 <button
@@ -1025,7 +1017,7 @@ export default function UserIntent() {
                     addTvShow();
                   }}
                   disabled={!tvInput.trim()}
-                  className="px-5 py-3 rounded-xl font-medium text-sm"
+                  className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
                   style={tvInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
                 >
                   Add
@@ -1079,7 +1071,7 @@ export default function UserIntent() {
             {/* Movies */}
             <div>
               <label className="block text-white/80 mb-2">Movie(s) that never get old</label>
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-2 mb-3 w-full">
                 <AutocompleteInput
                   value={movieInput}
                   onChange={e => setMovieInput(e.target.value)}
@@ -1092,7 +1084,7 @@ export default function UserIntent() {
                   onSelect={addMovie}
                   placeholder="e.g. The Godfather"
                   searchFn={searchMovies}
-                  className="flex-1 rounded-xl p-3 text-base"
+                  className="flex-1 min-w-0 rounded-xl p-3 text-base"
                   style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
                 />
                 <button
@@ -1102,7 +1094,7 @@ export default function UserIntent() {
                     addMovie();
                   }}
                   disabled={!movieInput.trim()}
-                  className="px-5 py-3 rounded-xl font-medium text-sm"
+                  className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
                   style={movieInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
                 >
                   Add
@@ -1157,7 +1149,7 @@ export default function UserIntent() {
       case 8:
         return (
           <>
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-3 w-full">
               <AutocompleteInput
                 value={watchInput}
                 onChange={e => setWatchInput(e.target.value)}
@@ -1170,7 +1162,7 @@ export default function UserIntent() {
                 onSelect={addWatchItem}
                 placeholder="e.g. The Bear, Succession, Oppenheimer"
                 searchFn={searchMoviesAndShows}
-                className="flex-1 rounded-xl p-3 text-base"
+                className="flex-1 min-w-0 rounded-xl p-3 text-base"
                 style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               />
               <button
@@ -1180,7 +1172,7 @@ export default function UserIntent() {
                   addWatchItem();
                 }}
                 disabled={!watchInput.trim()}
-                className="px-5 py-3 rounded-xl font-medium text-sm"
+                className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
                 style={watchInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
               >
                 Add
@@ -1234,7 +1226,7 @@ export default function UserIntent() {
       case 9:
         return (
           <>
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-3 w-full">
               <AutocompleteInput
                 value={artistBandInput}
                 onChange={e => setArtistBandInput(e.target.value)}
@@ -1247,7 +1239,7 @@ export default function UserIntent() {
                 onSelect={addArtistBand}
                 placeholder="Add an artist/band..."
                 searchFn={searchArtists}
-                className="flex-1 rounded-xl p-3 text-base"
+                className="flex-1 min-w-0 rounded-xl p-3 text-base"
                 style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               />
               <button
@@ -1257,7 +1249,7 @@ export default function UserIntent() {
                   addArtistBand();
                 }}
                 disabled={!artistBandInput.trim()}
-                className="px-5 py-3 rounded-xl font-medium text-sm"
+                className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
                 style={artistBandInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
               >
                 Add
