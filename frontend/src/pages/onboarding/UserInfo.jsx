@@ -8,6 +8,9 @@ import backgroundImage from '/bgs/bg-1.png'; // Adjust path if the image is in a
 import { authAPI, userAPI, uploadAPI } from '../../utils/api';
 import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
 import LocationMapPicker from '../../components/LocationMapPicker';
+import { useAutocomplete } from '../../hooks/useAutocomplete';
+import AutocompleteDropdown from '../../components/AutocompleteDropdown';
+import jobTitlesData from '../../data/job-titles.json';
 import {
   formatLocationLabel,
   getCurrentLocationDetails,
@@ -123,20 +126,28 @@ export default function UserInfo() {
 
 
   // Face verification reference photo step state
+  const [jobTitle, setJobTitle] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [faceVerificationPic, setFaceVerificationPic] = useState(null);
   const [faceVerificationUrl, setFaceVerificationUrl] = useState("");
   const [uploadingPic, setUploadingPic] = useState(false);
   const [picError, setPicError] = useState("");
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [showPhotoOptionsModal, setShowPhotoOptionsModal] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const photoInputRef = useRef(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [autoGeolocationAttempted, setAutoGeolocationAttempted] = useState(false);
   const [showLocationPermissionPrompt, setShowLocationPermissionPrompt] = useState(false);
   const [permissionPromptShown, setPermissionPromptShown] = useState(false);
 
   const navigate = useNavigate();
+
+  // ✅ Autocomplete hooks for job title and company name
+  const jobTitleAutocomplete = useAutocomplete('jobTitle', jobTitlesData.jobTitles);
+  const companyNameAutocomplete = useAutocomplete('company');
 
   // Load existing profile data and saved onboarding state
   useEffect(() => {
@@ -161,6 +172,8 @@ export default function UserInfo() {
         if (savedState.gender) setGender(savedState.gender);
         if (savedState.customGender) setCustomGender(savedState.customGender);
         if (savedState.dob) setDob(savedState.dob);
+        if (savedState.jobTitle) setJobTitle(savedState.jobTitle);
+        if (savedState.companyName) setCompanyName(savedState.companyName);
         if (savedState.currentLocation) setCurrentLocation(savedState.currentLocation);
         if (savedState.currentLocationMeta) setCurrentLocationMeta(savedState.currentLocationMeta);
         if (savedState.fromLocation) setFromLocation(savedState.fromLocation);
@@ -193,6 +206,8 @@ export default function UserInfo() {
         if (userData.fromLocation && !savedState?.fromLocation) setFromLocation(userData.fromLocation);
         if (userData.favouriteTravelDestination && !savedState?.favouriteTravelDestination) setFavouriteTravelDestination(userData.favouriteTravelDestination);
 
+        if (userData.intent?.profileQuestions?.jobTitle && !savedState?.jobTitle) setJobTitle(userData.intent.profileQuestions.jobTitle);
+        if (userData.intent?.profileQuestions?.companyName && !savedState?.companyName) setCompanyName(userData.intent.profileQuestions.companyName);
         if (userData.faceVerificationUrl && !savedState?.faceVerificationUrl) setFaceVerificationUrl(userData.faceVerificationUrl);
       } catch (err) {
         console.error('[UserInfo] Failed to load profile from backend (continuing with localStorage):', err);
@@ -485,12 +500,13 @@ export default function UserInfo() {
       gender,
       customGender,
       dob,
+      jobTitle,
+      companyName,
       currentLocation,
       currentLocationMeta,
       fromLocation,
       fromLocationMeta,
       favouriteTravelDestination,
-
       faceVerificationUrl,
     };
     console.log('[UserInfo] Auto-saving state:', {
@@ -504,7 +520,7 @@ export default function UserInfo() {
       hasData: !!firstName || !!lastName
     });
     saveOnboardingState(STORAGE_KEYS.USER_INFO, state);
-  }, [initialLoading, step, firstName, lastName, gender, customGender, dob, currentLocation, currentLocationMeta, fromLocation, fromLocationMeta, favouriteTravelDestination, faceVerificationUrl]);
+  }, [initialLoading, step, firstName, lastName, gender, customGender, dob, jobTitle, companyName, currentLocation, currentLocationMeta, fromLocation, fromLocationMeta, favouriteTravelDestination, faceVerificationUrl]);
 
   // Adjust pickerDay if month/year changes and the day becomes invalid
   const updatePickerDayBasedOnMonthYear = useCallback((year, month, day) => {
@@ -516,11 +532,11 @@ export default function UserInfo() {
   }, []);
 
   // Total logical steps for the progress bar
-  const totalSteps = 7;
+  const totalSteps = 8;
   const progress = (step / totalSteps) * 100;
 
   const handleNext = async () => {
-    if (step === 7 && faceVerificationUrl) {
+    if (step === 8 && faceVerificationUrl) {
       // Save user info to backend (including faceVerificationUrl for verification)
       try {
         await userAPI.saveProfile({
@@ -537,6 +553,12 @@ export default function UserInfo() {
           longitude: currentLocationMeta?.longitude ?? null,
           favouriteTravelDestination,
           faceVerificationUrl, // Stored for later face matching verification
+          intent: {
+            profileQuestions: {
+              jobTitle,
+              companyName
+            }
+          }
         });
         // Clear saved onboarding state on successful completion
         clearOnboardingState(STORAGE_KEYS.USER_INFO);
@@ -643,9 +665,10 @@ export default function UserInfo() {
     }
     return age >= 30;
   }, [dob]);
-  const isStepFourValid = currentLocation.trim();
-  const isStepFiveValid = fromLocation.trim();
-  const isStepSevenValid = !!faceVerificationUrl;
+  const isStepFourValid = jobTitle.trim() && companyName.trim();
+  const isStepFiveValid = currentLocation.trim();
+  const isStepSixValid = fromLocation.trim();
+  const isStepEightValid = !!faceVerificationUrl;
 
   const getNextButtonDisabled = () => {
     switch (step) {
@@ -654,8 +677,9 @@ export default function UserInfo() {
       case 3: return !isStepThreeValid;
       case 4: return !isStepFourValid;
       case 5: return !isStepFiveValid;
-      case 6: return false; // Travel Destinations are skippable
-      case 7: return !isStepSevenValid;
+      case 6: return !isStepSixValid;
+      case 7: return false; // Travel Destinations are skippable
+      case 8: return !isStepEightValid;
       default: return true;
     }
   };
@@ -723,11 +747,29 @@ export default function UserInfo() {
     try {
       const result = await uploadAPI.uploadFacePhoto(file);
       setFaceVerificationUrl(result.url);
+      setShowPhotoOptionsModal(false);
     } catch (err) {
       setPicError("Failed to upload image. Please try again.");
     } finally {
       setUploadingPic(false);
     }
+  };
+
+  // Trigger gallery/camera options modal
+  const handleOpenPhotoOptions = () => {
+    setShowPhotoOptionsModal(true);
+  };
+
+  // Trigger file input for gallery upload
+  const triggerGalleryUpload = () => {
+    photoInputRef.current?.click();
+  };
+
+  // Handle camera selection
+  const handleSelectCamera = () => {
+    setShowPhotoOptionsModal(false);
+    setPicError("");
+    setShowCameraModal(true);
   };
 
   return (
@@ -988,8 +1030,179 @@ export default function UserInfo() {
             </div>
           )}
 
-          {/* Step 4: Current Location Details */}
+          {/* Step 4: Profession Details */}
           {step === 4 && (
+            <div className="flex flex-col flex-grow ml-4">
+              <h1 className="text-xl font-semibold mb-6 text-white drop-shadow-md">What’s your profession and 
+where do you work?</h1>
+              <label htmlFor="jobTitle" className="text-sm font-medium text-white/90 mb-1">Job Title</label>
+              <div className="relative mb-6">
+                <input
+                  type="text"
+                  id="jobTitle"
+                  placeholder="e.g., Senior Software Engineer"
+                  value={jobTitleAutocomplete.query || jobTitle}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    jobTitleAutocomplete.handleInputChange(value);
+                    setJobTitle(value);
+                  }}
+                  onKeyDown={jobTitleAutocomplete.handleKeyDown}
+                  onFocus={() => jobTitleAutocomplete.setIsOpen(true)}
+                  className={`w-full px-4 py-3 border rounded-xl text-sm transition ${INPUT_GLASS}`}
+                />
+                {jobTitle && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJobTitle('');
+                      jobTitleAutocomplete.setQuery('');
+                      jobTitleAutocomplete.setSuggestions([]);
+                    }}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white"
+                  >
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
+                
+                {/* Job Title Suggestions Dropdown */}
+                {jobTitleAutocomplete.isOpen && jobTitleAutocomplete.suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-black/80 backdrop-blur-md border border-white/20 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+                    <ul className="py-2">
+                      {jobTitleAutocomplete.suggestions.map((suggestion, index) => (
+                        <li key={index}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setJobTitle(suggestion);
+                              jobTitleAutocomplete.handleSelect(suggestion);
+                            }}
+                            className={`w-full px-4 py-2 text-left transition-colors text-sm ${
+                              index === jobTitleAutocomplete.selectedIndex
+                                ? 'bg-white/20'
+                                : 'hover:bg-white/10'
+                            }`}
+                          >
+                            <span className="text-white">
+                              {suggestion
+                                .split(new RegExp(`(${jobTitleAutocomplete.query})`, 'gi'))
+                                .map((part, i) =>
+                                  part.toLowerCase() === jobTitleAutocomplete.query.toLowerCase() ? (
+                                    <strong key={i} className="text-white font-bold">{part}</strong>
+                                  ) : (
+                                    part
+                                  )
+                                )}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              <label htmlFor="companyName" className="text-sm font-medium text-white/90 mb-1">Company Name</label>
+              <div className="relative mb-auto">
+                <input
+                  type="text"
+                  id="companyName"
+                  placeholder="e.g., Google, Microsoft"
+                  value={companyNameAutocomplete.query || companyName}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    companyNameAutocomplete.handleInputChange(value);
+                    setCompanyName(value);
+                  }}
+                  onKeyDown={companyNameAutocomplete.handleKeyDown}
+                  onFocus={() => companyNameAutocomplete.setIsOpen(true)}
+                  className={`w-full px-4 py-3 border rounded-xl text-sm transition ${INPUT_GLASS}`}
+                />
+                {companyName && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompanyName('');
+                      companyNameAutocomplete.setQuery('');
+                      companyNameAutocomplete.setSuggestions([]);
+                    }}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white"
+                  >
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
+
+                {/* Company Suggestions Dropdown */}
+                {companyNameAutocomplete.isOpen && companyNameAutocomplete.suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-black/80 backdrop-blur-md border border-white/20 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+                    {companyNameAutocomplete.loading && (
+                      <div className="px-4 py-3 text-white/60 text-sm text-center">Loading...</div>
+                    )}
+                    {!companyNameAutocomplete.loading && (
+                      <ul className="py-2">
+                        {companyNameAutocomplete.suggestions.map((suggestion, index) => (
+                          <li key={index}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCompanyName(suggestion.name);
+                                companyNameAutocomplete.handleSelect(suggestion);
+                              }}
+                              className={`w-full px-4 py-2 text-left transition-colors text-sm flex items-center gap-3 ${
+                                index === companyNameAutocomplete.selectedIndex
+                                  ? 'bg-white/20'
+                                  : 'hover:bg-white/10'
+                              }`}
+                            >
+                              {suggestion.logo && (
+                                <img
+                                  src={suggestion.logo}
+                                  alt={suggestion.name}
+                                  className="w-5 h-5 rounded"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                  }}
+                                />
+                              )}
+                              <div className="flex-1">
+                                <div className="text-white font-medium">
+                                  {suggestion.name
+                                    .split(new RegExp(`(${companyNameAutocomplete.query})`, 'gi'))
+                                    .map((part, i) =>
+                                      part.toLowerCase() === companyNameAutocomplete.query.toLowerCase() ? (
+                                        <strong key={i} className="text-white font-bold">{part}</strong>
+                                      ) : (
+                                        part
+                                      )
+                                    )}
+                                </div>
+                                <div className="text-white/50 text-xs">{suggestion.location}</div>
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    
+                  </div>
+                )}
+              </div>
+              <button
+                disabled={getNextButtonDisabled()}
+                onClick={handleNext}
+                className={`w-full py-4 rounded-[9999px] font-medium text-lg transition ${getNextButtonDisabled() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE
+                  }`}
+              >
+                {getNextButtonText()}
+              </button>
+            </div>
+          )}
+
+          {/* Step 5: Current Location Details */}
+          {step === 5 && (
             <div className="flex flex-col flex-grow">
               <h1 className="text-xl font-semibold mb-4 text-white drop-shadow-md">Where are you living currently?</h1>
               <p className="text-sm text-white/70 mb-6">This will help users see which city you are currently living in so they can connect accordingly.</p>
@@ -1086,8 +1299,8 @@ export default function UserInfo() {
             </div>
           )}
 
-          {/* Step 5: From Location (Origin) Details */}
-          {step === 5 && (
+          {/* Step 6: From Location (Origin) Details */}
+          {step === 6 && (
             <div className="flex flex-col flex-grow">
               <h1 className="text-xl font-semibold mb-4 text-white drop-shadow-md">Where are you originally from?</h1>
               <p className="text-sm text-white/70 mb-6">This helps users know your hometown or origin so they can find common connections.</p>
@@ -1184,8 +1397,8 @@ export default function UserInfo() {
             </div>
           )}
 
-          {/* Step 6: Favourite Travel Destination - ✅ SWAPPED: Now tag input with 3+ items */}
-          {step === 6 && (
+          {/* Step 7: Favourite Travel Destination - ✅ SWAPPED: Now tag input with 3+ items */}
+          {step === 7 && (
             <div className="flex flex-col flex-grow">
               <h1 className="text-xl font-semibold mb-4 text-white drop-shadow-md">What are your three favourite travel destinations?</h1>
               <p className="text-sm mb-6 text-white/70">
@@ -1301,16 +1514,16 @@ export default function UserInfo() {
 
 
 
-          {/* Step 7: Face Verification Reference Photo */}
-          {step === 7 && (
+          {/* Step 8: Face Verification Reference Photo */}
+          {step === 8 && (
             <div className="flex flex-col flex-grow items-center">
               <h1 className="text-xl font-semibold mb-2 text-white drop-shadow-md">Face Verification - Step 1</h1>
               <p className="text-sm text-white/70 mb-6 text-center">Upload a clear photo of your face for verification.</p>
 
               <div className="flex flex-col items-center mb-auto">
                 <div
-                  className="w-36 h-36 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center overflow-hidden mb-4 border-4 border-white/50 relative cursor-pointer shadow-xl transition"
-                  onClick={() => setShowCameraModal(true)}
+                  className="w-36 h-36 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center overflow-hidden mb-4 border-4 border-white/50 relative cursor-pointer shadow-xl transition hover:bg-white/30"
+                  onClick={handleOpenPhotoOptions}
                 >
                   {faceVerificationUrl ? (
                     <img src={faceVerificationUrl} alt="Face Verification Preview" className="object-cover w-full h-full" />
@@ -1353,6 +1566,48 @@ export default function UserInfo() {
           initialPosition={mapPickerField === 'from' ? fromLocationMeta : currentLocationMeta}
           onClose={() => setMapPickerField(null)}
           onConfirm={handleMapLocationConfirm}
+        />
+
+        {/* Photo options modal - Camera only */}
+        {showPhotoOptionsModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-black/60 backdrop-blur-xl overflow-hidden">
+              <div className="px-4 py-4">
+                <h2 className="text-white font-semibold text-center mb-4">Upload Profile Photo</h2>
+                <div className="flex flex-col gap-3">
+                  {/* Camera Option */}
+                  <button
+                    onClick={handleSelectCamera}
+                    className="w-full py-4 rounded-xl bg-white/20 hover:bg-white/30 border border-white/30 text-white font-medium transition flex items-center justify-center gap-2"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                      <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    Camera
+                  </button>
+
+                  {/* Cancel Option */}
+                  <button
+                    onClick={() => setShowPhotoOptionsModal(false)}
+                    className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium transition text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hidden file input for gallery upload */}
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handlePicInput}
+          className="hidden"
+          capture="environment"
         />
 
         {/* Face verification camera modal */}

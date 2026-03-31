@@ -325,7 +325,7 @@ export default function UserProfileInfo() {
                                     {user.intent?.profileQuestions?.jobTitle || 'Not specified'}
                                 </p>
                                 <p className="font-['Poppins'] text-[11.908px] leading-[1.5] text-white">
-                                    {user.currentLocation || user.location || 'Location not specified'}
+                                    {user.intent?.profileQuestions?.companyName || 'Not specified'}
                                 </p>
                             </div>
                         </div>

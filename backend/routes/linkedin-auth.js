@@ -61,9 +61,25 @@ router.get('/linkedin/debug', (req, res) => {
 /**
  * GET /auth/linkedin
  * Initiates LinkedIn OAuth flow by redirecting to LinkedIn's consent screen
+ * Expects: ?user_id=<userId> or uses Authorization header
  */
 router.get('/linkedin', (req, res) => {
     try {
+        // Extract user ID from query param or JWT token
+        const userIdFromQuery = req.query.user_id;
+        const authHeader = req.headers.authorization;
+        let userId = userIdFromQuery;
+        
+        if (!userId && authHeader) {
+            try {
+                const token = authHeader.replace('Bearer ', '');
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+                userId = decoded.userId;
+            } catch (err) {
+                console.warn('⚠️  Could not extract user ID from token:', err.message);
+            }
+        }
+        
         // Validate required environment variables
         const clientId = process.env.LINKEDIN_CLIENT_ID;
         const callbackUrl = process.env.LINKEDIN_CALLBACK_URL;
@@ -86,8 +102,10 @@ router.get('/linkedin', (req, res) => {
             });
         }
 
-        // Generate state parameter for CSRF protection
-        const state = crypto.randomBytes(32).toString('hex');
+        // Generate state parameter for CSRF protection AND user identification
+        // Format: <userId>:<randomString> (so we know which authenticated user initiated this)
+        const randomState = crypto.randomBytes(16).toString('hex');
+        const state = userId ? `${userId}:${randomState}` : randomState;
         
         // Build authorization URL
         const params = new URLSearchParams({
@@ -138,6 +156,14 @@ router.get('/linkedin/callback', async (req, res) => {
         if (!code) {
             console.error('❌ No authorization code received');
             return res.redirect(`${frontendUrl}/social-presence?error=linkedin_no_code`);
+        }
+        
+        // Extract user ID from state parameter (format: <userId>:<randomString>)
+        let userIdFromState = null;
+        if (state && state.includes(':')) {
+            const stateParts = state.split(':');
+            userIdFromState = stateParts[0];
+            console.log('📍 User ID from state parameter:', userIdFromState);
         }
         
         // Prevent authorization code reuse (security)
@@ -219,41 +245,48 @@ router.get('/linkedin/callback', async (req, res) => {
         if (linkedinProfile.sub) {
             const linkedinCheck = await AccountUniquenessService.checkLinkedinIdExists(linkedinProfile.sub);
             
-            if (linkedinCheck.exists) {
-                // Check if it's the same user (by email)
-                const emailCheck = await AccountUniquenessService.checkEmailExists(linkedinProfile.email);
-                
-                // LinkedIn ID exists for a different user
-                if (!emailCheck.exists || (emailCheck.exists && emailCheck.user.id !== linkedinCheck.user.id)) {
-                    console.error('❌ LinkedIn ID already linked to different account');
-                    return res.redirect(`${frontendUrl}/social-presence?error=linkedin_already_linked`);
-                }
+            if (linkedinCheck.exists && linkedinCheck.user.id !== userIdFromState) {
+                console.error('❌ LinkedIn ID already linked to different account');
+                return res.redirect(`${frontendUrl}/social-presence?error=linkedin_already_linked`);
             }
         }
         
-        // Find or create user in database
+        // KEY FIX: Only store linkedin_id, never overwrite user's email
         let userId;
-        const emailCheck = await AccountUniquenessService.checkEmailExists(linkedinProfile.email);
         
-        if (emailCheck.exists) {
-            // UPDATE existing user with LinkedIn credentials
-            userId = emailCheck.user.id;
+        if (userIdFromState) {
+            // User was authenticated when they initiated LinkedIn verification
+            userId = userIdFromState;
             
+            // Just link the LinkedIn ID to the existing user - DON'T change their email
             await pool.execute(
                 'UPDATE users SET linkedin_id = ?, linkedin_verified = TRUE WHERE id = ?',
                 [linkedinProfile.sub || '', userId]
             );
             
-            console.log('✅ Updated existing user with LinkedIn:', userId);
+            console.log('✅ Linked LinkedIn to existing authenticated user:', userId);
         } else {
-            // CREATE new user with LinkedIn credentials
-            const [result] = await pool.execute(
-                'INSERT INTO users (email, linkedin_id, linkedin_verified, approval, onboarding_complete) VALUES (?, ?, TRUE, FALSE, FALSE)',
-                [linkedinProfile.email, linkedinProfile.sub || '']
-            );
+            // Fallback (should rarely happen): Try to find user by LinkedIn email, but don't change it
+            const emailCheck = await AccountUniquenessService.checkEmailExists(linkedinProfile.email);
             
-            userId = result.insertId;
-            console.log('✅ Created new user with LinkedIn:', userId);
+            if (emailCheck.exists) {
+                // User with this LinkedIn email exists, just link the LinkedIn ID
+                userId = emailCheck.user.id;
+                await pool.execute(
+                    'UPDATE users SET linkedin_id = ?, linkedin_verified = TRUE WHERE id = ?',
+                    [linkedinProfile.sub || '', userId]
+                );
+                console.log('✅ Linked LinkedIn to user with matching email:', userId);
+            } else {
+                // Create NEW user with placeholder email (will be set during onboarding)
+                const tempEmail = `linkedin_${linkedinProfile.sub || Date.now()}@luyona.app`;
+                const [result] = await pool.execute(
+                    'INSERT INTO users (email, linkedin_id, linkedin_verified, approval, onboarding_complete) VALUES (?, ?, TRUE, FALSE, FALSE)',
+                    [tempEmail, linkedinProfile.sub || '']
+                );
+                userId = result.insertId;
+                console.log('✅ Created new user with placeholder email:', userId);
+            }
         }
         
         // Get full user status for frontend routing
@@ -265,11 +298,13 @@ router.get('/linkedin/callback', async (req, res) => {
             AccountUniquenessService.getUserStatus(userRows[0]) : 
             { userId, redirectPath: '/dashboard' };
         
-        // Generate JWT token for authentication
+        const userEmail = userRows.length > 0 ? userRows[0].email : linkedinProfile.email;
+        
+        // Generate JWT token for authentication (use user's email, NOT LinkedIn email)
         const token = jwt.sign(
             {
                 userId: userId,
-                email: linkedinProfile.email,
+                email: userEmail,
                 linkedinVerified: true
             },
             process.env.JWT_SECRET || 'your-secret-key',

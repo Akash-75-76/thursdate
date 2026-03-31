@@ -27,10 +27,10 @@ class ProfileLevelService {
     static FIELD_GROUPS = {
         LEVEL_1: [
             'gender', 'dob', 'age', 'currentLocation', 'location', 'fromLocation', 'name',
-            'interests', 'intent', 'relationshipStatus', 'profilePicUrl', 'firstName', 'lastName', 'height'
+            'interests', 'intent', 'relationshipStatus', 'profilePicUrl', 'firstName', 'lastName', 'fitnessLevel'
         ],
         LEVEL_2: [
-            'pets', 'drinking', 'smoking',
+            'height', 'pets', 'drinking', 'smoking',
             'foodPreference'
         ],
         LEVEL_3: [

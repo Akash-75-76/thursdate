@@ -42,12 +42,12 @@ export default function Verification() {
     setError("");
 
     try {
-      const response = await fetch(`${API_URL}/auth/send-otp`, {
+      const response = await fetch(`${API_URL}/phone-auth/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ mobileNumber }),
+        body: JSON.stringify({ phoneNumber: mobileNumber, otpType: 'signup' }),
       });
 
       const data = await response.json();
@@ -80,12 +80,12 @@ export default function Verification() {
     setError("");
 
     try {
-      const response = await fetch(`${API_URL}/auth/verify-otp`, {
+      const response = await fetch(`${API_URL}/phone-auth/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ mobileNumber, otp }),
+        body: JSON.stringify({ phoneNumber: mobileNumber, otp }),
       });
 
       const data = await response.json();

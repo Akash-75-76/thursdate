@@ -78,19 +78,26 @@ export default function UserIntent() {
   const [watchInput, setWatchInput] = useState('');
   const [artistsBands, setArtistsBands] = useState([]); // Step 9
   const [artistBandInput, setArtistBandInput] = useState('');
-  const [profileImageUrl, setProfileImageUrl] = useState(null); // Step 11
+  const [fitnessLevel, setFitnessLevel] = useState(''); // Step 10
+  const [profileImageUrl, setProfileImageUrl] = useState(null); // Step 12
   const [profileImgUploading, setProfileImgUploading] = useState(false);
   const [profileImgError, setProfileImgError] = useState('');
-  const [lifestyleImageUrls, setLifestyleImageUrls] = useState([null, null, null, null, null]); // Step 13
-  const [height, setHeight] = useState('175'); // Step 13 - default to 175cm
+  const [showProfilePhotoOptions, setShowProfilePhotoOptions] = useState(false);
+  const [showProfileCameraModal, setShowProfileCameraModal] = useState(false);
+  const [profileCameraError, setProfileCameraError] = useState('');
+  const profilePhotoInputRef = useRef(null);
+  const profileVideoRef = useRef(null);
+  const profileCanvasRef = useRef(null);
+  const [lifestyleImageUrls, setLifestyleImageUrls] = useState([null, null, null, null, null]); // Step 12
   const [imgUploading, setImgUploading] = useState(false);
   const [imgError, setImgError] = useState('');
-
-  // ✅ Height slider state
-  const heightMinCm = 140;
-  const heightMaxCm = 220;
-  const [activeHeightThumb, setActiveHeightThumb] = useState(null);
-  const heightSliderRef = useRef(null);
+  const [showLifestylePhotoOptions, setShowLifestylePhotoOptions] = useState(false);
+  const [showLifestyleImageCameraModal, setShowLifestyleImageCameraModal] = useState(false);
+  const [lifestyleImageCameraError, setLifestyleImageCameraError] = useState('');
+  const [lifestyleImageCameraIdx, setLifestyleImageCameraIdx] = useState(null);
+  const lifestyleImageInputRef = useRef(null);
+  const lifestyleImageVideoRef = useRef(null);
+  const lifestyleImageCanvasRef = useRef(null);
 
   // Lifestyle image crop state
   const [cropOpen, setCropOpen] = useState(false);
@@ -102,6 +109,34 @@ export default function UserIntent() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [cropSubmitting, setCropSubmitting] = useState(false);
   const [cropError, setCropError] = useState('');
+
+  // Profile photo editing state
+  const [isEditingProfilePhoto, setIsEditingProfilePhoto] = useState(false);
+  const [profilePhotoCropSrc, setProfilePhotoCropSrc] = useState(null);
+  const [profilePhotoCrop, setProfilePhotoCrop] = useState({ x: 0, y: 0 });
+  const [profilePhotoZoom, setProfilePhotoZoom] = useState(1);
+  const [profilePhotoCroppedAreaPixels, setProfilePhotoCroppedAreaPixels] = useState(null);
+  const [profilePhotoCropSubmitting, setProfilePhotoCropSubmitting] = useState(false);
+  const [profilePhotoCropError, setProfilePhotoCropError] = useState('');
+  const profilePhotoCropperRef = useRef(null);
+
+  // Lifestyle photo editing state
+  const [isEditingLifestylePhoto, setIsEditingLifestylePhoto] = useState(false);
+  const [lifestylePhotoEditIdx, setLifestylePhotoEditIdx] = useState(null);
+  const [lifestylePhotoCropSrc, setLifestylePhotoCropSrc] = useState(null);
+  const [lifestylePhotoCrop, setLifestylePhotoCrop] = useState({ x: 0, y: 0 });
+  const [lifestylePhotoZoom, setLifestylePhotoZoom] = useState(1);
+  const [lifestylePhotoCroppedAreaPixels, setLifestylePhotoCroppedAreaPixels] = useState(null);
+  const [lifestylePhotoCropSubmitting, setLifestylePhotoCropSubmitting] = useState(false);
+  const [lifestylePhotoCropError, setLifestylePhotoCropError] = useState('');
+  const lifestylePhotoCropperRef = useRef(null);
+
+  // Confirmation modals
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmType, setDeleteConfirmType] = useState(null); // 'profile' | 'lifestyle'
+  const [deleteConfirmIdx, setDeleteConfirmIdx] = useState(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [discardConfirmType, setDiscardConfirmType] = useState(null); // 'profile' | 'lifestyle'
 
   // Age limits
   const minAge = 30;
@@ -134,6 +169,7 @@ export default function UserIntent() {
             setMovies(userData.intent.movies || []);
             setWatchList(userData.intent.watchList || []);
             setArtistsBands(userData.intent.artistsBands || []);
+            setFitnessLevel(userData.intent.fitnessLevel || '');  // ✅ Load fitness level
             setLifestyleImageUrls(userData.intent.lifestyleImageUrls || [null, null, null, null, null]);
           }
         }
@@ -153,6 +189,7 @@ export default function UserIntent() {
           if (savedState.movies) setMovies(savedState.movies);
           if (savedState.watchList) setWatchList(savedState.watchList);
           if (savedState.artistsBands) setArtistsBands(savedState.artistsBands);
+          if (savedState.fitnessLevel) setFitnessLevel(savedState.fitnessLevel);  // ✅ Load fitness level from localStorage
           if (savedState.profileImageUrl) setProfileImageUrl(savedState.profileImageUrl);
           if (savedState.lifestyleImageUrls) setLifestyleImageUrls(savedState.lifestyleImageUrls);
         }
@@ -276,12 +313,13 @@ export default function UserIntent() {
       movies,
       watchList,
       artistsBands,
+      fitnessLevel,  // ✅ Save fitness level
       profileImageUrl,
       lifestyleImageUrls,
     };
     console.log('[UserIntent] Auto-saving state:', { step, hasData: !!purpose || interests.length > 0 });
     saveOnboardingState(STORAGE_KEYS.USER_INTENT, state);
-  }, [initialLoading, step, purpose, relationshipVibe, interestedGender, ageRange, bio, interests, tvShows, movies, watchList, artistsBands, profileImageUrl, lifestyleImageUrls]);
+  }, [initialLoading, step, purpose, relationshipVibe, interestedGender, ageRange, bio, interests, tvShows, movies, watchList, artistsBands, fitnessLevel, profileImageUrl, lifestyleImageUrls]);
 
   useEffect(() => {
     if (bioMode !== 'Listen' && listening) {
@@ -511,7 +549,256 @@ export default function UserIntent() {
     }
   }, []);
 
-  // Lifestyle image upload
+  // Trigger profile photo options modal
+  const handleOpenProfilePhotoOptions = () => {
+    setShowProfilePhotoOptions(true);
+  };
+
+  // Trigger file input for gallery upload
+  const triggerProfileGalleryUpload = () => {
+    profilePhotoInputRef.current?.click();
+  };
+
+  // Stop camera feed
+  const stopProfileCamera = useCallback(() => {
+    const video = profileVideoRef.current;
+    if (video && video.srcObject) {
+      const tracks = video.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      video.srcObject = null;
+    }
+  }, []);
+
+  // Camera setup effect
+  useEffect(() => {
+    if (!showProfileCameraModal) {
+      stopProfileCamera();
+      return;
+    }
+
+    setProfileCameraError('');
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setProfileCameraError('Camera not supported on this device/browser.');
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        const video = profileVideoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play().catch(() => { });
+        } else {
+          stream.getTracks().forEach(t => t.stop());
+        }
+      } catch (err) {
+        console.error('Profile camera error:', err);
+        setProfileCameraError('Could not access camera. Please check permissions and try again.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stopProfileCamera();
+    };
+  }, [showProfileCameraModal, stopProfileCamera]);
+
+  // Capture photo from camera for profile
+  const handleCaptureProfilePhoto = async () => {
+    setProfileImgError('');
+
+    const video = profileVideoRef.current;
+    const canvas = profileCanvasRef.current;
+
+    if (!video || !canvas) {
+      setProfileImgError('Camera not ready. Please try again.');
+      return;
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+      setProfileImgError('Camera not ready. Please wait a moment and try again.');
+      return;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setProfileImgError('Could not process image. Please try again.');
+      return;
+    }
+
+    ctx.drawImage(video, 0, 0, width, height);
+
+    setProfileImgUploading(true);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        setProfileImgUploading(false);
+        setProfileImgError('Could not capture image. Please try again.');
+        return;
+      }
+
+      try {
+        // Create preview URL immediately from blob
+        const previewUrl = URL.createObjectURL(blob);
+        setProfileImageUrl(previewUrl);
+
+        const file = new File([blob], 'profile-photo.jpg', { type: 'image/jpeg' });
+        console.log('[UserIntent] Uploading profile photo from camera, file size:', file.size);
+        
+        try {
+          const result = await uploadAPI.uploadProfilePicture(file);
+          console.log('[UserIntent] Profile photo uploaded successfully:', result);
+          
+          // Update with final URL from server
+          setProfileImageUrl(result.url);
+        } catch (uploadErr) {
+          console.error('[UserIntent] Server upload failed:', uploadErr.message);
+          // Keep the preview if server upload fails - user can still see the photo
+          console.log('[UserIntent] Keeping preview URL as fallback');
+        }
+        
+        setShowProfileCameraModal(false);
+      } catch (err) {
+        console.error('[UserIntent] Profile photo capture error:', err);
+        setProfileImgError(err.message || 'Failed to process image. Please try again.');
+      } finally {
+        setProfileImgUploading(false);
+      }
+    }, 'image/jpeg', 0.85);
+  };
+
+  // Stop lifestyle image camera feed
+  const stopLifestyleImageCamera = useCallback(() => {
+    const video = lifestyleImageVideoRef.current;
+    if (video && video.srcObject) {
+      const tracks = video.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      video.srcObject = null;
+    }
+  }, []);
+
+  // Lifestyle image camera setup effect
+  useEffect(() => {
+    if (!showLifestyleImageCameraModal) {
+      stopLifestyleImageCamera();
+      return;
+    }
+
+    setLifestyleImageCameraError('');
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setLifestyleImageCameraError('Camera not supported on this device/browser.');
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        const video = lifestyleImageVideoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play().catch(() => { });
+        } else {
+          stream.getTracks().forEach(t => t.stop());
+        }
+      } catch (err) {
+        console.error('Lifestyle image camera error:', err);
+        setLifestyleImageCameraError('Could not access camera. Please check permissions and try again.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stopLifestyleImageCamera();
+    };
+  }, [showLifestyleImageCameraModal, stopLifestyleImageCamera]);
+
+  // Capture photo from camera for lifestyle image
+  const handleCaptureLifestylePhoto = async () => {
+    setImgError('');
+
+    const video = lifestyleImageVideoRef.current;
+    const canvas = lifestyleImageCanvasRef.current;
+
+    if (!video || !canvas) {
+      setImgError('Camera not ready. Please try again.');
+      return;
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+      setImgError('Camera not ready. Please wait a moment and try again.');
+      return;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setImgError('Could not process image. Please try again.');
+      return;
+    }
+
+    ctx.drawImage(video, 0, 0, width, height);
+
+    setImgUploading(true);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        setImgUploading(false);
+        setImgError('Could not capture image. Please try again.');
+        return;
+      }
+
+      try {
+        // Create file from blob and upload directly
+        const file = new File([blob], `lifestyle-photo-${lifestyleImageCameraIdx || 0}.jpg`, {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+        
+        const idx = lifestyleImageCameraIdx !== null ? lifestyleImageCameraIdx : 0;
+        await uploadLifestyleImage(idx, file);
+        
+        // Close camera modal after successful upload
+        setShowLifestyleImageCameraModal(false);
+      } catch (err) {
+        console.error('[UserIntent] Lifestyle photo capture error:', err);
+        setImgError(err.message || 'Failed to process image. Please try again.');
+      } finally {
+        setImgUploading(false);
+      }
+    }, 'image/jpeg', 0.85);
+  };
   const uploadLifestyleImage = async (idx, file) => {
     if (!file) return;
     // Set a preview URL directly from the file object
@@ -554,6 +841,183 @@ export default function UserIntent() {
     });
   }, []);
 
+  // Profile photo editing handlers
+  const resetProfilePhotoCrop = useCallback(() => {
+    setIsEditingProfilePhoto(false);
+    setProfilePhotoCropError('');
+    setProfilePhotoCroppedAreaPixels(null);
+    setProfilePhotoCropSrc(null);
+    setProfilePhotoCrop({ x: 0, y: 0 });
+    setProfilePhotoZoom(1);
+  }, []);
+
+  const closeProfilePhotoCrop = useCallback(() => {
+    // Check if there are unsaved changes
+    if (profilePhotoCropSrc && profilePhotoCroppedAreaPixels) {
+      setDiscardConfirmType('profile');
+      setShowDiscardConfirm(true);
+    } else {
+      resetProfilePhotoCrop();
+    }
+  }, [profilePhotoCropSrc, profilePhotoCroppedAreaPixels, resetProfilePhotoCrop]);
+
+  const confirmDiscardProfilePhoto = useCallback(() => {
+    resetProfilePhotoCrop();
+    setShowDiscardConfirm(false);
+  }, [resetProfilePhotoCrop]);
+
+  const handleEditProfilePhoto = useCallback(() => {
+    if (!profileImageUrl) return;
+    setProfilePhotoCropSrc(profileImageUrl);
+    setIsEditingProfilePhoto(true);
+    setProfilePhotoCropError('');
+  }, [profileImageUrl]);
+
+  const handleSaveProfilePhotoCrop = useCallback(async () => {
+    if (!profilePhotoCropSrc || !profilePhotoCroppedAreaPixels) {
+      setProfilePhotoCropError('Please adjust the crop area.');
+      return;
+    }
+
+    setProfilePhotoCropSubmitting(true);
+    setProfilePhotoCropError('');
+    try {
+      const blob = await getCroppedBlob(profilePhotoCropSrc, profilePhotoCroppedAreaPixels, 'image/jpeg', 0.92);
+      const croppedFile = new File([blob], 'profile-photo-cropped.jpg', {
+        type: blob.type || 'image/jpeg',
+        lastModified: Date.now(),
+      });
+
+      // Create preview URL immediately
+      const previewUrl = URL.createObjectURL(blob);
+      setProfileImageUrl(previewUrl);
+
+      // Upload to backend
+      try {
+        const result = await uploadAPI.uploadProfilePicture(croppedFile);
+        console.log('[UserIntent] Profile photo updated successfully:', result);
+        setProfileImageUrl(result.url);
+      } catch (uploadErr) {
+        console.error('[UserIntent] Server upload failed:', uploadErr.message);
+      }
+
+      resetProfilePhotoCrop();
+    } catch (err) {
+      console.error('[UserIntent] Profile photo crop failed', err);
+      setProfilePhotoCropError(err?.message || 'Failed to crop image. Try again.');
+    } finally {
+      setProfilePhotoCropSubmitting(false);
+    }
+  }, [profilePhotoCropSrc, profilePhotoCroppedAreaPixels, resetProfilePhotoCrop]);
+
+  const handleDeleteProfilePhoto = useCallback(() => {
+    setDeleteConfirmType('profile');
+    setDeleteConfirmIdx(null);
+    setShowDeleteConfirm(true);
+  }, []);
+
+  const confirmDeleteProfilePhoto = useCallback(() => {
+    setProfileImageUrl(null);
+    setProfileImgError('');
+    setShowDeleteConfirm(false);
+  }, []);
+
+  // Lifestyle photo editing handlers
+  const resetLifestylePhotoCrop = useCallback(() => {
+    setIsEditingLifestylePhoto(false);
+    setLifestylePhotoCropError('');
+    setLifestylePhotoCroppedAreaPixels(null);
+    setLifestylePhotoCropSrc(null);
+    setLifestylePhotoEditIdx(null);
+    setLifestylePhotoCrop({ x: 0, y: 0 });
+    setLifestylePhotoZoom(1);
+  }, []);
+
+  const closeLifestylePhotoCrop = useCallback(() => {
+    // Check if there are unsaved changes
+    if (lifestylePhotoCropSrc && lifestylePhotoCroppedAreaPixels) {
+      setDiscardConfirmType('lifestyle');
+      setShowDiscardConfirm(true);
+    } else {
+      resetLifestylePhotoCrop();
+    }
+  }, [lifestylePhotoCropSrc, lifestylePhotoCroppedAreaPixels, resetLifestylePhotoCrop]);
+
+  const confirmDiscardLifestylePhoto = useCallback(() => {
+    resetLifestylePhotoCrop();
+    setShowDiscardConfirm(false);
+  }, [resetLifestylePhotoCrop]);
+
+  const handleEditLifestylePhoto = useCallback((idx) => {
+    if (!lifestyleImageUrls[idx]) return;
+    setLifestylePhotoEditIdx(idx);
+    setLifestylePhotoCropSrc(lifestyleImageUrls[idx]);
+    setIsEditingLifestylePhoto(true);
+    setLifestylePhotoCropError('');
+  }, [lifestyleImageUrls]);
+
+  const handleSaveLifestylePhotoCrop = useCallback(async () => {
+    if (lifestylePhotoEditIdx === null || !lifestylePhotoCropSrc || !lifestylePhotoCroppedAreaPixels) {
+      setLifestylePhotoCropError('Please adjust the crop area.');
+      return;
+    }
+
+    setLifestylePhotoCropSubmitting(true);
+    setLifestylePhotoCropError('');
+    try {
+      const blob = await getCroppedBlob(lifestylePhotoCropSrc, lifestylePhotoCroppedAreaPixels, 'image/jpeg', 0.92);
+      const croppedFile = new File([blob], `lifestyle-photo-${lifestylePhotoEditIdx}-cropped.jpg`, {
+        type: blob.type || 'image/jpeg',
+        lastModified: Date.now(),
+      });
+
+      // Create preview URL immediately
+      const previewUrl = URL.createObjectURL(blob);
+      const idx = lifestylePhotoEditIdx;
+
+      setLifestyleImageUrls(prev => {
+        const next = [...prev];
+        next[idx] = previewUrl;
+        return next;
+      });
+
+      // Upload to backend
+      try {
+        const result = await uploadAPI.uploadLifestyleImage(croppedFile);
+        console.log('[UserIntent] Lifestyle photo updated successfully:', result);
+        setLifestyleImageUrls(prev => {
+          const next = [...prev];
+          next[idx] = result.url;
+          return next;
+        });
+      } catch (uploadErr) {
+        console.error('[UserIntent] Server upload failed:', uploadErr.message);
+      }
+
+      resetLifestylePhotoCrop();
+    } catch (err) {
+      console.error('[UserIntent] Lifestyle photo crop failed', err);
+      setLifestylePhotoCropError(err?.message || 'Failed to crop image. Try again.');
+    } finally {
+      setLifestylePhotoCropSubmitting(false);
+    }
+  }, [lifestylePhotoCropSrc, lifestylePhotoCroppedAreaPixels, lifestylePhotoEditIdx, resetLifestylePhotoCrop]);
+
+  const handleDeleteLifestylePhoto = useCallback((idx) => {
+    setDeleteConfirmType('lifestyle');
+    setDeleteConfirmIdx(idx);
+    setShowDeleteConfirm(true);
+  }, []);
+
+  const confirmDeleteLifestylePhoto = useCallback(() => {
+    setLifestyleImageUrls(prev => {
+      const next = [...prev];
+      next[deleteConfirmIdx] = null;
+      return next;
+    });
+    setShowDeleteConfirm(false);
+  }, [deleteConfirmIdx]);
+
   const handleLifestyleFilePicked = useCallback((idx, file) => {
     if (!file) return;
     if (!file.type?.startsWith('image/')) {
@@ -565,19 +1029,23 @@ export default function UserIntent() {
       return;
     }
 
-    setImgError('');
-    setCropError('');
-    setCropIdx(idx);
-    setCropFile(file);
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setCroppedAreaPixels(null);
+    uploadLifestyleImage(idx, file);
+  }, []);
 
-    setCropSrc(prev => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-    setCropOpen(true);
+  // Trigger lifestyle gallery upload for specific slot
+  const triggerLifestyleGalleryUpload = useCallback((idx) => {
+    setLifestyleImageCameraIdx(idx);
+    if (lifestyleImageInputRef.current) {
+      lifestyleImageInputRef.current.click();
+    }
+  }, []);
+
+  // Trigger lifestyle camera for specific slot
+  const triggerLifestyleImageCameraCapture = useCallback((idx) => {
+    setLifestyleImageCameraIdx(idx);
+    setShowLifestylePhotoOptions(false);
+    setLifestyleImageCameraError('');
+    setShowLifestyleImageCameraModal(true);
   }, []);
 
   const confirmCrop = useCallback(async () => {
@@ -605,35 +1073,6 @@ export default function UserIntent() {
     }
   }, [closeCrop, cropFile, cropIdx, cropSrc, croppedAreaPixels]);
 
-  // ✅ Height slider handlers - moved to top level (outside switch statement)
-  const handleHeightMove = useCallback((e) => {
-    if (!heightSliderRef.current) return;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const rect = heightSliderRef.current.getBoundingClientRect();
-    let percent = (clientX - rect.left) / rect.width;
-    percent = Math.max(0, Math.min(1, percent));
-    let value = Math.round(heightMinCm + percent * (heightMaxCm - heightMinCm));
-    setHeight(String(value));
-  }, []);
-
-  const handleHeightMoveEnd = useCallback(() => {
-    setActiveHeightThumb(null);
-  }, []);
-
-  useEffect(() => {
-    if (activeHeightThumb === null) return;
-    document.addEventListener('mousemove', handleHeightMove);
-    document.addEventListener('touchmove', handleHeightMove, { passive: false });
-    document.addEventListener('mouseup', handleHeightMoveEnd);
-    document.addEventListener('touchend', handleHeightMoveEnd);
-    return () => {
-      document.removeEventListener('mousemove', handleHeightMove);
-      document.removeEventListener('touchmove', handleHeightMove);
-      document.removeEventListener('mouseup', handleHeightMoveEnd);
-      document.removeEventListener('touchend', handleHeightMoveEnd);
-    };
-  }, [activeHeightThumb, handleHeightMove, handleHeightMoveEnd]);
-
   // Save
   const handleFinish = async () => {
     setLoading(true);
@@ -648,6 +1087,8 @@ export default function UserIntent() {
         interests,
         // ✅ FIX: Map relationshipVibe to relationshipStatus for root-level DB column
         relationshipStatus: relationshipVibe,
+        // ✅ FIX: Fitness level must be at root level, not in intent
+        fitnessLevel,
         intent: {
           ...currentProfile.intent,
           purpose,
@@ -663,7 +1104,6 @@ export default function UserIntent() {
           lifestyleImageUrls,
         },
         profilePicUrl: profileImageUrl,  // ✅ FIX: Changed from profileImageUrl to profilePicUrl to match backend
-        height: height ? parseInt(height) : null,
         onboardingComplete: true, // ✅ Onboarding complete - navigate to Home
       };
 
@@ -760,12 +1200,7 @@ export default function UserIntent() {
       case 9:
         return <h1 className="text-white text-[22px] font-semibold mb-2">Your top favourite artists/bands?</h1>;
       case 10:
-        return (
-          <>
-            <h1 className="text-white text-[22px] font-semibold mb-2">Upload a profile picture</h1>
-            <p className="text-white/70 text-sm leading-snug">Please upload a photo that keeps your identity private, showcasing your physique or a side profile instead.</p>
-          </>
-        );
+        return <h1 className="text-white text-[22px] font-semibold mb-2">How would you describe your fitness level?</h1>;
       case 11:
         return (
           <>
@@ -776,15 +1211,15 @@ export default function UserIntent() {
       case 12:
         return (
           <>
-            <h1 className="text-white text-[22px] font-semibold mb-2">Upload Lifestyle pictures</h1>
-            <p className="text-white/70 text-sm leading-snug">Upload lifestyle shots showing your vibe or interest. There is no need to show your face&#128522;.</p>
+            <h1 className="text-white text-[22px] font-semibold mb-2">Upload a profile picture</h1>
+            <p className="text-white/70 text-sm leading-snug">Please upload a photo that keeps your identity private, showcasing your physique or a side profile instead.</p>
           </>
         );
       case 13:
         return (
           <>
-            <h1 className="text-white text-[22px] font-semibold mb-2">How tall are you?</h1>
-            <p className="text-white/70 text-sm mb-6">You can change or delete your answer at any time later.</p>
+            <h1 className="text-white text-[22px] font-semibold mb-2">Upload Lifestyle pictures</h1>
+            <p className="text-white/70 text-sm leading-snug">Upload lifestyle shots showing your vibe or interest. There is no need to show your face&#128522;.</p>
           </>
         );
       case 14:
@@ -948,36 +1383,49 @@ export default function UserIntent() {
       case 6:
         return (
           <>
-            <div className="flex gap-2 mb-3 w-full">
-              <AutocompleteInput
-                value={interestInput}
-                onChange={e => setInterestInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addInterest(interestInput);
-                  }
-                }}
-                onSelect={(item) => addInterest(item)}
-                showImage={false}
-                placeholder="Add an interest..."
-                searchFn={searchInterests}
-                className="flex-1 min-w-0 rounded-xl p-3 text-base"
-                style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-              />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  addInterest(interestInput);
-                }}
-                disabled={!interestInput.trim()}
-                className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
-                style={interestInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
-              >
-                Add
-              </button>
-            </div>
+           <div className="flex gap-2 mb-3 w-full items-center">
+  <div className="flex-1">
+    <AutocompleteInput
+      value={interestInput}
+      onChange={e => setInterestInput(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addInterest(interestInput);
+        }
+      }}
+      onSelect={(item) => addInterest(item)}
+      showImage={false}
+      placeholder="Add an interest..."
+      searchFn={searchInterests}
+      className="w-full rounded-xl p-3 text-base"
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        color: 'white',
+        border: '1px solid rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)'
+      }}
+    />
+  </div>
+
+  <button
+    type="button"
+    onClick={(e) => {
+      e.preventDefault();
+      addInterest(interestInput);
+    }}
+    disabled={!interestInput.trim()}
+    className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm whitespace-nowrap"
+    style={
+      interestInput.trim()
+        ? { background: 'white', color: 'black' }
+        : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }
+    }
+  >
+    Add
+  </button>
+</div>
             <div className="flex flex-wrap gap-3 mt-3">
               {interests.map((t, i) => (
                 <span key={i} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ background: 'white', color: 'black' }}>
@@ -994,35 +1442,48 @@ export default function UserIntent() {
             {/* TV Shows */}
             <div>
               <label className="block text-white/80 mb-2">TV show(s) you could rewatch anytime</label>
-              <div className="flex gap-2 mb-3 w-full">
-                <AutocompleteInput
-                  value={tvInput}
-                  onChange={e => setTvInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addTvShow();
-                    }
-                  }}
-                  onSelect={addTvShow}
-                  placeholder="e.g. The Office"
-                  searchFn={searchTVShows}
-                  className="flex-1 min-w-0 rounded-xl p-3 text-base"
-                  style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    addTvShow();
-                  }}
-                  disabled={!tvInput.trim()}
-                  className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
-                  style={tvInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
-                >
-                  Add
-                </button>
-              </div>
+             <div className="flex gap-2 mb-3 w-full items-center">
+  <div className="flex-1">
+    <AutocompleteInput
+      value={tvInput}
+      onChange={e => setTvInput(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addTvShow();
+        }
+      }}
+      onSelect={addTvShow}
+      placeholder="e.g. The Office"
+      searchFn={searchTVShows}
+      className="w-full rounded-xl p-3 text-base"
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        color: 'white',
+        border: '1px solid rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)'
+      }}
+    />
+  </div>
+
+  <button
+    type="button"
+    onClick={(e) => {
+      e.preventDefault();
+      addTvShow();
+    }}
+    disabled={!tvInput.trim()}
+    className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm whitespace-nowrap"
+    style={
+      tvInput.trim()
+        ? { background: 'white', color: 'black' }
+        : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }
+    }
+  >
+    Add
+  </button>
+</div>
               <div className="flex flex-col gap-3">
                 {tvShows.map((s, i) => {
                   const itemName = typeof s === 'object' ? s.name : s;
@@ -1071,35 +1532,48 @@ export default function UserIntent() {
             {/* Movies */}
             <div>
               <label className="block text-white/80 mb-2">Movie(s) that never get old</label>
-              <div className="flex gap-2 mb-3 w-full">
-                <AutocompleteInput
-                  value={movieInput}
-                  onChange={e => setMovieInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addMovie();
-                    }
-                  }}
-                  onSelect={addMovie}
-                  placeholder="e.g. The Godfather"
-                  searchFn={searchMovies}
-                  className="flex-1 min-w-0 rounded-xl p-3 text-base"
-                  style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    addMovie();
-                  }}
-                  disabled={!movieInput.trim()}
-                  className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
-                  style={movieInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
-                >
-                  Add
-                </button>
-              </div>
+             <div className="flex gap-2 mb-3 w-full items-center">
+  <div className="flex-1">
+    <AutocompleteInput
+      value={movieInput}
+      onChange={e => setMovieInput(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addMovie();
+        }
+      }}
+      onSelect={addMovie}
+      placeholder="e.g. The Godfather"
+      searchFn={searchMovies}
+      className="w-full rounded-xl p-3 text-base"
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        color: 'white',
+        border: '1px solid rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)'
+      }}
+    />
+  </div>
+
+  <button
+    type="button"
+    onClick={(e) => {
+      e.preventDefault();
+      addMovie();
+    }}
+    disabled={!movieInput.trim()}
+    className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm whitespace-nowrap"
+    style={
+      movieInput.trim()
+        ? { background: 'white', color: 'black' }
+        : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }
+    }
+  >
+    Add
+  </button>
+</div>
               <div className="flex flex-col gap-3">
                 {movies.map((m, i) => {
                   const itemName = typeof m === 'object' ? m.name : m;
@@ -1149,35 +1623,48 @@ export default function UserIntent() {
       case 8:
         return (
           <>
-            <div className="flex gap-2 mb-3 w-full">
-              <AutocompleteInput
-                value={watchInput}
-                onChange={e => setWatchInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addWatchItem();
-                  }
-                }}
-                onSelect={addWatchItem}
-                placeholder="e.g. The Bear, Succession, Oppenheimer"
-                searchFn={searchMoviesAndShows}
-                className="flex-1 min-w-0 rounded-xl p-3 text-base"
-                style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-              />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  addWatchItem();
-                }}
-                disabled={!watchInput.trim()}
-                className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
-                style={watchInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
-              >
-                Add
-              </button>
-            </div>
+           <div className="flex gap-2 mb-3 w-full items-center">
+  <div className="flex-1">
+    <AutocompleteInput
+      value={watchInput}
+      onChange={e => setWatchInput(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addWatchItem();
+        }
+      }}
+      onSelect={addWatchItem}
+      placeholder="e.g. The Bear, Oppenheimer"
+      searchFn={searchMoviesAndShows}
+      className="w-full rounded-xl p-3 text-base"
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        color: 'white',
+        border: '1px solid rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)'
+      }}
+    />
+  </div>
+
+  <button
+    type="button"
+    onClick={(e) => {
+      e.preventDefault();
+      addWatchItem();
+    }}
+    disabled={!watchInput.trim()}
+    className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm whitespace-nowrap"
+    style={
+      watchInput.trim()
+        ? { background: 'white', color: 'black' }
+        : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }
+    }
+  >
+    Add
+  </button>
+</div>
             <div className="flex flex-col gap-3 mt-3">
               {watchList.map((w, i) => {
                 const itemName = typeof w === 'object' ? w.name : w;
@@ -1226,35 +1713,48 @@ export default function UserIntent() {
       case 9:
         return (
           <>
-            <div className="flex gap-2 mb-3 w-full">
-              <AutocompleteInput
-                value={artistBandInput}
-                onChange={e => setArtistBandInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addArtistBand();
-                  }
-                }}
-                onSelect={addArtistBand}
-                placeholder="Add an artist/band..."
-                searchFn={searchArtists}
-                className="flex-1 min-w-0 rounded-xl p-3 text-base"
-                style={{ background: 'rgba(255,255,255,0.03)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
-              />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  addArtistBand();
-                }}
-                disabled={!artistBandInput.trim()}
-                className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm flex-shrink-0 whitespace-nowrap"
-                style={artistBandInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
-              >
-                Add
-              </button>
-            </div>
+          <div className="flex gap-2 mb-3 w-full items-center">
+  <div className="flex-1">
+    <AutocompleteInput
+      value={artistBandInput}
+      onChange={e => setArtistBandInput(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addArtistBand();
+        }
+      }}
+      onSelect={addArtistBand}
+      placeholder="Add an artist/band..."
+      searchFn={searchArtists}
+      className="w-full rounded-xl p-3 text-base"
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        color: 'white',
+        border: '1px solid rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)'
+      }}
+    />
+  </div>
+
+  <button
+    type="button"
+    onClick={(e) => {
+      e.preventDefault();
+      addArtistBand();
+    }}
+    disabled={!artistBandInput.trim()}
+    className="px-3 sm:px-5 py-3 rounded-xl font-medium text-sm whitespace-nowrap"
+    style={
+      artistBandInput.trim()
+        ? { background: 'white', color: 'black' }
+        : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }
+    }
+  >
+    Add
+  </button>
+</div>
             <div className="flex flex-col gap-3 mt-3">
               {artistsBands.map((b, i) => {
                 const itemName = typeof b === 'object' ? b.name : b;
@@ -1302,6 +1802,160 @@ export default function UserIntent() {
         );
       case 10:
         return (
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => setFitnessLevel('Easygoing')}
+              className="w-full py-4 px-4 rounded-xl text-white font-medium text-base transition"
+              style={{
+                background: fitnessLevel === 'Easygoing' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)',
+                border: fitnessLevel === 'Easygoing' ? '1.5px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span>Easygoing</span>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: '2px solid white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {fitnessLevel === 'Easygoing' && <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: 'white'
+                  }} />}
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFitnessLevel('Lightly active')}
+              className="w-full py-4 px-4 rounded-xl text-white font-medium text-base transition"
+              style={{
+                background: fitnessLevel === 'Lightly active' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)',
+                border: fitnessLevel === 'Lightly active' ? '1.5px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span>Lightly active</span>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: '2px solid white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {fitnessLevel === 'Lightly active' && <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: 'white'
+                  }} />}
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFitnessLevel('Active lifestyle')}
+              className="w-full py-4 px-4 rounded-xl text-white font-medium text-base transition"
+              style={{
+                background: fitnessLevel === 'Active lifestyle' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)',
+                border: fitnessLevel === 'Active lifestyle' ? '1.5px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span>Active lifestyle</span>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: '2px solid white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {fitnessLevel === 'Active lifestyle' && <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: 'white'
+                  }} />}
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFitnessLevel('Very active')}
+              className="w-full py-4 px-4 rounded-xl text-white font-medium text-base transition"
+              style={{
+                background: fitnessLevel === 'Very active' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)',
+                border: fitnessLevel === 'Very active' ? '1.5px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span>Very active</span>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: '2px solid white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {fitnessLevel === 'Very active' && <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: 'white'
+                  }} />}
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFitnessLevel('Fitness focused')}
+              className="w-full py-4 px-4 rounded-xl text-white font-medium text-base transition"
+              style={{
+                background: fitnessLevel === 'Fitness focused' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)',
+                border: fitnessLevel === 'Fitness focused' ? '1.5px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span>Fitness focused</span>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: '2px solid white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {fitnessLevel === 'Fitness focused' && <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: 'white'
+                  }} />}
+                </div>
+              </div>
+            </button>
+          </div>
+        );
+      case 11:
+        return (
           <div className="flex flex-col items-center">
             <div className="grid grid-cols-2 gap-4 mb-6 w-full max-w-sm">
               <img src="/sample1.png" alt="Sample 1" className="w-full h-auto rounded-lg" />
@@ -1315,13 +1969,52 @@ export default function UserIntent() {
             </div>
           </div>
         );
-      case 11:
+      case 12:
         return (
           <div className="flex flex-col items-center">
-            <label className="w-60 h-60 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative cursor-pointer mb-4"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.08)' }}>
+            <div
+              className="w-60 h-60 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative cursor-pointer mb-4"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.08)' }}
+              onClick={profileImageUrl ? null : handleOpenProfilePhotoOptions}
+            >
               {profileImageUrl ? (
-                <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                <>
+                  <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                  {/* Edit and Delete Icons */}
+                  <div className="absolute inset-0 flex items-start justify-between p-3" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                    {/* Edit (Pencil) Icon - Top Left */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditProfilePhoto();
+                      }}
+                      className="p-2 rounded-full bg-white text-black shadow-lg hover:bg-white/90 transition"
+                      title="Edit photo"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+
+                    {/* Delete (Bin) Icon - Top Right */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteProfilePhoto();
+                      }}
+                      className="p-2 rounded-full bg-red-500 text-white shadow-lg hover:bg-red-600 transition"
+                      title="Delete photo"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  </div>
+                </>
               ) : (
                 <>
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white/60 mb-2">
@@ -1333,11 +2026,11 @@ export default function UserIntent() {
               )}
               <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files && e.target.files[0] && handleProfileImageChange(e.target.files[0])} disabled={profileImgUploading} />
               {profileImgUploading && <div className="absolute inset-0 flex items-center justify-center bg-white/20 text-xs">Uploading...</div>}
-            </label>
+            </div>
             {profileImgError && <div className="text-red-400 text-sm mb-2">{profileImgError}</div>}
           </div>
         );
-      case 12:
+      case 13:
         return (
           <div className="flex flex-col items-center">
             <div className="relative w-80 h-80 mb-6 flex">
@@ -1353,82 +2046,70 @@ export default function UserIntent() {
             </div>
           </div>
         );
-      case 13: {
-        // ✅ Height slider calculation
-        const heightPercent = ((Number(height) - heightMinCm) / (heightMaxCm - heightMinCm)) * 100;
-
-        return (
-          <div className="space-y-4">
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border-2 border-white/20">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/20">
-                <div className="text-white font-medium">Height</div>
-                <div className="text-white/70 text-sm">{height ? `${height} cm` : 'Select height'}</div>
-              </div>
-              
-              {/* ✅ Height slider */}
-              <div ref={heightSliderRef} className="relative w-full max-w-sm">
-                {/* Height label above slider */}
-                <div className="absolute w-full" style={{ top: '-48px' }}>
-                  <div className="absolute transform -translate-x-1/2" style={{ left: `${heightPercent}%` }}>
-                    <div className="bg-white/90 text-gray-900 text-base font-medium rounded-lg px-4 py-1.5 relative z-10 shadow-lg">
-                      {height} cm
-                    </div>
-                  </div>
-                </div>
-
-                {/* Slider track and thumb */}
-                <div className="relative h-3 flex items-center mt-4">
-                  <div className="absolute left-0 right-0 h-2 rounded-full bg-white/20"></div>
-                  <div
-                    className="absolute h-2 rounded-full bg-white"
-                    style={{ left: 0, width: `${heightPercent}%` }}
-                  ></div>
-                  <button
-                    type="button"
-                    className="absolute z-10 w-7 h-7 rounded-full bg-white shadow-lg flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/50 cursor-grab active:cursor-grabbing transition-all"
-                    style={{ left: `calc(${heightPercent}% - 14px)` }}
-                    onMouseDown={() => setActiveHeightThumb(0)}
-                    onTouchStart={() => setActiveHeightThumb(0)}
-                  >
-                    <div className="w-3 h-3 bg-gray-800 rounded-full"></div>
-                  </button>
-                </div>
-
-                {/* Min and max labels */}
-                <div className="flex justify-between mt-6 px-2">
-                  <span className="text-white/60 text-xs font-medium">{heightMinCm} cm</span>
-                  <span className="text-white/60 text-xs font-medium">{heightMaxCm} cm</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      }
       case 14:
         return (
           <>
             <div className="flex flex-wrap gap-4 justify-center mb-3">
               {[0, 1, 2, 3, 4].map(idx => (
-                <label key={idx} className="w-24 h-24 rounded-lg overflow-hidden flex items-center justify-center relative cursor-pointer" style={{ background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.08)' }}>
+                <div
+                  key={idx}
+                  className="w-24 h-24 rounded-lg overflow-hidden relative cursor-pointer transition hover:opacity-80"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.08)' }}
+                >
                   {lifestyleImageUrls[idx] ? (
-                    <img src={lifestyleImageUrls[idx]} alt={`Lifestyle ${idx + 1}`} className="w-full h-full object-cover" />
+                    <>
+                      <img src={lifestyleImageUrls[idx]} alt={`Lifestyle ${idx + 1}`} className="w-full h-full object-cover" />
+                      {/* Edit and Delete Icons Container */}
+                      <div className="absolute inset-0 flex items-start justify-between p-1.5" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                        {/* Edit (Pencil) Icon - Top Left */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditLifestylePhoto(idx);
+                          }}
+                          className="p-1 rounded-full bg-white text-black shadow-lg hover:bg-white/90 transition"
+                          title="Edit photo"
+                          style={{ width: 24, height: 24, minWidth: 24 }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+
+                        {/* Delete (Bin) Icon - Top Right */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteLifestylePhoto(idx);
+                          }}
+                          className="p-1 rounded-full bg-red-500 text-white shadow-lg hover:bg-red-600 transition"
+                          title="Delete photo"
+                          style={{ width: 24, height: 24, minWidth: 24 }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </div>
+                    </>
                   ) : (
-                    <span className="text-white/60 text-3xl">+</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLifestyleImageCameraIdx(idx);
+                        setShowLifestylePhotoOptions(true);
+                      }}
+                      className="w-full h-full flex items-center justify-center"
+                    >
+                      <span className="text-white/60 text-3xl">+</span>
+                    </button>
                   )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const file = e.target.files && e.target.files[0];
-                      if (file) handleLifestyleFilePicked(idx, file);
-                      // allow re-selecting the same file
-                      e.target.value = '';
-                    }}
-                    disabled={imgUploading}
-                  />
                   {imgUploading && <div className="absolute inset-0 flex items-center justify-center bg-white/20 text-xs">Uploading...</div>}
-                </label>
+                </div>
               ))}
             </div>
             {imgError && <div className="text-red-400 text-sm mb-2">{imgError}</div>}
@@ -1440,8 +2121,11 @@ export default function UserIntent() {
     }
   }, [
     step, purpose, relationshipVibe, interestedGender, ageRange,
-    bio, interests, interestInput, tvShows, movies, tvInput, movieInput, watchList, watchInput, artistsBands, artistBandInput, profileImageUrl, lifestyleImageUrls, height,
+    bio, interests, interestInput, tvShows, movies, tvInput, movieInput, watchList, watchInput, artistsBands, artistBandInput, fitnessLevel, profileImageUrl, lifestyleImageUrls,
     imgUploading, imgError, addInterest, removeInterest, addTvShow, removeTvShow, addMovie, removeMovie, addWatchItem, removeWatchItem, addArtistBand, removeArtistBand, handleLifestyleFilePicked, handleProfileImageChange, profileImgUploading, profileImgError,
+    triggerLifestyleGalleryUpload, triggerLifestyleImageCameraCapture,
+    handleEditProfilePhoto, handleDeleteProfilePhoto, handleEditLifestylePhoto, handleDeleteLifestylePhoto,
+    setFitnessLevel,
     bioMode, listening, sttSupported, interimTranscript, toggleListening
   ]);
 
@@ -1567,6 +2251,462 @@ export default function UserIntent() {
           </div>
         </div>
       ) : null}
+
+      {/* Profile Photo Edit Modal */}
+      {isEditingProfilePhoto && profilePhotoCropSrc ? (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80" onClick={() => closeProfilePhotoCrop()} />
+          <div className="relative w-full max-w-md rounded-2xl overflow-hidden border border-white/10 bg-neutral-950">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="text-white font-semibold">Edit profile photo</div>
+              <button 
+                type="button" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeProfilePhotoCrop();
+                }} 
+                className="text-white/70 hover:text-white text-lg"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="relative w-full" style={{ height: 340 }}>
+              <Cropper
+                ref={profilePhotoCropperRef}
+                image={profilePhotoCropSrc}
+                crop={profilePhotoCrop}
+                zoom={profilePhotoZoom}
+                aspect={1}
+                onCropChange={setProfilePhotoCrop}
+                onZoomChange={setProfilePhotoZoom}
+                onCropComplete={(_, pixels) => setProfilePhotoCroppedAreaPixels(pixels)}
+              />
+            </div>
+
+            <div className="p-4 border-t border-white/10">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="text-white/70 text-xs w-12">Zoom</div>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={profilePhotoZoom}
+                  onChange={(e) => setProfilePhotoZoom(Number(e.target.value))}
+                  className="flex-1"
+                />
+              </div>
+
+              {profilePhotoCropError ? <div className="text-red-400 text-sm mb-3">{profilePhotoCropError}</div> : null}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeProfilePhotoCrop}
+                  disabled={profilePhotoCropSubmitting}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={profilePhotoCropSubmitting ? { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)' } : { background: 'rgba(255,255,255,0.12)', color: 'white' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveProfilePhotoCrop}
+                  disabled={profilePhotoCropSubmitting}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={profilePhotoCropSubmitting ? { background: 'rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.8)' } : { background: 'white', color: 'black' }}
+                >
+                  {profilePhotoCropSubmitting ? 'Saving...' : 'Done'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Lifestyle Photo Edit Modal */}
+      {isEditingLifestylePhoto && lifestylePhotoCropSrc ? (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80" onClick={() => closeLifestylePhotoCrop()} />
+          <div className="relative w-full max-w-md rounded-2xl overflow-hidden border border-white/10 bg-neutral-950">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="text-white font-semibold">Edit lifestyle photo</div>
+              <button 
+                type="button" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeLifestylePhotoCrop();
+                }} 
+                className="text-white/70 hover:text-white text-lg"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="relative w-full" style={{ height: 340 }}>
+              <Cropper
+                ref={lifestylePhotoCropperRef}
+                image={lifestylePhotoCropSrc}
+                crop={lifestylePhotoCrop}
+                zoom={lifestylePhotoZoom}
+                aspect={1}
+                onCropChange={setLifestylePhotoCrop}
+                onZoomChange={setLifestylePhotoZoom}
+                onCropComplete={(_, pixels) => setLifestylePhotoCroppedAreaPixels(pixels)}
+              />
+            </div>
+
+            <div className="p-4 border-t border-white/10">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="text-white/70 text-xs w-12">Zoom</div>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={lifestylePhotoZoom}
+                  onChange={(e) => setLifestylePhotoZoom(Number(e.target.value))}
+                  className="flex-1"
+                />
+              </div>
+
+              {lifestylePhotoCropError ? <div className="text-red-400 text-sm mb-3">{lifestylePhotoCropError}</div> : null}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeLifestylePhotoCrop}
+                  disabled={lifestylePhotoCropSubmitting}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={lifestylePhotoCropSubmitting ? { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)' } : { background: 'rgba(255,255,255,0.12)', color: 'white' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveLifestylePhotoCrop}
+                  disabled={lifestylePhotoCropSubmitting}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={lifestylePhotoCropSubmitting ? { background: 'rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.8)' } : { background: 'white', color: 'black' }}
+                >
+                  {lifestylePhotoCropSubmitting ? 'Saving...' : 'Done'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80" />
+          <div className="relative w-full max-w-sm rounded-2xl overflow-hidden border border-white/10 bg-neutral-950">
+            <div className="p-6">
+              <h2 className="text-white font-semibold text-lg mb-2">Delete Photo?</h2>
+              <p className="text-white/70 text-sm mb-6">
+                Are you sure you want to delete this photo? You can upload a new one anytime.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: 'white' }}
+                >
+                  Keep Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (deleteConfirmType === 'profile') {
+                      confirmDeleteProfilePhoto();
+                    } else {
+                      confirmDeleteLifestylePhoto();
+                    }
+                  }}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={{ background: '#dc2626', color: 'white' }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discard Changes Confirmation Modal */}
+      {showDiscardConfirm && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80" />
+          <div className="relative w-full max-w-sm rounded-2xl overflow-hidden border border-white/10 bg-neutral-950">
+            <div className="p-6">
+              <h2 className="text-white font-semibold text-lg mb-2">Discard Changes?</h2>
+              <p className="text-white/70 text-sm mb-6">
+                Your edits haven't been saved. Do you want to discard these changes?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDiscardConfirm(false)}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: 'white' }}
+                >
+                  Keep Editing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (discardConfirmType === 'profile') {
+                      confirmDiscardProfilePhoto();
+                    } else {
+                      confirmDiscardLifestylePhoto();
+                    }
+                  }}
+                  className="flex-1 py-3 rounded-full font-semibold text-base"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: 'white' }}
+                >
+                  Discard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Photo Options Modal */}
+      {showProfilePhotoOptions && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-black/60 backdrop-blur-xl overflow-hidden">
+            <div className="px-4 py-4">
+              <h2 className="text-white font-semibold text-center mb-4">Upload Profile Photo</h2>
+              <div className="flex flex-col gap-3">
+                {/* Gallery Option */}
+                <button
+                  onClick={triggerProfileGalleryUpload}
+                  className="w-full py-4 rounded-xl bg-white/20 hover:bg-white/30 border border-white/30 text-white font-medium transition flex items-center justify-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  Gallery
+                </button>
+
+                {/* Camera Option */}
+                <button
+                  onClick={() => {
+                    setShowProfilePhotoOptions(false);
+                    setProfileCameraError('');
+                    setShowProfileCameraModal(true);
+                  }}
+                  className="w-full py-4 rounded-xl bg-white/20 hover:bg-white/30 border border-white/30 text-white font-medium transition flex items-center justify-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  Camera
+                </button>
+
+                {/* Cancel Option */}
+                <button
+                  onClick={() => setShowProfilePhotoOptions(false)}
+                  className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium transition text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden file input for profile gallery upload */}
+      <input
+        ref={profilePhotoInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          if (e.target.files && e.target.files[0]) {
+            handleProfileImageChange(e.target.files[0]);
+            setShowProfilePhotoOptions(false);
+          }
+        }}
+        className="hidden"
+      />
+
+      {/* Profile Camera Modal */}
+      {showProfileCameraModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-black/60 backdrop-blur-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+              <span className="text-white font-semibold text-sm">Capture profile photo</span>
+              <button
+                onClick={() => setShowProfileCameraModal(false)}
+                className="text-white/70 hover:text-white text-lg leading-none px-2"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-4 pt-4 pb-3 flex flex-col items-center">
+              <div className="w-full rounded-xl overflow-hidden bg-black/80 border border-white/20 mb-3">
+                <video
+                  ref={profileVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-64 object-cover bg-black"
+                />
+              </div>
+              {profileCameraError && (
+                <p className="text-xs text-red-300 mb-2 text-center px-2">{profileCameraError}</p>
+              )}
+              <p className="text-xs text-white/70 mb-3 text-center">
+                Position your face clearly in the frame and tap capture.
+              </p>
+              <button
+                onClick={handleCaptureProfilePhoto}
+                disabled={profileImgUploading || !!profileCameraError}
+                className="w-full py-3 rounded-full bg-white text-black font-medium text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {profileImgUploading ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent" />
+                    Uploading...
+                  </>
+                ) : (
+                  'Capture & Continue'
+                )}
+              </button>
+              {/* Hidden canvas used only for extracting the captured frame */}
+              <canvas ref={profileCanvasRef} style={{ display: 'none' }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+
+
+      {/* Lifestyle Photo Options Modal */}
+      {showLifestylePhotoOptions && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-black/60 backdrop-blur-xl overflow-hidden">
+            <div className="px-4 py-4">
+              <h2 className="text-white font-semibold text-center mb-4">Add Lifestyle Photo</h2>
+              <div className="flex flex-col gap-3">
+                {/* Gallery Option */}
+                <button
+                  onClick={() => triggerLifestyleGalleryUpload(lifestyleImageCameraIdx !== null ? lifestyleImageCameraIdx : 0)}
+                  className="w-full py-4 rounded-xl bg-white/20 hover:bg-white/30 border border-white/30 text-white font-medium transition flex items-center justify-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  Gallery
+                </button>
+
+                {/* Camera Option */}
+                <button
+                  onClick={() => triggerLifestyleImageCameraCapture(lifestyleImageCameraIdx !== null ? lifestyleImageCameraIdx : 0)}
+                  className="w-full py-4 rounded-xl bg-white/20 hover:bg-white/30 border border-white/30 text-white font-medium transition flex items-center justify-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  Camera
+                </button>
+
+                {/* Cancel Option */}
+                <button
+                  onClick={() => setShowLifestylePhotoOptions(false)}
+                  className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium transition text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden file input for lifestyle gallery upload */}
+      <input
+        ref={lifestyleImageInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          if (e.target.files && e.target.files[0]) {
+            const idx = lifestyleImageCameraIdx !== null ? lifestyleImageCameraIdx : 0;
+            handleLifestyleFilePicked(idx, e.target.files[0]);
+            setShowLifestylePhotoOptions(false);
+          }
+          e.target.value = '';
+        }}
+        className="hidden"
+      />
+
+      {/* Lifestyle Image Camera Modal */}
+      {showLifestyleImageCameraModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-black/60 backdrop-blur-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+              <span className="text-white font-semibold text-sm">Capture lifestyle photo</span>
+              <button
+                onClick={() => setShowLifestyleImageCameraModal(false)}
+                className="text-white/70 hover:text-white text-lg leading-none px-2"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-4 pt-4 pb-3 flex flex-col items-center">
+              <div className="w-full rounded-xl overflow-hidden bg-black/80 border border-white/20 mb-3">
+                <video
+                  ref={lifestyleImageVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-64 object-cover bg-black"
+                />
+              </div>
+              {lifestyleImageCameraError && (
+                <p className="text-xs text-red-300 mb-2 text-center px-2">{lifestyleImageCameraError}</p>
+              )}
+              <p className="text-xs text-white/70 mb-3 text-center">
+                Frame your lifestyle shot and tap capture.
+              </p>
+              <button
+                onClick={handleCaptureLifestylePhoto}
+                disabled={imgUploading || !!lifestyleImageCameraError}
+                className="w-full py-3 rounded-full bg-white text-black font-medium text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {imgUploading ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent" />
+                    Uploading...
+                  </>
+                ) : (
+                  'Capture & Continue'
+                )}
+              </button>
+              {/* Hidden canvas used only for extracting the captured frame */}
+              <canvas ref={lifestyleImageCanvasRef} style={{ display: 'none' }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+
     </div>
   );
 }

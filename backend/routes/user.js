@@ -115,7 +115,9 @@ router.get('/profile', auth, async (req, res) => {
 
         const [users] = await pool.execute(
             // 🛑 FIX: is_private REMOVED from the SELECT query
-            'SELECT id, email, first_name, last_name, gender, dob, current_location, city, location_preference, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, face_photo_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin, face_photos, license_photos, license_status FROM users WHERE id = ?',
+            // ✅ NEW: Added spoken_languages, coding_languages, and favorite_places
+            // ✅ FIXED: Changed linkedin to linkedin_id (column was renamed)
+            'SELECT id, email, first_name, last_name, gender, dob, current_location, city, location_preference, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, face_photo_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin_id, face_photos, license_photos, license_status, fitness_level, spoken_languages, coding_languages, favorite_places FROM users WHERE id = ?',
             [req.user.userId]
         );
         
@@ -171,6 +173,10 @@ router.get('/profile', auth, async (req, res) => {
             facePhotos: safeJsonParse(user.face_photos, []),
             licensePhotos: safeJsonParse(user.license_photos, []),
             licenseStatus: user.license_status || 'none',
+            fitnessLevel: user.fitness_level || null,  // ✅ NEW: Fitness level from onboarding
+            spokenLanguages: safeJsonParse(user.spoken_languages, []),  // ✅ NEW: Spoken languages
+            codingLanguages: safeJsonParse(user.coding_languages, []),  // ✅ NEW: Coding languages
+            favoritePlaces: safeJsonParse(user.favorite_places, []),  // ✅ NEW: Favorite places
             // BUG FIX #3: Return rejection status information
             drivingLicenseVerifications: verifications && verifications.length > 0 ? verifications : null,
         };
@@ -204,7 +210,7 @@ router.get('/profile/:userId', auth, async (req, res) => {
                     favourite_travel_destination, last_holiday_places, favourite_places_to_go, 
                     profile_pic_url, intent, interests, pets, drinking, smoking, height, 
                     religious_level, kids_preference, food_preference, relationship_status, 
-                    from_location, instagram, linkedin, face_photos 
+                    from_location, instagram, linkedin, face_photos, spoken_languages, coding_languages, favorite_places
              FROM users 
              WHERE id = ? AND approval = true`,
             [targetUserId]
@@ -259,6 +265,9 @@ router.get('/profile/:userId', auth, async (req, res) => {
             instagram: user.instagram || null,
             linkedin: user.linkedin || null,
             facePhotos: safeJsonParse(user.face_photos, []),
+            spokenLanguages: safeJsonParse(user.spoken_languages, []),  // ✅ NEW: Spoken languages
+            codingLanguages: safeJsonParse(user.coding_languages, []),  // ✅ NEW: Coding languages
+            favoritePlaces: safeJsonParse(user.favorite_places, []),  // ✅ NEW: Favorite places
         };
         
         // ✅ NEW: If conversationId provided, filter by visibility level
@@ -524,8 +533,20 @@ router.post('/profile', auth, async (req, res) => {
 
         const {
             firstName, lastName, gender, dob, currentLocation, fromLocation, favouriteTravelDestination,
-            lastHolidayPlaces, profilePicUrl, faceVerificationUrl
+            lastHolidayPlaces, profilePicUrl, faceVerificationUrl, intent
         } = req.body;
+        
+        // ✅ FIXED: Get current user to merge intent properly (for jobTitle, companyName, etc.)
+        const [currentUsers] = await pool.execute('SELECT intent FROM users WHERE id = ?', [req.user.userId]);
+        const currentUser = currentUsers[0];
+        const currentIntent = safeJsonParse(currentUser?.intent, {});
+        
+        // Merge incoming intent with current intent
+        let finalIntent = { ...currentIntent };
+        if (intent) {
+            finalIntent = { ...finalIntent, ...intent };
+        }
+        const intentJson = JSON.stringify(finalIntent);
         
         let formattedDob = dob ? new Date(dob).toISOString().split('T')[0] : null;
         // ✅ SWAPPED: favouriteTravelDestination is now JSON array
@@ -535,13 +556,13 @@ router.post('/profile', auth, async (req, res) => {
         const city = currentLocation ? extractCity(currentLocation) : null;
         
         await pool.execute(
-            // 🛑 is_private REMOVED from UPDATE query
+            // ✅ FIXED: Added intent field to save profileQuestions (jobTitle, companyName, etc.)
             // BUG FIX #2 & #6: Added onboarding_current_step to track progression
             `UPDATE users SET 
                 first_name = ?, last_name = ?, gender = ?, dob = ?, 
                 current_location = ?, city = ?, from_location = ?, favourite_travel_destination = ?, 
                 last_holiday_places = ?, 
-                profile_pic_url = ?, face_photo_url = ?, approval = false,
+                profile_pic_url = ?, face_photo_url = ?, intent = ?, approval = false,
                 onboarding_current_step = 7
             WHERE id = ?`,
             [
@@ -556,6 +577,7 @@ router.post('/profile', auth, async (req, res) => {
                 lastHolidayPlaces || null,
                 profilePicUrl || null, 
                 faceVerificationUrl || null,
+                intentJson,
                 req.user.userId
             ]
         );
@@ -612,8 +634,9 @@ router.put('/profile', auth, async (req, res) => {
             locationPreference, // ✅ NEW: Location matching preference
             // ✅ NEW: Extract profile fields for hybrid storage
             interests, pets, drinking, smoking, height, religiousLevel, kidsPreference, 
-            foodPreference, relationshipStatus, fromLocation, instagram, linkedin, facePhotos
-        , licensePhotos, licenseStatus } = req.body;
+            foodPreference, relationshipStatus, fromLocation, instagram, linkedin, facePhotos,
+            spokenLanguages, codingLanguages, favoritePlaces  // ✅ NEW: Languages and favorite places
+        , licensePhotos, licenseStatus, fitnessLevel } = req.body;  // ✅ NEW: Fitness level from onboarding
         
         let finalIntent = { ...currentIntent, ...intent };
         const intentJson = JSON.stringify(finalIntent); 
@@ -654,10 +677,14 @@ router.put('/profile', auth, async (req, res) => {
             relationshipStatus !== undefined ? relationshipStatus : currentUser.relationship_status,
             fromLocation !== undefined ? fromLocation : currentUser.from_location,
             instagram !== undefined ? instagram : currentUser.instagram,
-            linkedin !== undefined ? linkedin : currentUser.linkedin,
+            linkedin !== undefined ? linkedin : currentUser.linkedin_id,
             JSON.stringify(facePhotos !== undefined ? facePhotos : safeJsonParse(currentUser.face_photos, [])),
             JSON.stringify(licensePhotos !== undefined ? licensePhotos : safeJsonParse(currentUser.license_photos, [])),
             licenseStatus !== undefined ? licenseStatus : (currentUser.license_status || 'none'),
+            fitnessLevel !== undefined ? fitnessLevel : currentUser.fitness_level,  // ✅ NEW: Fitness level
+            JSON.stringify(spokenLanguages !== undefined ? spokenLanguages : safeJsonParse(currentUser.spoken_languages, [])),  // ✅ NEW: Spoken languages
+            JSON.stringify(codingLanguages !== undefined ? codingLanguages : safeJsonParse(currentUser.coding_languages, [])),  // ✅ NEW: Coding languages
+            JSON.stringify(favoritePlaces !== undefined ? favoritePlaces : safeJsonParse(currentUser.favorite_places, [])),  // ✅ NEW: Favorite places
             req.user.userId
         ];
         
@@ -665,6 +692,10 @@ router.put('/profile', auth, async (req, res) => {
             // 🛑 is_private REMOVED from UPDATE query
             // ✅ NEW: Added profile columns for hybrid storage + city & location_preference
             // BUG FIX #2 & #6: Added onboarding_current_step to track step 14 completion
+            // ✅ NEW: Added fitness_level for onboarding Step 10
+            // ✅ NEW: Added coding_languages and spoken_languages for onboarding Step 2
+            // ✅ NEW: Added favorite_places for Places Autocomplete
+            // ✅ FIXED: Changed linkedin to linkedin_id (column was renamed)
             `UPDATE users SET 
                 first_name = ?, last_name = ?, gender = ?, dob = ?, 
                 current_location = ?, city = ?, location_preference = ?, favourite_travel_destination = ?, 
@@ -673,10 +704,14 @@ router.put('/profile', auth, async (req, res) => {
                 approval = ?,
                 interests = ?, pets = ?, drinking = ?, smoking = ?, height = ?,
                 religious_level = ?, kids_preference = ?, food_preference = ?,
-                relationship_status = ?, from_location = ?, instagram = ?, linkedin = ?,
+                relationship_status = ?, from_location = ?, instagram = ?, linkedin_id = ?,
                 face_photos = ?,
                 license_photos = ?,
                 license_status = ?,
+                fitness_level = ?,
+                spoken_languages = ?,
+                coding_languages = ?,
+                favorite_places = ?,
                 onboarding_current_step = 14
             WHERE id = ?`,
             updateData 
@@ -1173,6 +1208,108 @@ router.get('/matches/profiles', auth, async (req, res) => {
     } catch (error) {
         console.error('Get matched profiles error:', error);
         res.status(500).json({ error: 'Internal server error: ' + error.message });
+    }
+});
+
+// ✅ NEW: Foursquare Places API Route - Search for cafés/restaurants
+// ✅ NEW: Public test endpoint (no auth required) to verify Places API
+router.get('/places/public-test', (req, res) => {
+    try {
+        const apiKey = process.env.FOURSQUARE_API_KEY;
+        console.log('🧪 [PUBLIC TEST] Places endpoint test');
+        console.log('API Key configured:', !!apiKey);
+        console.log('Request came through successfully');
+        res.json({ 
+            success: true,
+            message: 'Places endpoint is working',
+            apiKeyConfigured: !!apiKey
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ✅ NEW: Test endpoint to verify Foursquare API key (NO AUTH for testing)
+router.get('/places/test', (req, res) => {
+    try {
+        const apiKey = process.env.FOURSQUARE_API_KEY;
+        console.log('🧪 Places test endpoint called');
+        console.log('API Key present:', !!apiKey);
+        res.json({ 
+            apiKeyConfigured: !!apiKey,
+            message: apiKey ? 'API key is configured' : 'API key is NOT configured'
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/places/search', async (req, res) => {  // 🧪 REMOVED auth middleware for testing
+    try {
+        const { q } = req.query;
+
+        console.log('🔍 [Places Search] Started');
+        console.log('Query param:', q);
+
+        if (!q || q.trim().length < 2) {
+            console.log('⚠️ Query too short or missing');
+            return res.json({ places: [], error: 'Query must be at least 2 characters' });
+        }
+
+        const apiKey = process.env.FOURSQUARE_API_KEY;
+        if (!apiKey) {
+            console.error('❌ Foursquare API key not found in environment variables');
+            return res.status(500).json({ error: 'Foursquare API key not configured' });
+        }
+
+        console.log(`✅ API key found (${apiKey.length} chars)`);
+        console.log(`🔍 Searching for: "${q}"`);
+
+        // Build URL with query parameters
+        const url = new URL('https://api.foursquare.com/v3/places/search');
+        url.searchParams.append('query', q);
+        url.searchParams.append('categories', '13032,13035,13065'); // Cafe, Coffee Shop, Restaurants/cafes
+        url.searchParams.append('limit', '8');
+        url.searchParams.append('fields', 'fsq_id,name,location');
+
+        console.log(`🌐 Calling Foursquare API: ${url.toString()}`);
+
+        const fsqResponse = await fetch(url.toString(), {
+            method: 'GET',
+            headers: {
+                'Authorization': apiKey,
+                'Accept': 'application/json',
+            },
+        });
+
+        console.log(`📬 Foursquare response: ${fsqResponse.status} ${fsqResponse.statusText}`);
+
+        if (!fsqResponse.ok) {
+            const errorText = await fsqResponse.text();
+            console.error('❌ Foursquare API error:', fsqResponse.status, errorText.substring(0, 500));
+            return res.status(fsqResponse.status).json({ error: 'Foursquare API error: ' + fsqResponse.statusText, details: errorText.substring(0, 100) });
+        }
+
+        const data = await fsqResponse.json();
+        console.log(`📥 Foursquare returned: ${data.results?.length || 0} results`);
+
+        // Transform Foursquare response to our format
+        const places = (data.results || []).map(place => ({
+            fsq_id: place.fsq_id,
+            name: place.name,
+            address: place.location?.address || '',
+            city: place.location?.city || '',
+            country: place.location?.country || '',
+            latitude: place.location?.latitude,
+            longitude: place.location?.longitude,
+        }));
+
+        console.log(`✅ Transformed ${places.length} places`);
+        res.json({ places, success: true });
+
+    } catch (error) {
+        console.error('❌ Places search error:', error.message, error.stack);
+        res.status(500).json({ error: 'Internal server error: ' + error.message, stack: error.stack.substring(0, 200) });
     }
 });
 

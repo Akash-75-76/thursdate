@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { userAPI, uploadAPI } from "../../utils/api";
 import { useNavigate } from "react-router-dom";
 import MediaItemCard from "../../components/MediaItemCard";
@@ -49,6 +49,8 @@ export default function ProfileTab() {
 
   const lifestyleImages = userInfo?.intent?.lifestyleImageUrls?.filter(Boolean) || [];
   const [currentLifestyleImageIndex, setCurrentLifestyleImageIndex] = useState(0);
+
+
 
   useEffect(() => {
     setCurrentLifestyleImageIndex(0);
@@ -133,6 +135,7 @@ export default function ProfileTab() {
         religiousLevel: userInfo?.religiousLevel || '',
         religion: userInfo?.intent?.profileQuestions?.religion || '',
         livingSituation: userInfo?.intent?.profileQuestions?.livingSituation || '',
+        favoriteCafe: userInfo?.favoriteCafe || '',
       });
     } else if (section === 'languages') {
       setEditFormData({
@@ -248,6 +251,7 @@ export default function ProfileTab() {
           favouriteTravelDestination: favDestArray,
           kidsPreference: editFormData.kidsPreference,
           religiousLevel: editFormData.religiousLevel,
+          favoriteCafe: editFormData.favoriteCafe || '',
           intent: {
             ...userInfo?.intent,
             profileQuestions: {
@@ -750,9 +754,12 @@ export default function ProfileTab() {
 
               <div className="flex flex-col items-center">
                 <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                  <img src="/profileHeight.svg" alt="Height" className="w-6 h-6" />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 40 39" fill="none">
+                    <rect width="39.6947" height="38.7431" rx="19.3716" fill="white" fill-opacity="0.1"/>
+                    <path fillRule="evenodd" clipRule="evenodd" d="M19.9372 11.0394C18.9822 11.1564 18.0772 11.4954 17.6952 11.8094C15.4672 13.6514 14.2092 16.0864 13.5562 18.2094C13.275 19.1088 13.0867 20.0347 12.9942 20.9724C12.9602 21.3554 12.9292 21.7564 12.9872 22.1394C13.3702 22.5734 13.9122 22.8884 14.4152 23.1584C15.4662 23.7234 17.0452 24.3094 19.1682 24.5454C20.3702 24.6794 21.8882 24.7554 23.2882 24.6434C24.7412 24.5264 25.8552 24.2214 26.4332 23.7584C27.4072 22.9794 27.6532 22.0704 27.5642 21.2744C27.4692 20.4184 26.9882 19.6944 26.5042 19.3714C25.6692 18.8154 24.7292 18.7594 23.8432 18.9914C22.9312 19.2314 22.1822 19.7514 21.8282 20.1774C21.7394 20.2846 21.6292 20.372 21.5046 20.4342C21.3801 20.4963 21.2439 20.5317 21.1049 20.5382C20.9659 20.5447 20.827 20.5221 20.6973 20.4719C20.5675 20.4216 20.4496 20.3448 20.3512 20.2464C19.8012 19.6964 18.8662 19.5364 17.6132 20.3714C17.4765 20.4627 17.3194 20.5189 17.1558 20.535C16.9922 20.5511 16.8272 20.5266 16.6753 20.4637C16.5234 20.4009 16.3894 20.3015 16.2851 20.1745C16.1807 20.0474 16.1093 19.8966 16.0772 19.7354C15.7912 18.3014 15.9402 16.7774 16.2042 15.5204C16.4702 14.2614 16.8702 13.1784 17.1642 12.5924C17.2473 12.4266 17.375 12.2871 17.5328 12.1896C17.6907 12.0921 17.8726 12.0405 18.0582 12.0405C18.2437 12.0405 18.4256 12.0921 18.5835 12.1896C18.7414 12.2871 18.869 12.4266 18.9522 12.5924C19.1552 12.9964 19.5262 13.3584 19.9582 13.5104C20.2932 13.2994 20.5842 13.0044 20.8202 12.6894C21.2542 12.1114 21.3992 11.5644 21.2062 11.0814C20.8142 10.9414 20.3402 10.9904 19.9372 11.0394ZM21.4202 9.07544C21.9042 9.16844 22.6112 9.41044 22.9522 10.0924C23.6992 11.5864 23.0822 13.0064 22.4202 13.8894C21.9882 14.4654 21.4322 15.0074 20.7852 15.3394C20.6502 15.4094 20.3752 15.5394 20.0582 15.5394C19.4672 15.5394 18.8882 15.2704 18.4132 14.9344C18.3232 15.2404 18.2362 15.5764 18.1612 15.9324C18.0129 16.6155 17.9325 17.3116 17.9212 18.0104C18.9742 17.6704 20.0512 17.7064 20.9792 18.2304C21.6766 17.6828 22.4787 17.2836 23.3362 17.0574C24.6362 16.7164 26.1962 16.7634 27.6132 17.7074C28.6282 18.3844 29.3972 19.6594 29.5522 21.0544C29.7142 22.5084 29.2092 24.0984 27.6822 25.3204C26.6042 26.1824 24.9612 26.5154 23.4492 26.6364C21.8842 26.7624 20.2312 26.6764 18.9482 26.5334C16.5702 26.2694 14.7442 25.6054 13.4682 24.9204C12.6312 24.4704 11.4862 23.8484 11.1232 22.8954C10.8782 22.2494 10.9422 21.4654 11.0022 20.7934C11.0822 19.9124 11.2782 18.8124 11.6452 17.6204C12.3772 15.2414 13.8102 12.4264 16.4212 10.2684C17.2242 9.60444 18.5682 9.19244 19.6932 9.05444C20.2732 8.98344 20.8832 8.97344 21.4202 9.07544Z" fill="white"/>
+                  </svg>
                 </div>
-                <span className="text-white/80 text-[10px] mt-1">{userInfo?.height || 'Height'}</span>
+                <span className="text-white/80 text-[10px] mt-1">{userInfo?.fitnessLevel || 'Fitness'}</span>
               </div>
 
               <div className="flex flex-col items-center">
@@ -1853,6 +1860,20 @@ export default function ProfileTab() {
                       <option value="Own place" className="bg-gray-800 text-white">Own place</option>
                     </select>
                   </div>
+
+                  {/* Favorite Café */}
+                  <div>
+                    <label className="text-white/70 text-xs mb-1 block">Favorite Café or Restaurant</label>
+                    <textarea
+                      placeholder="E.g., 'Starbucks downtown' or 'The local Italian café'"
+                      value={editFormData.favoriteCafe || ''}
+                      onChange={(e) => handleInputChange('favoriteCafe', e.target.value)}
+                      maxLength={200}
+                      className="w-full px-4 py-3 bg-white/20 backdrop-blur-md rounded-xl border border-white/30 text-white placeholder-white/50 focus:outline-none focus:border-white/50 resize-none"
+                      rows="3"
+                    />
+                    <p className="text-white/50 text-xs text-right mt-1">{(editFormData.favoriteCafe || '').length}/200</p>
+                  </div>
                 </div>
 
                 {/* Save Button */}
@@ -1867,7 +1888,8 @@ export default function ProfileTab() {
               ((Array.isArray(userInfo?.favouriteTravelDestination) && userInfo.favouriteTravelDestination.length > 0) ||
                 userInfo?.kidsPreference ||
                 userInfo?.religiousLevel ||
-                userInfo?.intent?.profileQuestions?.livingSituation) && (
+                userInfo?.intent?.profileQuestions?.livingSituation ||
+                userInfo?.favoriteCafe) && (
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-white text-base font-semibold">Deep Dive</h3>
@@ -1933,6 +1955,18 @@ export default function ProfileTab() {
                           <div>
                             <div className="text-white/70 text-xs">Living Situation</div>
                             <div className="text-white font-medium text-sm">{userInfo.intent.profileQuestions.livingSituation}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {userInfo?.favoriteCafe && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0 border border-white/30">
+                            <span className="text-base">☕</span>
+                          </div>
+                          <div>
+                            <div className="text-white/70 text-xs">Favorite Café or Restaurant</div>
+                            <div className="text-white font-medium text-sm">{userInfo.favoriteCafe}</div>
                           </div>
                         </div>
                       )}

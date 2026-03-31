@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { userAPI, chatAPI, uploadAPI } from '../../utils/api';
 import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
+import { fetchAllLanguages, fetchCodingLanguages, searchLanguages, searchCodingLanguages } from '../../utils/languageUtils';
 
 export default function ProfileQuestions() {
     const navigate = useNavigate();
@@ -18,9 +19,15 @@ export default function ProfileQuestions() {
     const [educationDetail, setEducationDetail] = useState('');
     const [languages, setLanguages] = useState([]);
     const [languageInput, setLanguageInput] = useState('');
+    const [languageSuggestions, setLanguageSuggestions] = useState([]);
+    const [allLanguages, setAllLanguages] = useState([]);
+    const [languagesLoading, setLanguagesLoading] = useState(false);
     const [canCode, setCanCode] = useState(false);
     const [codingLanguages, setCodingLanguages] = useState([]);
     const [codingLanguageInput, setCodingLanguageInput] = useState('');
+    const [codingLanguageSuggestions, setCodingLanguageSuggestions] = useState([]);
+    const [allCodingLanguages, setAllCodingLanguages] = useState([]);
+    const [codingLanguagesLoading, setCodingLanguagesLoading] = useState(false);
     const [jobTitle, setJobTitle] = useState('');
     const [companyName, setCompanyName] = useState('');
     const [pets, setPets] = useState('');
@@ -33,14 +40,20 @@ export default function ProfileQuestions() {
     const [religiousLevel, setReligiousLevel] = useState('moderately'); // 'not', 'moderately', 'deeply'
     const [religion, setReligion] = useState('');
     const [customReligion, setCustomReligion] = useState('');
-    const [favoriteCafe, setFavoriteCafe] = useState('');
-    const [relationshipValues, setRelationshipValues] = useState([]);
     const [livingSituation, setLivingSituation] = useState('');
     const [livingSituationCustom, setLivingSituationCustom] = useState('');
+    const [relationshipValues, setRelationshipValues] = useState([]);
     const [facePhotos, setFacePhotos] = useState([null, null, null, null, null, null]);
     const [uploading, setUploading] = useState(false);
+    const [height, setHeight] = useState('175'); // Step 3 - height in cm
+    const [heightUnit, setHeightUnit] = useState('cm'); // 'cm' or 'ft_inch'
+    const [customHeightInput, setCustomHeightInput] = useState(''); // For custom height input
+    const [favoriteCafe, setFavoriteCafe] = useState(''); // Step 12 - favorite café/restaurant (manual entry)
 
-    const totalSteps = 15; // Updated to remove height (now in onboarding)
+    const heightMinCm = 140;
+    const heightMaxCm = 220;
+
+    const totalSteps = 15; // 14 profile questions + 1 face photos (height moved to step 3)
 
     // Load existing profile data and saved onboarding state
     useEffect(() => {
@@ -64,6 +77,7 @@ export default function ProfileQuestions() {
                     if (pq.education) setEducation(pq.education);
                     if (pq.educationDetail) setEducationDetail(pq.educationDetail);
                     if (pq.languages) setLanguages(pq.languages);
+                    if (pq.height) setHeight(String(pq.height));
                     if (pq.canCode !== undefined) setCanCode(pq.canCode);
                     if (pq.codingLanguages) setCodingLanguages(pq.codingLanguages);
                     if (pq.jobTitle) setJobTitle(pq.jobTitle);
@@ -77,6 +91,16 @@ export default function ProfileQuestions() {
                     if (pq.livingSituation) setLivingSituation(pq.livingSituation);
                     if (pq.livingSituationCustom) setLivingSituationCustom(pq.livingSituationCustom);
                 }
+
+                // ✅ NEW: Load from root level as fallback (for languages stored at root level)
+                if (userData.spokenLanguages && userData.spokenLanguages.length > 0 && languages.length === 0) {
+                    setLanguages(userData.spokenLanguages);
+                }
+                if (userData.codingLanguages && userData.codingLanguages.length > 0 && codingLanguages.length === 0) {
+                    setCodingLanguages(userData.codingLanguages);
+                }
+
+
 
                 // Load face photos
                 if (userData.facePhotos && userData.facePhotos.length > 0) {
@@ -93,6 +117,7 @@ export default function ProfileQuestions() {
                     if (savedState.education) setEducation(savedState.education);
                     if (savedState.educationDetail) setEducationDetail(savedState.educationDetail);
                     if (savedState.languages) setLanguages(savedState.languages);
+                    if (savedState.height) setHeight(String(savedState.height));
                     if (savedState.canCode !== undefined) setCanCode(savedState.canCode);
                     if (savedState.codingLanguages) setCodingLanguages(savedState.codingLanguages);
                     if (savedState.jobTitle) setJobTitle(savedState.jobTitle);
@@ -122,6 +147,62 @@ export default function ProfileQuestions() {
         loadProfile();
         return () => { mounted = false; };
     }, []);
+
+
+
+
+
+    // ✅ NEW: Load spoken and coding languages on component mount
+    useEffect(() => {
+        const loadLanguages = async () => {
+            try {
+                setLanguagesLoading(true);
+                const langs = await fetchAllLanguages();
+                setAllLanguages(langs);
+                console.log(`✅ Loaded ${langs.length} spoken languages`);
+            } catch (err) {
+                console.error('Failed to load spoken languages:', err);
+            } finally {
+                setLanguagesLoading(false);
+            }
+        };
+
+        const loadCodingLanguages = async () => {
+            try {
+                setCodingLanguagesLoading(true);
+                const langs = await fetchCodingLanguages();
+                setAllCodingLanguages(langs);
+                console.log(`✅ Loaded ${langs.length} coding languages`);
+            } catch (err) {
+                console.error('Failed to load coding languages:', err);
+            } finally {
+                setCodingLanguagesLoading(false);
+            }
+        };
+
+        loadLanguages();
+        loadCodingLanguages();
+    }, []);
+
+    // ✅ NEW: Update spoken language suggestions as user types
+    useEffect(() => {
+        if (languageInput.trim()) {
+            const suggestions = searchLanguages(languageInput, allLanguages, languages);
+            setLanguageSuggestions(suggestions);
+        } else {
+            setLanguageSuggestions([]);
+        }
+    }, [languageInput, allLanguages, languages]);
+
+    // ✅ NEW: Update coding language suggestions as user types
+    useEffect(() => {
+        if (codingLanguageInput.trim()) {
+            const suggestions = searchCodingLanguages(codingLanguageInput, allCodingLanguages, codingLanguages);
+            setCodingLanguageSuggestions(suggestions);
+        } else {
+            setCodingLanguageSuggestions([]);
+        }
+    }, [codingLanguageInput, allCodingLanguages, codingLanguages]);
 
     // Auto-save onboarding state to localStorage whenever key fields change
   // ✅ FIX: Only save after initial loading is complete to avoid race condition
@@ -165,9 +246,9 @@ export default function ProfileQuestions() {
                 }
                 return languages.length > 0;
             }
-            case 3: return !!jobTitle && !!companyName;
-            case 4: return !!pets;
-            case 5: return !!foodPreference;
+            case 3: return !!height;  // ✅ FIX: Check height at step 3
+            case 4: return !!pets;  // ✅ Step 4 is now pets
+            case 5: return !!foodPreference;  // ✅ Step 5 is now foodPreference
             case 6: return !!sleepSchedule;
             case 7: return !!drinking;
             case 8: return !!smoking;
@@ -212,10 +293,12 @@ export default function ProfileQuestions() {
                 pets,
                 drinking,
                 smoking,
-                height: currentProfile.height, // Keep existing height (set in UserIntent)
+                height: height ? parseInt(height) : (currentProfile.height || null), // Use ProfileQuestions height (required for Level 2/3 users), fall back to existing
                 religiousLevel,
                 kidsPreference: kids,
                 foodPreference,
+                spokenLanguages: languages,  // ✅ NEW: Save spoken languages at root level
+                codingLanguages: codingLanguages,  // ✅ NEW: Save coding languages at root level
                 facePhotos: facePhotos.filter(Boolean),
                 // Keep non-matchable fields in intent for flexibility
                 intent: {
@@ -224,15 +307,14 @@ export default function ProfileQuestions() {
                         education,
                         educationDetail,
                         languages,
+                        height: height ? parseInt(height) : null,
                         canCode,
                         codingLanguages,
-                        jobTitle,
-                        companyName,
                         sleepSchedule,
                         dateBill,
                         religion: religiousLevel === 'not' ? null : religion,
                         customReligion: religiousLevel === 'not' ? null : customReligion,
-                        favoriteCafe,
+                        favoriteCafe: favoriteCafe,
                         relationshipValues,
                         livingSituation,
                         livingSituationCustom: livingSituation === 'Other' ? livingSituationCustom : null,
@@ -482,20 +564,22 @@ export default function ProfileQuestions() {
                                 </p>
                             </div>
 
-                            {/* Language Input */}
+                            {/* Language Input with Autocomplete */}
                             <div className="relative">
                                 <input
                                     type="text"
-                                    placeholder="Add languages"
+                                    placeholder={languagesLoading ? "Loading languages..." : "Add languages"}
                                     value={languageInput}
                                     onChange={(e) => setLanguageInput(e.target.value)}
                                     onKeyPress={(e) => {
                                         if (e.key === 'Enter' && languageInput.trim()) {
                                             setLanguages([...languages, languageInput.trim()]);
                                             setLanguageInput('');
+                                            setLanguageSuggestions([]);
                                         }
                                     }}
-                                    className="w-full p-4 pl-12 rounded-xl bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 placeholder-white/60 focus:outline-none focus:border-white transition"
+                                    disabled={languagesLoading}
+                                    className="w-full p-4 pl-12 rounded-xl bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 placeholder-white/60 focus:outline-none focus:border-white transition disabled:opacity-50"
                                 />
                                 <svg
                                     className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/60"
@@ -507,6 +591,29 @@ export default function ProfileQuestions() {
                                     <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
                                     <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                 </svg>
+
+                                {/* ✅ NEW: Autocomplete Suggestions */}
+                                {languageSuggestions.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white/20 backdrop-blur-md border-2 border-white/30 rounded-xl z-50 max-h-60 overflow-y-auto">
+                                        {languageSuggestions.map((suggestion, idx) => (
+                                            <button
+                                                key={idx}
+                                                type="button"
+                                                onClick={() => {
+                                                    const lang = suggestion.replace(' (custom)', '');
+                                                    if (!languages.includes(lang)) {
+                                                        setLanguages([...languages, lang]);
+                                                    }
+                                                    setLanguageInput('');
+                                                    setLanguageSuggestions([]);
+                                                }}
+                                                className="w-full text-left px-4 py-2 text-white hover:bg-white/10 transition first:rounded-t-lg last:rounded-b-lg"
+                                            >
+                                                {suggestion}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Selected Languages */}
@@ -557,16 +664,18 @@ export default function ProfileQuestions() {
                                     <div className="relative">
                                         <input
                                             type="text"
-                                            placeholder="Add coding languages"
+                                            placeholder={codingLanguagesLoading ? "Loading languages..." : "Add coding languages"}
                                             value={codingLanguageInput}
                                             onChange={(e) => setCodingLanguageInput(e.target.value)}
                                             onKeyPress={(e) => {
                                                 if (e.key === 'Enter' && codingLanguageInput.trim()) {
                                                     setCodingLanguages([...codingLanguages, codingLanguageInput.trim()]);
                                                     setCodingLanguageInput('');
+                                                    setCodingLanguageSuggestions([]);
                                                 }
                                             }}
-                                            className="w-full p-4 pl-12 rounded-xl bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 placeholder-white/60 focus:outline-none focus:border-white transition"
+                                            disabled={codingLanguagesLoading}
+                                            className="w-full p-4 pl-12 rounded-xl bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 placeholder-white/60 focus:outline-none focus:border-white transition disabled:opacity-50"
                                         />
                                         <svg
                                             className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/60"
@@ -578,6 +687,29 @@ export default function ProfileQuestions() {
                                             <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
                                             <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                         </svg>
+
+                                        {/* ✅ NEW: Autocomplete Suggestions for Coding Languages */}
+                                        {codingLanguageSuggestions.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 mt-2 bg-white/20 backdrop-blur-md border-2 border-white/30 rounded-xl z-50 max-h-60 overflow-y-auto">
+                                                {codingLanguageSuggestions.map((suggestion, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const lang = suggestion.replace(' (custom)', '');
+                                                            if (!codingLanguages.includes(lang)) {
+                                                                setCodingLanguages([...codingLanguages, lang]);
+                                                            }
+                                                            setCodingLanguageInput('');
+                                                            setCodingLanguageSuggestions([]);
+                                                        }}
+                                                        className="w-full text-left px-4 py-2 text-white hover:bg-white/10 transition first:rounded-t-lg last:rounded-b-lg"
+                                                    >
+                                                        {suggestion}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Selected Coding Languages */}
@@ -606,64 +738,203 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Profession Question */}
+                    {/* Height Question - Step 3 */}
                     {step === 3 && (
                         <div className="space-y-4">
-                            <h2 className="text-white text-2xl font-bold mb-6">
-                                What's your profession and where do you work?
-                            </h2>
-
-                            {/* Job Title */}
                             <div>
-                                <label className="text-white text-sm font-medium mb-2 block">
-                                    Job Title
-                                </label>
+                                <h2 className="text-white text-2xl font-bold mb-2">
+                                    How tall are you?
+                                </h2>
+                                <p className="text-white/70 text-sm mb-6">
+                                    You can change or delete your answer at any time later
+                                </p>
+                            </div>
+
+                            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border-2 border-white/20">
+                                {/* Unit Tabs */}
+                                <div className="flex gap-3 mb-6">
+                                    <button
+                                        onClick={() => setHeightUnit('cm')}
+                                        className={`px-6 py-2 rounded-full font-medium transition ${
+                                            heightUnit === 'cm'
+                                                ? 'bg-white text-gray-900'
+                                                : 'bg-white/20 text-white hover:bg-white/30'
+                                        }`}
+                                    >
+                                        cm
+                                    </button>
+                                    <button
+                                        onClick={() => setHeightUnit('ft_inch')}
+                                        className={`px-6 py-2 rounded-full font-medium transition ${
+                                            heightUnit === 'ft_inch'
+                                                ? 'bg-white text-gray-900'
+                                                : 'bg-white/20 text-white hover:bg-white/30'
+                                        }`}
+                                    >
+                                        ft, inch
+                                    </button>
+                                </div>
+
+                                {/* Height Spinner */}
                                 <div className="relative">
-                                    <input
-                                        type="text"
-                                        placeholder="Product Designer"
-                                        value={jobTitle}
-                                        onChange={(e) => setJobTitle(e.target.value)}
-                                        className="w-full p-4 pr-10 rounded-xl bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 placeholder-white/60 focus:outline-none focus:border-white transition"
-                                    />
-                                    {jobTitle && (
-                                        <button
-                                            onClick={() => setJobTitle('')}
-                                            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white"
-                                        >
-                                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
-                                                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                            </svg>
-                                        </button>
+                                    {heightUnit === 'cm' ? (
+                                        <div className="flex flex-col items-center">
+                                            {/* Spinner for CM */}
+                                            <div className="border border-white/20 rounded-2xl p-6 w-full">
+                                                <div className="flex flex-col items-center gap-4">
+                                                    {/* Display selected value */}
+                                                    <div className="text-center">
+                                                        <div className="text-4xl text-white font-bold">
+                                                            {height || '170'}
+                                                        </div>
+                                                        <div className="text-white/60 text-sm mt-1">cm</div>
+                                                    </div>
+
+                                                    {/* Scrollable height list */}
+                                                    <div className="w-full max-h-64 overflow-y-scroll scrollbar-hide">
+                                                        <div className="flex flex-col">
+                                                            {Array.from(
+                                                                { length: heightMaxCm - heightMinCm + 1 },
+                                                                (_, i) => heightMinCm + i
+                                                            ).map((h) => (
+                                                                <button
+                                                                    key={h}
+                                                                    onClick={() => setHeight(String(h))}
+                                                                    className={`py-3 text-center transition ${
+                                                                        height === String(h)
+                                                                            ? 'bg-white/20 text-white font-semibold'
+                                                                            : 'text-white/60 hover:bg-white/10'
+                                                                    }`}
+                                                                >
+                                                                    {h}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Custom input */}
+                                            <input
+                                                type="text"
+                                                placeholder="Or enter custom height"
+                                                value={customHeightInput}
+                                                onChange={(e) => setCustomHeightInput(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter' && customHeightInput.trim()) {
+                                                        const customVal = parseInt(customHeightInput);
+                                                        if (!isNaN(customVal) && customVal >= heightMinCm && customVal <= heightMaxCm) {
+                                                            setHeight(String(customVal));
+                                                            setCustomHeightInput('');
+                                                        }
+                                                    }
+                                                }}
+                                                className="w-full mt-4 p-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-white transition"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center">
+                                            {/* Spinner for FT, INCH */}
+                                            <div className="border border-white/20 rounded-2xl p-6 w-full">
+                                                <div className="flex justify-center gap-4 items-center">
+                                                    {/* Feet Spinner */}
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <div className="text-white/60 text-sm">Feet</div>
+                                                        <button
+                                                            onClick={() => {
+                                                                const cm = parseInt(height) || 170;
+                                                                const newCm = Math.min(cm + 30, heightMaxCm);
+                                                                setHeight(String(newCm));
+                                                            }}
+                                                            className="w-8 h-8 flex items-center justify-center rounded bg-white/20 hover:bg-white/30 text-white transition"
+                                                        >
+                                                            ↑
+                                                        </button>
+                                                        <div className="text-4xl text-white font-bold w-16 text-center">
+                                                            {Math.floor((height ? parseInt(height) : 170) / 30)}
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                const cm = parseInt(height) || 170;
+                                                                const newCm = Math.max(cm - 30, heightMinCm);
+                                                                setHeight(String(newCm));
+                                                            }}
+                                                            className="w-8 h-8 flex items-center justify-center rounded bg-white/20 hover:bg-white/30 text-white transition"
+                                                        >
+                                                            ↓
+                                                        </button>
+                                                        <div className="text-white/60 text-xs">ft</div>
+                                                    </div>
+
+                                                    {/* Separator */}
+                                                    <div className="text-white/40 text-3xl">-</div>
+
+                                                    {/* Inches Spinner */}
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <div className="text-white/60 text-sm">Inches</div>
+                                                        <button
+                                                            onClick={() => {
+                                                                const cm = parseInt(height) || 170;
+                                                                const inches = Math.round(((cm % 30) / 2.54));
+                                                                if (inches < 11) {
+                                                                    setHeight(String(Math.min(cm + 2.54, heightMaxCm)));
+                                                                }
+                                                            }}
+                                                            className="w-8 h-8 flex items-center justify-center rounded bg-white/20 hover:bg-white/30 text-white transition"
+                                                        >
+                                                            ↑
+                                                        </button>
+                                                        <div className="text-4xl text-white font-bold w-16 text-center">
+                                                            {Math.round(((height ? parseInt(height) : 170) % 30) / 2.54)}
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                const cm = parseInt(height) || 170;
+                                                                const inches = Math.round(((cm % 30) / 2.54));
+                                                                if (inches > 0) {
+                                                                    setHeight(String(Math.max(cm - 2.54, heightMinCm)));
+                                                                }
+                                                            }}
+                                                            className="w-8 h-8 flex items-center justify-center rounded bg-white/20 hover:bg-white/30 text-white transition"
+                                                        >
+                                                            ↓
+                                                        </button>
+                                                        <div className="text-white/60 text-xs">in</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Custom input for ft/inch */}
+                                            <input
+                                                type="text"
+                                                placeholder="Or enter custom height (cm)"
+                                                value={customHeightInput}
+                                                onChange={(e) => setCustomHeightInput(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter' && customHeightInput.trim()) {
+                                                        const customVal = parseInt(customHeightInput);
+                                                        if (!isNaN(customVal) && customVal >= heightMinCm && customVal <= heightMaxCm) {
+                                                            setHeight(String(customVal));
+                                                            setCustomHeightInput('');
+                                                        }
+                                                    }
+                                                }}
+                                                className="w-full mt-4 p-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-white transition"
+                                            />
+                                        </div>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Company Name */}
-                            <div>
-                                <label className="text-white text-sm font-medium mb-2 block">
-                                    Company Name
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        placeholder="Frick"
-                                        value={companyName}
-                                        onChange={(e) => setCompanyName(e.target.value)}
-                                        className="w-full p-4 pr-10 rounded-xl bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 placeholder-white/60 focus:outline-none focus:border-white transition"
-                                    />
-                                    {companyName && (
-                                        <button
-                                            onClick={() => setCompanyName('')}
-                                            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white hover:text-white"
-                                        >
-                                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
-                                                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
+                            <style>{`
+                                .scrollbar-hide::-webkit-scrollbar {
+                                    display: none;
+                                }
+                                .scrollbar-hide {
+                                    -ms-overflow-style: none;
+                                    scrollbar-width: none;
+                                }
+                            `}</style>
                         </div>
                     )}
 
@@ -1169,7 +1440,7 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Step 12: Favorite Cafe/Restaurant */}
+                    {/* Step 12: Favorite Café/Restaurant with Places Autocomplete */}
                     {step === 12 && (
                         <div className="space-y-6">
                             <div>
@@ -1177,31 +1448,19 @@ export default function ProfileQuestions() {
                                     Your go-to café or restaurant?
                                 </h2>
                                 <p className="text-white/70 text-sm mb-6">
-                                    Share your favorite café or restaurant. It's a great way to find someone who loves the same places!
+                                    Share your favorite café or restaurant.
                                 </p>
                             </div>
 
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    placeholder="Type your favorite café or restaurant"
-                                    value={favoriteCafe}
-                                    onChange={(e) => setFavoriteCafe(e.target.value)}
-                                    className="w-full p-4 pr-12 rounded-xl bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 placeholder-white/60 focus:outline-none focus:border-white transition"
-                                />
-                                <svg
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </div>
-
-                            <p className="text-white/50 text-xs">
-                                E.g. Blue Tokai, Olive Bar, Trishna
-                            </p>
+                            <textarea
+                                placeholder="E.g., 'Starbucks downtown' or 'The local Italian café'"
+                                value={favoriteCafe}
+                                onChange={(e) => setFavoriteCafe(e.target.value)}
+                                maxLength={200}
+                                className="w-full p-4 rounded-xl bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 placeholder-white/60 focus:outline-none focus:border-white transition resize-none"
+                                rows="3"
+                            />
+                            <p className="text-white/50 text-xs text-right">{favoriteCafe.length}/200</p>
                         </div>
                     )}
 
@@ -1230,7 +1489,7 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Step 14: Living Situation */}
+                    {/* Step 13: Living Situation */}
                     {step === 14 && (
                         <div className="space-y-6">
                             <div>
@@ -1277,7 +1536,7 @@ export default function ProfileQuestions() {
                         </div>
                     )}
 
-                    {/* Step 15: Face Photos */}
+                    {/* Step 14: Face Photos */}
                     {step === 15 && (
                         <div className="space-y-6">
                             <div>
@@ -1388,7 +1647,7 @@ export default function ProfileQuestions() {
                     <button
                         onClick={handleNext}
                         disabled={!canProceed() || loading || uploading}
-                        className={`w-full py-4 rounded-xl font-semibold text-base transition-all ${canProceed() && !loading && !uploading
+                        className={`w-full py-4 rounded-full font-semibold text-base transition-all ${canProceed() && !loading && !uploading
                             ? 'bg-white text-black hover:bg-gray-100'
                             : 'bg-white/30 text-white/50 cursor-not-allowed'
                             }`}

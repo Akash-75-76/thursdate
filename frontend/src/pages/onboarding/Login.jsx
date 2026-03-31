@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { authAPI, userAPI } from "../../utils/api";
 
 const CARD_GLASS_ACTIVE =
@@ -141,12 +141,13 @@ export default function Login() {
             </button>
             <div className="pt-4 text-center text-sm">
               <span className={CARD_BODY_INACTIVE}>Don&apos;t have an account?</span>
-              <Link
-                to="/signup"
+              <button
+                type="button"
+                onClick={() => navigate('/gateway')}
                 className="text-white font-medium hover:text-white/80 transition ml-1"
               >
                 Sign Up
-              </Link>
+              </button>
             </div>
           </form>
         )}

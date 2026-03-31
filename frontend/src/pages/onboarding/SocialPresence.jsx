@@ -73,10 +73,30 @@ export default function SocialPresence() {
         const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://sundate-backend.onrender.com/api';
         const backendUrl = backendApiUrl.replace('/api', '');
 
-        console.log('🔗 Redirecting to LinkedIn OAuth:', `${backendUrl}/auth/linkedin`);
+        // Extract user ID from JWT token (if available)
+        let redirectUrl = `${backendUrl}/auth/linkedin`;
+        
+        try {
+            const token = localStorage.getItem('token');
+            if (token) {
+                // Decode JWT to get userId (simple base64 decode without verification)
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    const decoded = JSON.parse(atob(parts[1]));
+                    if (decoded.userId) {
+                        redirectUrl += `?user_id=${decoded.userId}`;
+                        console.log('🔗 LinkedIn verification for user:', decoded.userId);
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('Could not extract user ID from token:', err);
+        }
+
+        console.log('🔗 Redirecting to LinkedIn OAuth:', redirectUrl);
 
         // Redirect to backend OAuth endpoint
-        window.location.href = `${backendUrl}/auth/linkedin`;
+        window.location.href = redirectUrl;
     };
 
     const handleLicenseUpload = async () => {
