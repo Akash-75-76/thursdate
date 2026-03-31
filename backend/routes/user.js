@@ -189,6 +189,78 @@ router.get('/profile', auth, async (req, res) => {
     }
 });
 
+// ✅ NEW: Mark onboarding as complete (quick fix endpoint)
+router.post('/complete-onboarding', auth, async (req, res) => {
+    try {
+        await pool.execute(
+            'UPDATE users SET onboarding_complete = TRUE WHERE id = ?',
+            [req.user.userId]
+        );
+        
+        // Return updated user profile
+        const [users] = await pool.execute(
+            'SELECT id, email, first_name, last_name, gender, dob, current_location, city, location_preference, favourite_travel_destination, last_holiday_places, favourite_places_to_go, profile_pic_url, face_photo_url, approval, intent, onboarding_complete, interests, pets, drinking, smoking, height, religious_level, kids_preference, food_preference, relationship_status, from_location, instagram, linkedin_id, face_photos, license_photos, license_status, fitness_level, spoken_languages, coding_languages, favorite_places FROM users WHERE id = ?',
+            [req.user.userId]
+        );
+        
+        if (users.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const user = users[0];
+        const transformedUser = {
+            id: user.id,
+            email: user.email,
+            firstName: user.first_name || null,
+            lastName: user.last_name || null,
+            gender: user.gender || null,
+            dob: user.dob || null,
+            currentLocation: user.current_location || null,
+            city: user.city || null,
+            locationPreference: user.location_preference || 'anywhere',
+            favouriteTravelDestination: safeJsonParse(user.favourite_travel_destination, []),
+            lastHolidayPlaces: user.last_holiday_places || null,
+            favouritePlacesToGo: safeJsonParse(user.favourite_places_to_go, []),
+            profilePicUrl: user.profile_pic_url || null,
+            faceVerificationUrl: user.face_photo_url || null,
+            intent: safeJsonParse(user.intent, {}),
+            onboardingComplete: !!user.onboarding_complete,
+            approval: !!user.approval,
+            createdAt: user.created_at,
+            updatedAt: user.updated_at,
+            interests: safeJsonParse(user.interests, []),
+            pets: user.pets || null,
+            drinking: user.drinking || null,
+            smoking: user.smoking || null,
+            height: user.height || null,
+            religiousLevel: user.religious_level || null,
+            kidsPreference: user.kids_preference || null,
+            foodPreference: user.food_preference || null,
+            relationshipStatus: user.relationship_status || null,
+            fromLocation: user.from_location || null,
+            instagram: user.instagram || null,
+            linkedin: user.linkedin || null,
+            facePhotos: safeJsonParse(user.face_photos, []),
+            licensePhotos: safeJsonParse(user.license_photos, []),
+            licenseStatus: user.license_status || 'none',
+            fitnessLevel: user.fitness_level || null,
+            spokenLanguages: safeJsonParse(user.spoken_languages, []),
+            codingLanguages: safeJsonParse(user.coding_languages, []),
+            favoritePlaces: safeJsonParse(user.favorite_places, []),
+        };
+        
+        console.log(`✅ Onboarding marked as complete for user ${req.user.userId}`);
+        res.json({ 
+            message: 'Onboarding marked as complete',
+            user: transformedUser,
+            onboardingComplete: true
+        });
+    } catch (error) {
+        console.error('Complete onboarding error:', error);
+        res.status(500).json({ error: 'Internal server error: ' + error.message });
+    }
+});
+
 // Get another user's profile by ID (for viewing matched users, etc.)
 router.get('/profile/:userId', auth, async (req, res) => {
     try {
@@ -895,7 +967,7 @@ router.get('/matches/potential', auth, async (req, res) => {
                     favourite_travel_destination, profile_pic_url, intent, 
                     interests, pets, drinking, smoking, height, religious_level, 
                     kids_preference, food_preference, relationship_status, from_location, 
-                    instagram, linkedin
+                    instagram, linkedin_id
              FROM users 
              WHERE approval = true 
                 AND id != ? 
@@ -958,7 +1030,7 @@ router.get('/matches/potential', auth, async (req, res) => {
                     religiousLevel: user.religious_level,
                     kidsPreference: user.kids_preference,
                     instagram: user.instagram,
-                    linkedin: user.linkedin,
+                    linkedin: user.linkedin_id,
                     interests: safeJsonParse(user.interests, []),
                     // ✅ SECURITY: Never expose facePhotos in Discover - only visible at Level 3 after matching
                     intent: safeJsonParse(user.intent, {})

@@ -125,16 +125,9 @@ router.post('/send-email-otp', async (req, res) => {
       return res.status(400).json({ error: 'Valid email address is required' });
     }
     
-    // Check if email already exists
-    const emailCheck = await AccountUniquenessService.checkEmailExists(email);
-    if (emailCheck.exists) {
-      console.log('ℹ️ Email already registered, redirecting to login:', email);
-      return res.status(409).json({ 
-        error: 'This email is already registered. Please login instead.',
-        code: 'EMAIL_EXISTS',
-        userExists: true
-      });
-    }
+    // ✅ FIX: Allow sending OTP for any email (signup or login)
+    // The /verify-email-otp endpoint handles the logic for new vs existing users
+    // This allows both new signups and existing user logins to work smoothly
     
     // Check rate limit
     const rateLimit = otpManager.checkRateLimit(email);

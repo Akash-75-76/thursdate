@@ -153,6 +153,18 @@ export default function UserIntent() {
       try {
         const userData = await userAPI.getProfile();
         if (!mounted) return;
+        
+        // ✅ NEW: If user returned to UserIntent but already completed it, force mark as complete
+        if (userData && userData.onboardingComplete) {
+          console.log('[UserIntent] User already completed onboarding, redirecting to home...');
+          if (userData.approval) {
+            navigate('/home', { replace: true });
+          } else {
+            navigate('/waitlist-status', { replace: true });
+          }
+          return;
+        }
+        
         if (userData) {
           // Load from root level (new hybrid storage)
           setInterests(userData.interests || []);

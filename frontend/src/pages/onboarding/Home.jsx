@@ -46,24 +46,7 @@ export default function Home() {
     }
   };
 
-  // EFFECT 1: Check if the user is approved to view this page
-  useEffect(() => {
-    const checkApproval = async () => {
-      try {
-        const userData = await userAPI.getProfile();
-        if (userData && !userData.approval) {
-          navigate("/waitlist-status", { replace: true });
-        }
-      } catch (err) {
-        console.error("Failed to check approval status:", err);
-        // Optional: navigate to login if profile fetch fails
-        // navigate('/login');
-      }
-    };
-    checkApproval();
-  }, [navigate]);
-
-  // EFFECT 2: Initialize Socket.IO connection
+  // EFFECT 1: Initialize Socket.IO connection
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token && !socketService.isConnected()) {
