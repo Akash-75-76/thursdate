@@ -92,6 +92,25 @@ export const userAPI = {
         });
     },
 
+    // ✅ NEW: Mark onboarding as complete (quick fix)
+    completeOnboarding: async () => {
+        if (isMockMode()) {
+            console.log("MOCK PROFILE: Marking onboarding as complete");
+            const currentMock = getMockProfile();
+            const updatedProfile = { 
+                ...currentMock, 
+                onboardingComplete: true,
+                onboardingStage: 'intent_complete',
+            };
+            setMockProfile(updatedProfile);
+            return { message: "Onboarding marked as complete", onboardingComplete: true };
+        }
+        
+        return authRequest('/user/complete-onboarding', {
+            method: 'POST',
+        });
+    },
+
     // Get potential matches
     getPotentialMatches: async () => {
         if (isMockMode()) {
