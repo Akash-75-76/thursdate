@@ -256,7 +256,7 @@ export default function Verification() {
           )}
           {step === "success" && (
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/signup")}
               className={BUTTON_SOLID + " w-full py-4 rounded-full"}
             >
               Next
