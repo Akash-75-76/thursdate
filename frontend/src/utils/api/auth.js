@@ -101,13 +101,13 @@ export const authAPI = {
     },
 
     // Send Email OTP
-    sendEmailOTP: async (email) => {
+    sendEmailOTP: async (email, otpType = 'signup') => {
         const response = await fetch(`${API_BASE_URL}/auth/send-email-otp`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, otpType }),
         });
 
         if (!response.ok) {
@@ -145,13 +145,13 @@ export const authAPI = {
     },
 
     // Resend Email OTP
-    resendEmailOTP: async (email) => {
+    resendEmailOTP: async (email, otpType = 'signup') => {
         const response = await fetch(`${API_BASE_URL}/auth/resend-email-otp`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, otpType }),
         });
 
         if (!response.ok) {

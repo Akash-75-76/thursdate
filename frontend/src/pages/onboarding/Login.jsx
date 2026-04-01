@@ -35,7 +35,9 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      await authAPI.sendEmailOTP(email);
+      // ✅ Pass otpType: 'login' to indicate this is a login attempt
+      // Backend will only send OTP if email has an existing account
+      await authAPI.sendEmailOTP(email, 'login');
       setStep("otp");
       setResendTimer(30);
       setCanResend(false);
@@ -93,7 +95,8 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      await authAPI.resendEmailOTP(email);
+      // ✅ Pass otpType: 'login' for consistency
+      await authAPI.resendEmailOTP(email, 'login');
       setResendTimer(30);
       setCanResend(false);
       setOtp("");
