@@ -119,15 +119,42 @@ router.post('/login', async (req, res) => {
 // Send Email OTP
 router.post('/send-email-otp', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, otpType = 'signup' } = req.body;
+    
+    console.log('📧 OTP Request - Email:', email, 'Type:', otpType);
     
     if (!email || !/.+@.+\..+/.test(email)) {
       return res.status(400).json({ error: 'Valid email address is required' });
     }
     
-    // ✅ FIX: Allow sending OTP for any email (signup or login)
-    // The /verify-email-otp endpoint handles the logic for new vs existing users
-    // This allows both new signups and existing user logins to work smoothly
+    // ✅ FIX: Enforce email existence checks based on flow type
+    if (otpType === 'login') {
+      // LOGIN FLOW: Only allow OTP for existing accounts
+      console.log('🔐 Checking if email exists for LOGIN flow:', email);
+      const emailCheck = await AccountUniquenessService.checkEmailExists(email);
+      console.log('✅ Email check result:', emailCheck);
+      if (!emailCheck.exists) {
+        console.log('❌ Login attempt with non-existent email:', email);
+        return res.status(404).json({ 
+          error: 'This email is not registered. Please sign up first.',
+          code: 'EMAIL_NOT_REGISTERED',
+          userExists: false
+        });
+      }
+    } else {
+      // SIGNUP FLOW: Only allow OTP for new emails
+      console.log('📝 Checking if email is new for SIGNUP flow:', email);
+      const emailCheck = await AccountUniquenessService.checkEmailExists(email);
+      console.log('✅ Email check result:', emailCheck);
+      if (emailCheck.exists) {
+        console.log('❌ Signup attempt with existing email:', email);
+        return res.status(409).json({ 
+          error: 'This email is already registered. Please login instead.',
+          code: 'EMAIL_EXISTS',
+          userExists: true
+        });
+      }
+    }
     
     // Check rate limit
     const rateLimit = otpManager.checkRateLimit(email);
@@ -264,10 +291,35 @@ router.post('/verify-email-otp', async (req, res) => {
 // Resend Email OTP
 router.post('/resend-email-otp', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, otpType = 'signup' } = req.body;
     
     if (!email || !/.+@.+\..+/.test(email)) {
       return res.status(400).json({ error: 'Valid email address is required' });
+    }
+    
+    // ✅ FIX: Enforce email existence checks based on flow type
+    if (otpType === 'login') {
+      // LOGIN FLOW: Only allow OTP for existing accounts
+      const emailCheck = await AccountUniquenessService.checkEmailExists(email);
+      if (!emailCheck.exists) {
+        console.log('ℹ️ Login resend attempt with non-existent email:', email);
+        return res.status(404).json({ 
+          error: 'This email is not registered. Please sign up first.',
+          code: 'EMAIL_NOT_REGISTERED',
+          userExists: false
+        });
+      }
+    } else {
+      // SIGNUP FLOW: Only allow OTP for new emails
+      const emailCheck = await AccountUniquenessService.checkEmailExists(email);
+      if (emailCheck.exists) {
+        console.log('ℹ️ Signup resend attempt with existing email:', email);
+        return res.status(409).json({ 
+          error: 'This email is already registered. Please login instead.',
+          code: 'EMAIL_EXISTS',
+          userExists: true
+        });
+      }
     }
     
     // Check if can resend
