@@ -108,7 +108,7 @@ export default function HomeTab() {
         fromLocation: user.fromLocation,
         currentLocation: user.currentLocation,
         gender: user.gender,
-        height: user.height ? `${Math.floor(user.height / 30.48)}'${Math.round((user.height % 30.48) / 2.54)}"` : 'N/A',
+        fitnessLevel: user.fitnessLevel || 'Not specified', // ✅ LEVEL 0: Show fitness level instead of height
         relationshipStatus: user.relationshipStatus,
         bio: user.intent?.bio || '',
         lifestyleImages: user.intent?.lifestyleImageUrls || [],
@@ -534,49 +534,67 @@ export default function HomeTab() {
 
             {/* Action Buttons - Draggable */}
             <div
-              className="fixed z-10 rounded-full p-3 flex flex-col gap-3 border border-white/30 cursor-move"
+              className="fixed z-10 rounded-full p-3 flex flex-col gap-3 cursor-move"
               style={{
                 left: `${buttonPosition.x}px`,
                 top: `${buttonPosition.y}px`,
-                background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.6) 100%)',
-                boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
               }}
               onMouseDown={handleButtonMouseDown}
               onTouchStart={handleButtonTouchStart}
             >
-              <button
-                className={`w-12 h-12 rounded-full backdrop-blur-md border transition-all flex items-center justify-center ${
-                  likedUsers.has(currentCandidate?.id) 
-                    ? 'bg-rose-500/70 border-rose-400/50 hover:bg-rose-600/80' 
-                    : 'bg-white/10 border-white/30 hover:bg-white/20'
-                }`}
-                onClick={(e) => { e.stopPropagation(); handleLike(); }}
-              >
-                <img src="/like.svg" alt="Like" className="w-6 h-6" />
-              </button>
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  className="w-12 h-12 flex items-center justify-center transition-all hover:bg-white/20"
+                  onClick={(e) => { e.stopPropagation(); handleLike(); }}
+                  style={{ borderRadius: '9607.414px', border: '0.961px solid rgba(255, 255, 255, 0.30)', background: 'rgba(255, 255, 255, 0.15)' }}
+                >
+                  <img 
+                    src="/like.svg" 
+                    alt="Like" 
+                    className="w-6 h-6 transition-all"
+                    style={{
+                      filter: likedUsers.has(currentCandidate?.id) 
+                        ? 'invert(24%) sepia(98%) saturate(1476%) hue-rotate(343deg) brightness(102%) contrast(97%)'
+                        : 'none'
+                    }}
+                  />
+                </button>
+                <span style={{ color: '#DADADA', textAlign: 'center', fontFamily: 'Poppins', fontSize: '9.949px', fontStyle: 'normal', fontWeight: '400', lineHeight: '140%' }}>Like</span>
+              </div>
 
-              <button
-                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/30 flex items-center justify-center transition-all hover:bg-white/20"
-                onClick={(e) => { e.stopPropagation(); handleSkip(); }}
-              >
-                <img src="/skip.svg" alt="Skip" className="w-6 h-6" />
-              </button>
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  className="w-12 h-12 flex items-center justify-center transition-all hover:bg-white/20"
+                  onClick={(e) => { e.stopPropagation(); handleSkip(); }}
+                  style={{ borderRadius: '9607.414px', border: '0.961px solid rgba(255, 255, 255, 0.30)', background: 'rgba(255, 255, 255, 0.15)' }}
+                >
+                  <img src="/skip.svg" alt="Skip" className="w-6 h-6" />
+                </button>
+                <span style={{ color: '#DADADA', textAlign: 'center', fontFamily: 'Poppins', fontSize: '9.949px', fontStyle: 'normal', fontWeight: '400', lineHeight: '140%' }}>Next</span>
+              </div>
 
-              <button
-                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/30 flex items-center justify-center transition-all hover:bg-white/20"
-                onClick={(e) => { e.stopPropagation(); handleGoBack(); }}
-                disabled={currentCandidateIndex === 0}
-                style={{ opacity: currentCandidateIndex === 0 ? 0.5 : 1 }}
-              >
-                <img src="/goback.svg" alt="Go Back" className="w-6 h-6" />
-              </button>
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  className="w-12 h-12 flex items-center justify-center transition-all hover:bg-white/20"
+                  onClick={(e) => { e.stopPropagation(); handleGoBack(); }}
+                  disabled={currentCandidateIndex === 0}
+                  style={{ borderRadius: '9607.414px', border: '0.961px solid rgba(255, 255, 255, 0.30)', background: 'rgba(255, 255, 255, 0.15)', opacity: currentCandidateIndex === 0 ? 0.5 : 1 }}
+                >
+                  <img src="/goback.svg" alt="Go Back" className="w-6 h-6" />
+                </button>
+                <span style={{ color: '#DADADA', textAlign: 'center', fontFamily: 'Poppins', fontSize: '9.949px', fontStyle: 'normal', fontWeight: '400', lineHeight: '140%' }}>Previous</span>
+              </div>
 
-              <button
-                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/30 flex items-center justify-center transition-all hover:bg-white/20"
-                onClick={(e) => { e.stopPropagation(); handleGoToChat(); }}
-              >
-                <img src="/gotochat.svg" alt="Go to Chat" className="w-6 h-6" />
-              </button>
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  className="w-12 h-12 flex items-center justify-center transition-all hover:bg-white/20"
+                  onClick={(e) => { e.stopPropagation(); handleGoToChat(); }}
+                  style={{ borderRadius: '9607.414px', border: '0.961px solid rgba(255, 255, 255, 0.30)', background: 'rgba(255, 255, 255, 0.15)' }}
+                >
+                  <img src="/gotochat.svg" alt="Go to Chat" className="w-6 h-6" />
+                </button>
+                <span style={{ color: '#DADADA', textAlign: 'center', fontFamily: 'Poppins', fontSize: '9.949px', fontStyle: 'normal', fontWeight: '400', lineHeight: '140%' }}>Message</span>
+              </div>
             </div>
 
             {/* Scrollable Profile Card */}

@@ -1242,7 +1242,7 @@ export default function ChatConversation() {
 
             {/* Unsend Message Dialog */}
             {showDeleteDialog && selectedMessage && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[50] px-4 sm:px-6">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
                         <div className="p-5 sm:p-6">
                             <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Unsend message?</h3>
@@ -1278,7 +1278,7 @@ export default function ChatConversation() {
 
             {/* Block Dialog */}
             {showBlockDialog && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[50] px-4 sm:px-6">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
                         <div className="p-5 sm:p-6">
                             <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Block {otherUser?.firstName || otherUser?.name}?</h3>
@@ -1307,10 +1307,28 @@ export default function ChatConversation() {
 
             {/* Report Dialog */}
             {showReportDialog && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[50] px-4 sm:px-6">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden max-h-[85vh] sm:max-h-[90vh] flex flex-col shadow-2xl">
+                        <div className="flex items-center justify-between px-5 sm:px-6 pt-5 sm:pt-6 pb-3 border-b border-gray-200">
+                            <button
+                                onClick={() => {
+                                    setShowReportDialog(false);
+                                    setReportReason('');
+                                    setReportDescription('');
+                                }}
+                                className="w-8 h-8 flex items-center justify-center -ml-2 active:scale-95 transition-transform"
+                            >
+                                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </button>
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 flex-1 text-center">Report User</h3>
+                            <div className="w-8"></div>
+                        </div>
                         <div className="p-5 sm:p-6 overflow-y-auto">
-                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Report {otherUser?.firstName || otherUser?.name}</h3>
+                            <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
+                                Help us understand what's wrong. Your report is anonymous and will be reviewed by our team.
+                            </p>
                             <p className="text-gray-600 text-[15px] sm:text-sm mb-5 sm:mb-6 leading-relaxed">
                                 Help us understand what's wrong. Your report is anonymous and will be reviewed by our team.
                             </p>
@@ -1386,7 +1404,7 @@ export default function ChatConversation() {
                                     }}
                                     className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl sm:rounded-2xl font-medium active:bg-gray-200 transition-colors text-[15px] sm:text-base"
                                 >
-                                    Cancel
+                                    Back to Chat
                                 </button>
                             </div>
                         </div>
@@ -1396,7 +1414,7 @@ export default function ChatConversation() {
 
             {/* Unmatch Dialog */}
             {showUnmatchDialog && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[45] px-4 sm:px-6">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[50] px-4 sm:px-6">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
                         <div className="p-5 sm:p-6">
                             <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Unmatch with {otherUser?.firstName || otherUser?.name}?</h3>
