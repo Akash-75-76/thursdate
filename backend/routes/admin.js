@@ -364,7 +364,7 @@ router.get('/users/:userId', auth, adminAuth, async (req, res) => {
         current_location, favourite_travel_destination, last_holiday_places, 
         favourite_places_to_go, profile_pic_url, intent, 
         onboarding_complete, approval, created_at, updated_at,
-        license_photos, license_status, linkedin_verified, linkedin,
+        license_photos, license_status, linkedin_verified, linkedin_id,
         interests, pets, drinking, smoking, height, religious_level,
         kids_preference, food_preference, relationship_status, from_location,
         instagram, face_photos
@@ -400,7 +400,7 @@ router.get('/users/:userId', auth, adminAuth, async (req, res) => {
         licensePhotos: safeJsonParse(user.license_photos, null),
         licenseStatus: user.license_status || 'none',
         linkedinVerified: user.linkedin_verified || false,
-        linkedin: user.linkedin || null,
+        linkedin: user.linkedin_id || null,
         // Additional profile data for admin review
         interests: safeJsonParse(user.interests, []),
         pets: user.pets || null,

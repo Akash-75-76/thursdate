@@ -169,7 +169,7 @@ router.get('/profile', auth, async (req, res) => {
             relationshipStatus: user.relationship_status || null,
             fromLocation: user.from_location || null,
             instagram: user.instagram || null,
-            linkedin: user.linkedin || null,
+            linkedin: user.linkedin_id || null,
             facePhotos: safeJsonParse(user.face_photos, []),
             licensePhotos: safeJsonParse(user.license_photos, []),
             licenseStatus: user.license_status || 'none',
@@ -239,7 +239,7 @@ router.post('/complete-onboarding', auth, async (req, res) => {
             relationshipStatus: user.relationship_status || null,
             fromLocation: user.from_location || null,
             instagram: user.instagram || null,
-            linkedin: user.linkedin || null,
+            linkedin: user.linkedin_id || null,
             facePhotos: safeJsonParse(user.face_photos, []),
             licensePhotos: safeJsonParse(user.license_photos, []),
             licenseStatus: user.license_status || 'none',
@@ -282,7 +282,7 @@ router.get('/profile/:userId', auth, async (req, res) => {
                     favourite_travel_destination, last_holiday_places, favourite_places_to_go, 
                     profile_pic_url, intent, interests, pets, drinking, smoking, height, 
                     religious_level, kids_preference, food_preference, relationship_status, 
-                    from_location, instagram, linkedin, face_photos, spoken_languages, coding_languages, favorite_places
+                    from_location, instagram, linkedin_id, face_photos, spoken_languages, coding_languages, favorite_places
              FROM users 
              WHERE id = ? AND approval = true`,
             [targetUserId]
@@ -335,7 +335,7 @@ router.get('/profile/:userId', auth, async (req, res) => {
             relationshipStatus: user.relationship_status || null,
             fromLocation: user.from_location || null,
             instagram: user.instagram || null,
-            linkedin: user.linkedin || null,
+            linkedin: user.linkedin_id || null,
             facePhotos: safeJsonParse(user.face_photos, []),
             spokenLanguages: safeJsonParse(user.spoken_languages, []),  // ✅ NEW: Spoken languages
             codingLanguages: safeJsonParse(user.coding_languages, []),  // ✅ NEW: Coding languages
