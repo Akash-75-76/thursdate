@@ -119,11 +119,12 @@ const FaceVerification = () => {
 
     return (
         <div
-            className="h-screen flex flex-col font-sans relative"
+            className="h-screen flex flex-col font-sans relative overflow-hidden"
             style={{
                 backgroundImage: `url('/bgs/faceverifybg.png')`,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
+                backgroundAttachment: "fixed"
             }}
         >
             {/* Overlay */}
@@ -160,7 +161,7 @@ const FaceVerification = () => {
             )}
 
             {/* Main Content */}
-            <div className="relative z-40 p-6 pt-10 flex flex-col flex-grow bg-white/10">
+            <div className="relative z-40 p-6 pt-10 flex flex-col flex-grow">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <button
@@ -208,8 +209,8 @@ const FaceVerification = () => {
                                 >
                                     <div
                                         style={{
-                                            width: '135px', // 135/240 = 9/16
-                                            height: '240px',
+                                            width: '280px',
+                                            height: '350px',
                                             maxWidth: '100%',
                                             borderRadius: '1rem',
                                             overflow: 'hidden',

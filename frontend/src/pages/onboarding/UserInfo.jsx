@@ -1436,7 +1436,7 @@ where do you work?</h1>
                     className="px-5 py-3 rounded-xl font-medium text-sm"
                     style={currentFavouriteDestinationInput.trim() ? { background: 'white', color: 'black' } : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}
                   >
-                    Add
+                    +
                   </button>
                 </div>
 
