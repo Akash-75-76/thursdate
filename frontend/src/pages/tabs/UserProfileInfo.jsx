@@ -359,9 +359,9 @@ export default function UserProfileInfo() {
 
                         <div className="flex flex-col items-center">
                             <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                                <img src="/profileHeight.svg" alt="Height" className="w-6 h-6" />
+                                <img src={user.visibilityLevel === 1 ? '/profileFitnessLevel.svg' : '/profileHeight.svg'} alt={user.visibilityLevel === 1 ? 'Fitness Level' : 'Height'} className="w-6 h-6" />
                             </div>
-                            <span className="text-white/80 text-[10px] mt-1">{user.height ? `${user.height} cm` : 'Not specified'}</span>
+                            <span className="text-white/80 text-[10px] mt-1">{user.visibilityLevel === 1 ? (user.fitnessLevel || 'Not specified') : (user.height ? `${user.height} cm` : 'Not specified')}</span>
                         </div>
 
                         <div className="flex flex-col items-center">
@@ -566,7 +566,7 @@ export default function UserProfileInfo() {
                     )}
 
                     {/* Lifestyle Section */}
-                    {((user.favouriteTravelDestination && user.favouriteTravelDestination.length > 0) || user.pets || user.height || user.foodPreference || user.intent?.profileQuestions?.sleepSchedule || user.drinking || user.smoking) && (
+                    {((user.favouriteTravelDestination && user.favouriteTravelDestination.length > 0) || user.pets || (user.visibilityLevel === 1 ? user.fitnessLevel : user.height) || user.foodPreference || user.intent?.profileQuestions?.sleepSchedule || user.drinking || user.smoking) && (
                         <div className="mb-4">
                             <h3 className="text-white text-base font-semibold mb-3">Lifestyle</h3>
 
@@ -599,7 +599,19 @@ export default function UserProfileInfo() {
                                         </div>
                                     )}
 
-                                    {user.height && (
+                                    {user.visibilityLevel === 1 && user.fitnessLevel && (
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0 border border-white/30">
+                                                <img src="/profileFitnessLevel.svg" alt="Fitness Level" className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <div className="text-white/70 text-xs">Fitness Level</div>
+                                                <div className="text-white font-medium text-sm">{user.fitnessLevel}</div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {user.visibilityLevel >= 2 && user.height && (
                                         <div className="flex items-start gap-3">
                                             <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0 border border-white/30">
                                                 <img src="/profileHeight.svg" alt="Height" className="w-4 h-4" />

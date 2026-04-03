@@ -304,12 +304,15 @@ export default function ProfileQuestions() {
                 intent: {
                     ...currentProfile.intent,
                     profileQuestions: {
+                        ...currentProfile.intent?.profileQuestions,
                         education,
                         educationDetail,
                         languages,
-                        height: height ? parseInt(height) : null,
+                        height: height ? parseInt(height) : (currentProfile.intent?.profileQuestions?.height || currentProfile.height || null),
                         canCode,
                         codingLanguages,
+                        jobTitle,
+                        companyName,
                         sleepSchedule,
                         dateBill,
                         religion: religiousLevel === 'not' ? null : religion,
