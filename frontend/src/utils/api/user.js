@@ -218,7 +218,7 @@ export const userAPI = {
         formData.append('backImage', backImage);
 
         const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/api/user/upload-license`, {
+        const response = await fetch(`${API_BASE_URL}/user/upload-license`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`
