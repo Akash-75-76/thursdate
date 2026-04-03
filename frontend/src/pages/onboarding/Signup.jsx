@@ -51,9 +51,35 @@ export default function Signup() {
     setLoading(true);
     setError("");
     try {
-      await authAPI.verifyEmailOTP(email, otp);
+      const response = await authAPI.verifyEmailOTP(email, otp);
       // Token is now automatically stored by verifyEmailOTP
-      // User account is created (if new) or logged in (if existing) by backend
+      
+      // Check if this is a new user or existing user
+      const { isNewUser, user: userData } = response;
+      
+      // Brand new user - start onboarding from the beginning
+      if (isNewUser) {
+        navigate("/user-info");
+        return;
+      }
+
+      // Existing user - check their onboarding status
+      if (userData?.onboardingComplete) {
+        // User is fully onboarded, go to home
+        navigate("/home");
+        return;
+      }
+
+      // Check onboarding step to continue from where they left off
+      if (userData?.onboardingCurrentStep) {
+        if (userData.onboardingCurrentStep > 1) {
+          // Started onboarding, continue to user-intent
+          navigate("/user-intent");
+          return;
+        }
+      }
+
+      // Default to user-info if we can't determine status
       navigate("/user-info");
     } catch (err) {
       setError(err.message || 'Invalid OTP');
