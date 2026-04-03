@@ -2,6 +2,7 @@
 
 import { isMockMode, getMockProfile, setMockProfile } from '../mockMode';
 import { authRequest } from '../apiClient';
+import { API_BASE_URL } from '../config';
 
 // User Profile API
 export const userAPI = {
@@ -217,7 +218,7 @@ export const userAPI = {
         formData.append('backImage', backImage);
 
         const token = localStorage.getItem('token');
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/user/upload-license`, {
+        const response = await fetch(`${API_BASE_URL}/api/user/upload-license`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`
