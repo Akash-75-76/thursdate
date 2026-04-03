@@ -209,8 +209,8 @@ const FaceVerification = () => {
                                 >
                                     <div
                                         style={{
-                                            width: '280px',
-                                            height: '350px',
+                                            width: '120px',
+                                            height: '180px',
                                             maxWidth: '100%',
                                             borderRadius: '1rem',
                                             overflow: 'hidden',
