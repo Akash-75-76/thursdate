@@ -166,6 +166,7 @@ app.use('/api', require('./routes/reports'));
 app.use('/auth', require('./routes/linkedin-auth'));
 app.use('/api/verification/driving-license', require('./routes/driving-license-verification'));
 app.use('/api/spotify', require('./routes/spotify'));
+app.use('/api/tmdb', require('./routes/tmdb'));
 app.use('/api/referral', require('./routes/referral'));
 
 const PORT = process.env.PORT || 5000;

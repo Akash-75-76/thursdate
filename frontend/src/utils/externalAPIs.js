@@ -2,15 +2,13 @@
 // External API integrations for autocomplete suggestions
 
 // ============= TMDB API =============
-// The Movie Database API for movies and TV shows
-// Get your API key from: https://www.themoviedb.org/settings/api
+// The Movie Database API (via secure backend proxy)
+// Backend proxy keeps API key safe and works in production
 
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w92'; // Small thumbnail size
+const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api';
 
 /**
- * Search for movies on TMDB
+ * Search for movies on TMDB (via backend proxy)
  * @param {string} query - Search query
  * @returns {Promise<Array>} Array of movie suggestions
  */
@@ -18,13 +16,9 @@ export async function searchMovies(query) {
   if (!query || !query.trim()) return [];
   
   try {
-    if (!TMDB_API_KEY) {
-      console.warn('TMDB API key not configured. Set VITE_TMDB_API_KEY in .env file');
-      return [];
-    }
-
+    console.log('[TMDB] Searching for movies:', query);
     const response = await fetch(
-      `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=1`,
+      `${BACKEND_API_URL}/tmdb/search/movies?query=${encodeURIComponent(query)}`,
       { signal: AbortSignal.timeout(5000) }
     );
 
@@ -34,22 +28,8 @@ export async function searchMovies(query) {
     }
 
     const data = await response.json();
-    
-    // Return top 5 results with full metadata for rich display
-    return (data.results || []).slice(0, 5).map(movie => ({
-      id: movie.id,
-      title: movie.title,
-      name: movie.title, // For backward compatibility with existing code
-      poster_path: movie.poster_path,
-      release_date: movie.release_date,
-      overview: movie.overview,
-      vote_average: movie.vote_average,
-      // Computed fields for autocomplete display
-      year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
-      display: movie.title + (movie.release_date ? ` (${new Date(movie.release_date).getFullYear()})` : ''),
-      image: movie.poster_path ? `${TMDB_IMAGE_BASE}${movie.poster_path}` : null,
-      subtitle: movie.release_date ? `Released ${new Date(movie.release_date).getFullYear()}` : 'Movie'
-    }));
+    console.log('[TMDB] Found', data.length, 'movies');
+    return data;
   } catch (error) {
     if (error.name !== 'AbortError') {
       console.error('Error searching movies:', error);
@@ -59,7 +39,7 @@ export async function searchMovies(query) {
 }
 
 /**
- * Search for TV shows on TMDB
+ * Search for TV shows on TMDB (via backend proxy)
  * @param {string} query - Search query
  * @returns {Promise<Array>} Array of TV show suggestions
  */
@@ -67,13 +47,9 @@ export async function searchTVShows(query) {
   if (!query || !query.trim()) return [];
   
   try {
-    if (!TMDB_API_KEY) {
-      console.warn('TMDB API key not configured. Set VITE_TMDB_API_KEY in .env file');
-      return [];
-    }
-
+    console.log('[TMDB] Searching for TV shows:', query);
     const response = await fetch(
-      `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=1`,
+      `${BACKEND_API_URL}/tmdb/search/tv?query=${encodeURIComponent(query)}`,
       { signal: AbortSignal.timeout(5000) }
     );
 
@@ -83,20 +59,8 @@ export async function searchTVShows(query) {
     }
 
     const data = await response.json();
-    
-    // Return top 5 results with full metadata for rich display
-    return (data.results || []).slice(0, 5).map(show => ({
-      id: show.id,
-      name: show.name,
-      poster_path: show.poster_path,
-      first_air_date: show.first_air_date,
-      overview: show.overview,
-      // Computed fields for autocomplete display
-      year: show.first_air_date ? new Date(show.first_air_date).getFullYear() : null,
-      display: show.name + (show.first_air_date ? ` (${new Date(show.first_air_date).getFullYear()})` : ''),
-      image: show.poster_path ? `${TMDB_IMAGE_BASE}${show.poster_path}` : null,
-      subtitle: show.first_air_date ? `TV Series • ${new Date(show.first_air_date).getFullYear()}` : 'TV Series'
-    }));
+    console.log('[TMDB] Found', data.length, 'TV shows');
+    return data;
   } catch (error) {
     if (error.name !== 'AbortError') {
       console.error('Error searching TV shows:', error);
@@ -108,8 +72,6 @@ export async function searchTVShows(query) {
 // ============= Spotify API =============
 // Spotify Web API for artists and tracks
 // Backend proxy handles authentication to keep credentials secure
-
-const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api';
 
 /**
  * Search for artists on Spotify (via backend)
