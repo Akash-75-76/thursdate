@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { userAPI } from '../../utils/api';
 import MediaItemCard from '../../components/MediaItemCard';
+import { textToSpeechUtils } from '../../utils/textToSpeech';
 
 export default function UserProfileInfo() {
     const navigate = useNavigate();
@@ -10,6 +11,7 @@ export default function UserProfileInfo() {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [bioMode, setBioMode] = useState('read');
+    const [isSpeaking, setIsSpeaking] = useState(false);
 
     // Lifestyle image carousel state
     const [isMinimized, setIsMinimized] = useState(false);
@@ -96,6 +98,21 @@ export default function UserProfileInfo() {
         return age;
     };
 
+    // Handle bio text-to-speech
+    const handlePlayBio = () => {
+        const bioText = user.intent?.bio || "No bio provided";
+        textToSpeechUtils.speak(
+            bioText,
+            () => setIsSpeaking(true),
+            () => setIsSpeaking(false)
+        );
+    };
+
+    const handleStopBio = () => {
+        textToSpeechUtils.stop();
+        setIsSpeaking(false);
+    };
+
     // Use actual user data from backend
     const interests = user.interests || [];
     const watchlist = user.intent?.watchList || [];
@@ -137,14 +154,18 @@ export default function UserProfileInfo() {
     };
 
     // Tap background to cycle through images based on current tab
-    const handleBackgroundTap = () => {
+    const handleBackgroundTap = (e) => {
+        // ✅ Only minimize drawer if clicking directly on background, not on drawer elements
+        if (e.target !== e.currentTarget) return;
+        
         // ✅ SECURITY: Only allow cycling personal photos if explicitly unlocked
         if (viewMode === 'lifestyle' && lifestyleImages.length > 0) {
             setCurrentLifestyleImageIndex((prev) => (prev + 1) % lifestyleImages.length);
         } else if (viewMode === 'personal' && user?.personalTabUnlocked === true && user?.facePhotos && user.facePhotos.length > 0) {
             setCurrentPersonalImageIndex((prev) => (prev + 1) % user.facePhotos.length);
         }
-        // Don't cycle when personal tab is locked
+        // ✅ Minimize drawer only when clicking on background image
+        setIsMinimized(true);
     };
 
     return (
@@ -159,7 +180,7 @@ export default function UserProfileInfo() {
                         ? `linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15)), url(${user.facePhotos[currentPersonalImageIndex]})`
                         : `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${user.facePhotos[currentPersonalImageIndex]})`
                     : `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url('/bgs/faceverifybg.png')`,
-                backgroundSize: viewMode === 'personal' && user?.facePhotos && user.facePhotos.length > 0 ? 'contain' : 'cover',
+                backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
                 transition: 'background-image 0.3s ease-in-out',
@@ -400,7 +421,10 @@ export default function UserProfileInfo() {
                             {/* Read/Listen Segmented Control */}
                             <div className="flex bg-[rgba(118,118,128,0.5)] rounded-full p-1 mb-2.5 w-full" style={{ height: '36px' }}>
                                 <button
-                                    onClick={() => setBioMode('read')}
+                                    onClick={() => {
+                                        setBioMode('read');
+                                        handleStopBio();
+                                    }}
                                     className={`flex-1 px-0.5 py-0.5 rounded-full text-[14px] leading-[18px] tracking-[-0.08px] font-semibold transition-all whitespace-nowrap ${bioMode === 'read'
                                         ? 'bg-white text-black shadow-[0px_2px_20px_0px_rgba(0,0,0,0.06)]'
                                         : 'text-[#f2f2f2]'
@@ -418,9 +442,34 @@ export default function UserProfileInfo() {
                                     Listen
                                 </button>
                             </div>
-                            <p className="font-['Poppins'] text-[12px] leading-[1.4] text-[#f2f2f2] break-words">
-                                {user.intent?.bio || "From boxing ring to monastery walls to...your DMs? Traded punches for prayers, now trading emails for epic adventures. Working remotely & traveling - seeking a co-conspirator for spontaneous fun."}
-                            </p>
+                            
+                            {/* Bio Content - Read Mode */}
+                            {bioMode === 'read' ? (
+                                <p className="font-['Poppins'] text-[12px] leading-[1.4] text-[#f2f2f2] break-words">
+                                    {user.intent?.bio || "From boxing ring to monastery walls to...your DMs? Traded punches for prayers, now trading emails for epic adventures. Working remotely & traveling - seeking a co-conspirator for spontaneous fun."}
+                                </p>
+                            ) : (
+                                /* Bio Content - Listen Mode */
+                                <div className="flex flex-col items-center justify-center gap-4 py-4">
+                                    <button
+                                        onClick={isSpeaking ? handleStopBio : handlePlayBio}
+                                        className="flex items-center justify-center w-16 h-16 rounded-full bg-white text-black transition-all hover:scale-110 active:scale-95"
+                                    >
+                                        {isSpeaking ? (
+                                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                                            </svg>
+                                        ) : (
+                                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M8 5v14l11-7z" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                    <p className="text-[12px] text-[#f2f2f2] text-center">
+                                        {isSpeaking ? 'Playing...' : 'Tap to listen'}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

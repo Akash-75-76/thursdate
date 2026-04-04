@@ -412,6 +412,11 @@ export default function ChatConversation() {
         
         setMessage('');
         setReplyingTo(null); // Clear reply state
+        
+        // ✅ Keep focus on input field so keyboard stays open
+        if (inputRef.current) {
+            inputRef.current.focus();
+        }
 
         // Stop typing indicator
         socketService.stopTyping(conversationId, otherUser.id);
