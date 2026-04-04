@@ -4,13 +4,30 @@ const cloudinary = require('../config/cloudinary');
 const auth = require('../middleware/auth');
 const { validateFacePhoto, verifyProfilePhoto } = require('../config/rekognition');
 const db = require('../config/db');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 
-// Configure multer for memory storage
+// Ensure temp directory exists
+const tempDir = path.join(__dirname, '../uploads/temp');
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+}
+
+// ⚡ Optimized: Use disk storage instead of memory (reduces memory by ~90%)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, tempDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${Math.random().toString(36).substring(7)}-${file.originalname}`);
+  }
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: storage,
   limits: {
-    fileSize: 20 * 1024 * 1024, // 20MB limit
+    fileSize: 10 * 1024 * 1024, // Reduced to 10MB (files compressed on frontend)
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -25,14 +42,8 @@ const upload = multer({
 router.post('/profile-picture', auth, upload.single('image'), async (req, res) => {
   try {
     console.log('Profile picture upload attempt for user ID:', req.user.userId);
-    console.log('Cloudinary config:', {
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY ? 'Set' : 'Not set',
-      api_secret: process.env.CLOUDINARY_API_SECRET ? 'Set' : 'Not set'
-    });
     
     if (!req.file) {
-      console.log('No file received in request');
       return res.status(400).json({ error: 'No image file provided' });
     }
 
@@ -40,16 +51,12 @@ router.post('/profile-picture', auth, upload.single('image'), async (req, res) =
       filename: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
-      bufferLength: req.file.buffer ? req.file.buffer.length : 0
+      path: req.file.path
     });
 
-    // Validate file size
-    if (req.file.size > 20 * 1024 * 1024) {
-      return res.status(400).json({ error: 'File size too large. Maximum 20MB allowed.' });
-    }
-
-    // Convert buffer to base64
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    // Read file from disk
+    const fileData = fs.readFileSync(req.file.path);
+    const b64 = Buffer.from(fileData).toString('base64');
     const dataURI = `data:${req.file.mimetype};base64,${b64}`;
 
     console.log('Uploading to Cloudinary...');
@@ -64,11 +71,7 @@ router.post('/profile-picture', auth, upload.single('image'), async (req, res) =
       ]
     });
 
-    console.log('Upload successful:', {
-      url: result.secure_url,
-      publicId: result.public_id,
-      size: result.bytes
-    });
+    console.log('Upload successful:', { url: result.secure_url, size: result.bytes });
 
     res.json({
       message: 'Image uploaded successfully',
@@ -77,10 +80,13 @@ router.post('/profile-picture', auth, upload.single('image'), async (req, res) =
     });
 
   } catch (error) {
-    console.error('Profile picture upload error:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Profile picture upload error:', error.message);
     res.status(500).json({ error: 'Failed to upload image: ' + error.message });
+  } finally {
+    // Clean up temp file
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
   }
 });
 
@@ -90,7 +96,6 @@ router.post('/lifestyle-image', auth, upload.single('image'), async (req, res) =
     console.log('Lifestyle image upload attempt for user ID:', req.user.userId);
     
     if (!req.file) {
-      console.log('No file received in request');
       return res.status(400).json({ error: 'No image file provided' });
     }
 
@@ -98,16 +103,12 @@ router.post('/lifestyle-image', auth, upload.single('image'), async (req, res) =
       filename: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
-      bufferLength: req.file.buffer ? req.file.buffer.length : 0
+      path: req.file.path
     });
 
-    // Validate file size
-    if (req.file.size > 20 * 1024 * 1024) {
-      return res.status(400).json({ error: 'File size too large. Maximum 20MB allowed.' });
-    }
-
-    // Convert buffer to base64
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    // Read file from disk
+    const fileData = fs.readFileSync(req.file.path);
+    const b64 = Buffer.from(fileData).toString('base64');
     const dataURI = `data:${req.file.mimetype};base64,${b64}`;
 
     console.log('Uploading to Cloudinary...');
@@ -122,11 +123,7 @@ router.post('/lifestyle-image', auth, upload.single('image'), async (req, res) =
       ]
     });
 
-    console.log('Lifestyle upload successful:', {
-      url: result.secure_url,
-      publicId: result.public_id,
-      size: result.bytes
-    });
+    console.log('Lifestyle upload successful:', { url: result.secure_url, size: result.bytes });
 
     res.json({
       message: 'Image uploaded successfully',
@@ -135,10 +132,13 @@ router.post('/lifestyle-image', auth, upload.single('image'), async (req, res) =
     });
 
   } catch (error) {
-    console.error('Lifestyle upload error:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Lifestyle upload error:', error.message);
     res.status(500).json({ error: 'Failed to upload image: ' + error.message });
+  } finally {
+    // Clean up temp file
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
   }
 });
 
@@ -156,17 +156,13 @@ router.post('/license-image', auth, upload.single('image'), async (req, res) => 
       filename: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
-      bufferLength: req.file.buffer ? req.file.buffer.length : 0
+      path: req.file.path
     });
 
-    if (req.file.size > 20 * 1024 * 1024) {
-      return res.status(400).json({ error: 'File size too large. Maximum 20MB allowed.' });
-    }
-
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    // Read file from disk
+    const fileData = fs.readFileSync(req.file.path);
+    const b64 = fileData.toString('base64');
     const dataURI = `data:${req.file.mimetype};base64,${b64}`;
-
-    console.log('Uploading license image to Cloudinary...');
 
     const result = await cloudinary.uploader.upload(dataURI, {
       folder: 'luyona/license-images',
@@ -201,8 +197,13 @@ router.post('/license-image', auth, upload.single('image'), async (req, res) => 
     res.json({ message: 'Image uploaded successfully', url: result.secure_url, publicId: result.public_id });
 
   } catch (error) {
-    console.error('License upload error:', error);
+    console.error('License upload error:', error.message);
     res.status(500).json({ error: 'Failed to upload image: ' + error.message });
+  } finally {
+    // Clean up temp file
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
   }
 });
 
@@ -212,38 +213,29 @@ router.post('/face-photo', auth, upload.single('image'), async (req, res) => {
     console.log('Face photo upload attempt for user ID:', req.user.userId);
     
     if (!req.file) {
-      console.log('No file received in request');
       return res.status(400).json({ error: 'No image file provided' });
     }
 
-    console.log('File received:', {
-      filename: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
-      bufferLength: req.file.buffer ? req.file.buffer.length : 0
-    });
+    console.log('File received:', { filename: req.file.originalname, size: req.file.size, path: req.file.path });
 
-    // Validate file size
-    if (req.file.size > 20 * 1024 * 1024) {
-      return res.status(400).json({ error: 'File size too large. Maximum 20MB allowed.' });
-    }
+    // Read file from disk
+    const fileData = fs.readFileSync(req.file.path);
 
     // STEP 1: Validate face using AWS Rekognition
-    console.log('🔍 Validating face with AWS Rekognition...');
-    const validation = await validateFacePhoto(req.file.buffer);
+    console.log('🔍 Validating face...');
+    const validation = await validateFacePhoto(fileData);
 
     if (!validation.valid) {
-      console.log('❌ Face validation failed:', validation.message);
       return res.status(400).json({ 
         error: validation.message,
         faceValidation: false
       });
     }
 
-    console.log('✅ Face validated successfully! Confidence:', validation.confidence);
+    console.log('✅ Face validated! Confidence:', validation.confidence);
 
     // STEP 2: Upload to Cloudinary
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    const b64 = fileData.toString('base64');
     const dataURI = `data:${req.file.mimetype};base64,${b64}`;
 
     console.log('☁️ Uploading to Cloudinary...');
@@ -280,10 +272,13 @@ router.post('/face-photo', auth, upload.single('image'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Face photo upload error:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Face photo upload error:', error.message);
     res.status(500).json({ error: 'Failed to upload image: ' + error.message });
+  } finally {
+    // Clean up temp file
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
   }
 });
 
@@ -325,11 +320,13 @@ router.post('/profile-photo-verify', auth, upload.single('image'), async (req, r
     console.log('📸 Reference photo URL:', referencePhotoUrl);
 
     // STEP 2: Verify the profile photo against the reference
-    console.log('🔍 Verifying profile photo with AWS Rekognition...');
-    const verification = await verifyProfilePhoto(referencePhotoUrl, req.file.buffer);
+    // Read file from disk
+    const fileData = fs.readFileSync(req.file.path);
+
+    console.log('🔍 Verifying profile photo...');
+    const verification = await verifyProfilePhoto(referencePhotoUrl, fileData);
 
     if (!verification.valid) {
-      console.log('❌ Profile photo verification failed:', verification.message);
       return res.status(400).json({ 
         error: verification.message,
         faceVerification: false
@@ -339,10 +336,8 @@ router.post('/profile-photo-verify', auth, upload.single('image'), async (req, r
     console.log('✅ Profile photo verified! Similarity:', verification.similarity);
 
     // STEP 3: Upload to Cloudinary
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    const b64 = fileData.toString('base64');
     const dataURI = `data:${req.file.mimetype};base64,${b64}`;
-
-    console.log('☁️ Uploading to Cloudinary...');
 
     const result = await cloudinary.uploader.upload(dataURI, {
       folder: 'luyona/profile-pictures',
@@ -367,10 +362,13 @@ router.post('/profile-photo-verify', auth, upload.single('image'), async (req, r
     });
 
   } catch (error) {
-    console.error('Profile photo verification error:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Profile photo verification error:', error.message);
     res.status(500).json({ error: 'Failed to verify and upload photo: ' + error.message });
+  } finally {
+    // Clean up temp file
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
   }
 });
 

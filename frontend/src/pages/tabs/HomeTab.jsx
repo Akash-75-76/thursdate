@@ -649,9 +649,9 @@ export default function HomeTab() {
 
                   <div className="flex flex-col items-center">
                     <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                      <img src="/profileHeight.svg" alt="Height" className="w-6 h-6" />
+                      <img src="/profileFitnessLevel.svg" alt="Fitness Level" className="w-12 h-12" />
                     </div>
-                    <span className="text-white/80 text-[10px] mt-1">{currentCandidate.height}</span>
+                    <span className="text-white/80 text-[10px] mt-1">{currentCandidate.fitnessLevel}</span>
                   </div>
 
                   <div className="flex flex-col items-center">

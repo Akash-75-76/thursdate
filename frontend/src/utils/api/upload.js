@@ -4,6 +4,42 @@ import { API_BASE_URL } from '../config';
 import { getToken } from '../tokenManager';
 import { isMockMode } from '../mockMode';
 
+// ⚡ Compress image before upload - reduces file size by 70-80%
+const compressImage = async (file, maxWidth = 1200, maxHeight = 1200, quality = 0.75) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
+      };
+    };
+  });
+};
+
 // Image Upload API
 export const uploadAPI = {
     // Upload profile picture (MOCK or LIVE)
@@ -16,14 +52,18 @@ export const uploadAPI = {
             return { url: tempUrl };
         }
 
-        // LIVE MODE: Proceed with actual backend call
+        // LIVE MODE: Compress and upload
+        const compressed = await compressImage(file, 600, 600, 0.8);
+        const compressedFile = new File([compressed], file.name, { type: 'image/jpeg' });
+        console.log(`[Upload] Profile: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+        
         const token = getToken();
         if (!token) {
             throw new Error('No authentication token found');
         }
 
         const formData = new FormData();
-        formData.append('image', file);
+        formData.append('image', compressedFile);
 
         const response = await fetch(`${API_BASE_URL}/upload/profile-picture`, {
             method: 'POST',
@@ -50,14 +90,18 @@ export const uploadAPI = {
             return { url: tempUrl };
         }
 
-        // LIVE MODE: Proceed with actual backend call
+        // LIVE MODE: Compress and upload
+        const compressed = await compressImage(file, 1200, 800, 0.8);
+        const compressedFile = new File([compressed], file.name, { type: 'image/jpeg' });
+        console.log(`[Upload] Lifestyle: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+        
         const token = getToken();
         if (!token) {
             throw new Error('No authentication token found');
         }
 
         const formData = new FormData();
-        formData.append('image', file);
+        formData.append('image', compressedFile);
 
         const response = await fetch(`${API_BASE_URL}/upload/lifestyle-image`, {
             method: 'POST',
@@ -94,14 +138,18 @@ export const uploadAPI = {
             return { url: randomPlaceholder };
         }
 
-        // LIVE MODE: Proceed with actual backend call
+        // LIVE MODE: Compress and upload
+        const compressed = await compressImage(file, 800, 800, 0.85);
+        const compressedFile = new File([compressed], file.name, { type: 'image/jpeg' });
+        console.log(`[Upload] Face: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+        
         const token = getToken();
         if (!token) {
             throw new Error('No authentication token found');
         }
 
         const formData = new FormData();
-        formData.append('image', file);
+        formData.append('image', compressedFile);
 
         const response = await fetch(`${API_BASE_URL}/upload/face-photo`, {
             method: 'POST',

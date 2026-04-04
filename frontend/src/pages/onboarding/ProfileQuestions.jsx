@@ -49,6 +49,7 @@ export default function ProfileQuestions() {
     const [heightUnit, setHeightUnit] = useState('cm'); // 'cm' or 'ft_inch'
     const [customHeightInput, setCustomHeightInput] = useState(''); // For custom height input
     const [favoriteCafe, setFavoriteCafe] = useState(''); // Step 12 - favorite café/restaurant (manual entry)
+    const [fitnessLevel, setFitnessLevel] = useState(''); // ✅ Fitness level from UserIntent
 
     const heightMinCm = 140;
     const heightMaxCm = 220;
@@ -70,6 +71,7 @@ export default function ProfileQuestions() {
                 if (userData.religiousLevel) setReligiousLevel(userData.religiousLevel);
                 if (userData.kidsPreference) setKids(userData.kidsPreference);
                 if (userData.foodPreference) setFoodPreference(userData.foodPreference);
+                if (userData.fitnessLevel) setFitnessLevel(userData.fitnessLevel); // ✅ Load fitness level
 
                 // Load from intent.profileQuestions
                 if (userData.intent && userData.intent.profileQuestions) {
@@ -137,6 +139,7 @@ export default function ProfileQuestions() {
                     if (savedState.livingSituation) setLivingSituation(savedState.livingSituation);
                     if (savedState.livingSituationCustom) setLivingSituationCustom(savedState.livingSituationCustom);
                     if (savedState.facePhotos) setFacePhotos(savedState.facePhotos);
+                    if (savedState.fitnessLevel) setFitnessLevel(savedState.fitnessLevel); // ✅ Load fitness level from localStorage
                 }
             } catch (err) {
                 console.error('Failed to load profile', err);
@@ -233,10 +236,11 @@ export default function ProfileQuestions() {
       livingSituation,
       livingSituationCustom,
       facePhotos,
+      fitnessLevel, // ✅ Auto-save fitness level
     };
     console.log('[ProfileQuestions] Auto-saving state:', { step, hasData: !!education || languages.length > 0 });
     saveOnboardingState(STORAGE_KEYS.PROFILE_QUESTIONS, state);
-  }, [initialLoading, step, education, educationDetail, languages, canCode, codingLanguages, jobTitle, companyName, pets, foodPreference, sleepSchedule, drinking, smoking, dateBill, kids, religiousLevel, religion, customReligion, favoriteCafe, relationshipValues, livingSituation, livingSituationCustom, facePhotos]);
+  }, [initialLoading, step, education, educationDetail, languages, canCode, codingLanguages, jobTitle, companyName, pets, foodPreference, sleepSchedule, drinking, smoking, dateBill, kids, religiousLevel, religion, customReligion, favoriteCafe, relationshipValues, livingSituation, livingSituationCustom, facePhotos, fitnessLevel]); // ✅ Include fitnessLevel
     const canProceed = () => {
         switch (step) {
             case 1: return !!education && !!educationDetail;
@@ -297,6 +301,7 @@ export default function ProfileQuestions() {
                 religiousLevel,
                 kidsPreference: kids,
                 foodPreference,
+                fitnessLevel: fitnessLevel || currentProfile.fitnessLevel, // ✅ PRESERVE fitness level from UserIntent
                 spokenLanguages: languages,  // ✅ NEW: Save spoken languages at root level
                 codingLanguages: codingLanguages,  // ✅ NEW: Save coding languages at root level
                 facePhotos: facePhotos.filter(Boolean),

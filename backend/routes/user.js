@@ -282,7 +282,7 @@ router.get('/profile/:userId', auth, async (req, res) => {
                     favourite_travel_destination, last_holiday_places, favourite_places_to_go, 
                     profile_pic_url, intent, interests, pets, drinking, smoking, height, 
                     religious_level, kids_preference, food_preference, relationship_status, 
-                    from_location, instagram, linkedin_id, face_photos, spoken_languages, coding_languages, favorite_places
+                    from_location, instagram, linkedin_id, face_photos, spoken_languages, coding_languages, favorite_places, fitness_level
              FROM users 
              WHERE id = ? AND approval = true`,
             [targetUserId]
@@ -336,6 +336,7 @@ router.get('/profile/:userId', auth, async (req, res) => {
             fromLocation: user.from_location || null,
             instagram: user.instagram || null,
             linkedin: user.linkedin_id || null,
+            fitnessLevel: user.fitness_level || null,  // ✅ ADDED: Fitness level for profile display
             facePhotos: safeJsonParse(user.face_photos, []),
             spokenLanguages: safeJsonParse(user.spoken_languages, []),  // ✅ NEW: Spoken languages
             codingLanguages: safeJsonParse(user.coding_languages, []),  // ✅ NEW: Coding languages
@@ -967,7 +968,7 @@ router.get('/matches/potential', auth, async (req, res) => {
                     favourite_travel_destination, profile_pic_url, intent, 
                     interests, pets, drinking, smoking, height, religious_level, 
                     kids_preference, food_preference, relationship_status, from_location, 
-                    instagram, linkedin_id
+                    instagram, linkedin_id, fitness_level
              FROM users 
              WHERE approval = true 
                 AND id != ? 
@@ -1022,6 +1023,7 @@ router.get('/matches/potential', auth, async (req, res) => {
                     favouriteTravelDestination: user.favourite_travel_destination,
                     profilePicUrl: user.profile_pic_url,
                     height: user.height,
+                    fitnessLevel: user.fitness_level,  // ✅ ADDED: Fitness level for home screen display
                     relationshipStatus: user.relationship_status,
                     pets: user.pets,
                     drinking: user.drinking,

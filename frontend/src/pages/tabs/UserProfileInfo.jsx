@@ -104,6 +104,7 @@ export default function UserProfileInfo() {
     const artistsBands = user.intent?.artistsBands || [];
     const lifestyleImages = user.intent?.lifestyleImageUrls?.filter(Boolean) || [];
     const languages = user.intent?.profileQuestions?.languages || [];
+    const codingLanguages = user.intent?.profileQuestions?.codingLanguages || [];
 
     // Handle touch gestures for drag-to-minimize
     const handleTouchStart = (e) => {
@@ -169,7 +170,22 @@ export default function UserProfileInfo() {
         >
             {/* Top Bar */}
             <div className="flex items-center justify-between px-6 pt-10 pb-4">
-                <div style={{ width: 40 }}></div>
+                <button
+                    onClick={() => navigate(-1)}
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                        width: '29.771px',
+                        height: '29.771px',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        border: '0.605px solid rgba(255, 255, 255, 0.3)',
+                        borderRadius: '50%',
+                        transform: 'rotate(90deg)',
+                    }}
+                >
+                    <svg className="w-[13.318px] h-[13.318px] text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
                 {isMinimized ? (
                     // Lifestyle/Personal Switch Buttons
                     <div className="flex items-center gap-3 rounded-full p-1" style={{ backgroundColor: '#76768080' }}>
@@ -329,23 +345,6 @@ export default function UserProfileInfo() {
                                 </p>
                             </div>
                         </div>
-
-                        <button
-                            onClick={() => navigate(-1)}
-                            className="flex items-center justify-center shrink-0"
-                            style={{
-                                width: '29.771px',
-                                height: '29.771px',
-                                background: 'rgba(255, 255, 255, 0.15)',
-                                border: '0.605px solid rgba(255, 255, 255, 0.3)',
-                                borderRadius: '50%',
-                                transform: 'rotate(-90deg)',
-                            }}
-                        >
-                            <svg className="w-[13.318px] h-[13.318px] text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </button>
                     </div>
 
                     {/* Quick Info Icons */}
@@ -359,7 +358,7 @@ export default function UserProfileInfo() {
 
                         <div className="flex flex-col items-center">
                             <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                                <img src={user.visibilityLevel === 1 ? '/profileFitnessLevel.svg' : '/profileHeight.svg'} alt={user.visibilityLevel === 1 ? 'Fitness Level' : 'Height'} className="w-6 h-6" />
+                                <img src={user.visibilityLevel === 1 ? '/profileFitnessLevel.svg' : '/profileHeight.svg'} alt={user.visibilityLevel === 1 ? 'Fitness Level' : 'Height'} className={user.visibilityLevel === 1 ? 'w-12 h-12' : 'w-6 h-6'} />
                             </div>
                             <span className="text-white/80 text-[10px] mt-1">{user.visibilityLevel === 1 ? (user.fitnessLevel || 'Not specified') : (user.height ? `${user.height} cm` : 'Not specified')}</span>
                         </div>
@@ -395,14 +394,14 @@ export default function UserProfileInfo() {
                         /* LIFESTYLE TAB CONTENT */
                         <>
                             {/* Bio Section */}
-                            <div className="flex flex-col gap-3 -mt-4" style={{ width: '336px' }}>
+                            <div className="flex flex-col gap-3 -mt-4 w-full">
                         <h3 className="font-['Poppins'] font-semibold text-[16px] leading-[1.3] text-[#f2f2f2]">Bio</h3>
-                        <div className="bg-white/10 rounded-xl px-3 py-[18px] flex flex-col gap-[5px]">
+                        <div className="bg-white/10 rounded-xl px-3 py-[18px] flex flex-col gap-[5px] w-full">
                             {/* Read/Listen Segmented Control */}
-                            <div className="flex bg-[rgba(118,118,128,0.5)] rounded-full p-1 mb-2.5" style={{ width: '291px', height: '36px' }}>
+                            <div className="flex bg-[rgba(118,118,128,0.5)] rounded-full p-1 mb-2.5 w-full" style={{ height: '36px' }}>
                                 <button
                                     onClick={() => setBioMode('read')}
-                                    className={`flex-1 px-0.5 py-0.5 rounded-full text-[14px] leading-[18px] tracking-[-0.08px] font-semibold transition-all ${bioMode === 'read'
+                                    className={`flex-1 px-0.5 py-0.5 rounded-full text-[14px] leading-[18px] tracking-[-0.08px] font-semibold transition-all whitespace-nowrap ${bioMode === 'read'
                                         ? 'bg-white text-black shadow-[0px_2px_20px_0px_rgba(0,0,0,0.06)]'
                                         : 'text-[#f2f2f2]'
                                         }`}
@@ -411,7 +410,7 @@ export default function UserProfileInfo() {
                                 </button>
                                 <button
                                     onClick={() => setBioMode('listen')}
-                                    className={`flex-1 px-0.5 py-0.5 rounded-full text-[14px] leading-[18px] tracking-[-0.08px] font-medium transition-all ${bioMode === 'listen'
+                                    className={`flex-1 px-0.5 py-0.5 rounded-full text-[14px] leading-[18px] tracking-[-0.08px] font-medium transition-all whitespace-nowrap ${bioMode === 'listen'
                                         ? 'bg-white text-black shadow-[0px_2px_20px_0px_rgba(0,0,0,0.06)]'
                                         : 'text-[#f2f2f2]'
                                         }`}
@@ -419,7 +418,7 @@ export default function UserProfileInfo() {
                                     Listen
                                 </button>
                             </div>
-                            <p className="font-['Poppins'] text-[12px] leading-[1.4] text-[#f2f2f2]">
+                            <p className="font-['Poppins'] text-[12px] leading-[1.4] text-[#f2f2f2] break-words">
                                 {user.intent?.bio || "From boxing ring to monastery walls to...your DMs? Traded punches for prayers, now trading emails for epic adventures. Working remotely & traveling - seeking a co-conspirator for spontaneous fun."}
                             </p>
                         </div>
@@ -441,12 +440,12 @@ export default function UserProfileInfo() {
 
                     {/* Work & Education Section */}
                     {(user.intent?.profileQuestions?.jobTitle || user.intent?.profileQuestions?.education) && (
-                        <div className="flex flex-col gap-3" style={{ width: '336px' }}>
+                        <div className="flex flex-col gap-3 w-full">
                             <h3 className="font-['Poppins'] font-semibold text-[16px] leading-[1.3] text-[#f2f2f2]">Work & Education</h3>
-                            <div className="bg-white/10 rounded-xl p-3 flex flex-col gap-3" style={{ width: '336px' }}>
+                            <div className="bg-white/10 rounded-xl p-3 flex flex-col gap-3 w-full">
                                 {/* Work */}
                                 {user.intent?.profileQuestions?.jobTitle && (
-                                    <div className="flex gap-[11px] items-center">
+                                    <div className="flex gap-[11px] items-center w-full">
                                         <div
                                             className="bg-white/10 rounded-full flex items-center justify-center shrink-0"
                                             style={{ width: '42px', height: '42px' }}
@@ -468,7 +467,7 @@ export default function UserProfileInfo() {
 
                                 {/* Education */}
                                 {user.intent?.profileQuestions?.education && (
-                                    <div className="flex gap-[11px] items-center">
+                                    <div className="flex gap-[11px] items-center w-full">
                                         <div
                                             className="bg-white/10 rounded-full flex items-center justify-center shrink-0"
                                             style={{ width: '42px', height: '42px' }}
@@ -677,11 +676,11 @@ export default function UserProfileInfo() {
 
                     {/* Personality & Social Style Section */}
                     {(user.intent?.profileQuestions?.dateBill || user.intent?.profileQuestions?.relationshipValues) && (
-                        <div className="flex flex-col gap-3" style={{ width: '336px' }}>
+                        <div className="flex flex-col gap-3 w-full">
                             <h3 className="font-['Poppins'] font-semibold text-[16px] leading-[1.3] text-[#f2f2f2]">Personality & Social Style</h3>
-                            <div className="bg-white/10 rounded-xl p-3 flex flex-col gap-3">
+                            <div className="bg-white/10 rounded-xl p-3 flex flex-col gap-3 w-full">
                                 {user.intent?.profileQuestions?.dateBill && (
-                                    <div className="flex gap-[11px] items-center" style={{ width: '312px' }}>
+                                    <div className="flex gap-[11px] items-center w-full">
                                         <div className="bg-white/10 rounded-full flex items-center justify-center shrink-0" style={{ width: '38px', height: '38px' }}>
                                             <svg className="text-white" style={{ width: '19px', height: '19px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <rect x="3" y="4" width="18" height="16" rx="2" strokeWidth="2" />
@@ -695,7 +694,7 @@ export default function UserProfileInfo() {
                                     </div>
                                 )}
                                 {user.intent?.profileQuestions?.relationshipValues && user.intent.profileQuestions.relationshipValues.length > 0 && (
-                                    <div className="flex gap-[11px] items-center" style={{ width: '312px' }}>
+                                    <div className="flex gap-[11px] items-center w-full">
                                         <div className="bg-white/10 rounded-full flex items-center justify-center shrink-0" style={{ width: '38px', height: '38px' }}>
                                             <svg className="text-white" style={{ width: '19px', height: '19px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -715,11 +714,11 @@ export default function UserProfileInfo() {
 
                     {/* Deep Dive Section */}
                     {(user.kidsPreference || user.religiousLevel || user.intent?.profileQuestions?.religion || user.intent?.profileQuestions?.livingSituation) && (
-                        <div className="flex flex-col gap-3" style={{ width: '336px' }}>
+                        <div className="flex flex-col gap-3 w-full">
                             <h3 className="font-['Poppins'] font-semibold text-[16px] leading-[1.3] text-[#f2f2f2]">Deep Dive</h3>
-                            <div className="bg-white/10 rounded-xl px-3 py-[18px] flex flex-col gap-3">
+                            <div className="bg-white/10 rounded-xl px-3 py-[18px] flex flex-col gap-3 w-full">
                                 {user.kidsPreference && (
-                                    <div className="flex gap-[11px] items-center" style={{ width: '312px' }}>
+                                    <div className="flex gap-[11px] items-center w-full">
                                         <div className="bg-white/10 rounded-full flex items-center justify-center shrink-0" style={{ width: '38px', height: '38px' }}>
                                             <svg className="text-white" style={{ width: '19px', height: '19px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <circle cx="12" cy="8" r="4" strokeWidth="2" />
@@ -733,7 +732,7 @@ export default function UserProfileInfo() {
                                     </div>
                                 )}
                                 {user.religiousLevel && user.religiousLevel !== 'not' && (
-                                    <div className="flex gap-[11px] items-center" style={{ width: '312px' }}>
+                                    <div className="flex gap-[11px] items-center w-full">
                                         <div className="bg-white/10 rounded-full flex items-center justify-center shrink-0" style={{ width: '38px', height: '38px' }}>
                                             <svg className="text-white" style={{ width: '19px', height: '19px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <path d="M12 2C8.5 7 5.5 11.5 5.5 15.5a6.5 6.5 0 1 0 13 0C18.5 11.5 15.5 7 12 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -750,7 +749,7 @@ export default function UserProfileInfo() {
                                     </div>
                                 )}
                                 {user.intent?.profileQuestions?.religion && (
-                                    <div className="flex gap-[11px] items-center" style={{ width: '312px' }}>
+                                    <div className="flex gap-[11px] items-center w-full">
                                         <div className="bg-white/10 rounded-full flex items-center justify-center shrink-0" style={{ width: '38px', height: '38px' }}>
                                             <svg className="text-white" style={{ width: '19px', height: '19px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <path d="M12 2C8.5 7 5.5 11.5 5.5 15.5a6.5 6.5 0 1 0 13 0C18.5 11.5 15.5 7 12 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -763,7 +762,7 @@ export default function UserProfileInfo() {
                                     </div>
                                 )}
                                 {user.intent?.profileQuestions?.livingSituation && (
-                                    <div className="flex gap-[11px] items-center" style={{ width: '312px' }}>
+                                    <div className="flex gap-[11px] items-center w-full">
                                         <div className="bg-white/10 rounded-full flex items-center justify-center shrink-0" style={{ width: '38px', height: '38px' }}>
                                             <svg className="text-white" style={{ width: '19px', height: '19px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeWidth="2" />
@@ -780,12 +779,31 @@ export default function UserProfileInfo() {
                         </div>
                     )}
 
-                    {/* Languages Section */}
-                    {languages.length > 0 && (
-                        <div className="flex flex-col gap-3" style={{ width: '336px' }}>
+                    {/* Languages Section - Show normal languages at Level 2+ */}
+                    {user.visibilityLevel >= 2 && languages.length > 0 && (
+                        <div className="flex flex-col gap-3 w-full">
                             <h3 className="font-['Poppins'] font-semibold text-[16px] leading-[1.3] text-[#f2f2f2]">Languages</h3>
                             <div className="flex gap-[18px] items-start flex-wrap">
                                 {languages.map((language, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="bg-white/10 rounded-full px-2.5 py-2 h-[34px] flex items-center justify-center"
+                                    >
+                                        <p className="font-['Poppins'] font-medium text-[12px] leading-[24px] text-white text-center whitespace-nowrap">
+                                            {language}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Coding Languages Section - Show if user has selected coding languages at Level 2+ */}
+                    {user.visibilityLevel >= 2 && codingLanguages.length > 0 && (
+                        <div className="flex flex-col gap-3 w-full">
+                            <h3 className="font-['Poppins'] font-semibold text-[16px] leading-[1.3] text-[#f2f2f2]">Coding Languages</h3>
+                            <div className="flex gap-[18px] items-start flex-wrap">
+                                {codingLanguages.map((language, idx) => (
                                     <div
                                         key={idx}
                                         className="bg-white/10 rounded-full px-2.5 py-2 h-[34px] flex items-center justify-center"

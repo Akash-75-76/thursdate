@@ -296,29 +296,19 @@ export default function ProfileTab() {
 
     try {
       setLoading(true);
-      // Upload to Cloudinary or your image service
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/upload/lifestyle`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      const imageUrl = data.url;
+      setError('');
+      
+      // ✅ Use upload API which has compression
+      const result = await uploadAPI.uploadLifestyleImage(file);
+      console.log('[ProfileTab] Lifestyle upload successful:', result.url);
 
       setEditFormData(prev => ({
         ...prev,
-        lifestyleImages: [...prev.lifestyleImages, imageUrl],
+        lifestyleImages: [...prev.lifestyleImages, result.url],
       }));
     } catch (err) {
-      setError(err.message);
+      console.error('[ProfileTab] Lifestyle upload error:', err);
+      setError(err.message || 'Failed to upload lifestyle image');
     } finally {
       setLoading(false);
     }
@@ -335,29 +325,19 @@ export default function ProfileTab() {
 
     try {
       setLoading(true);
-      // Upload to Cloudinary or your image service
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_API_URL}/upload/face`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      const imageUrl = data.url;
+      setError('');
+      
+      // ✅ Use upload API which has compression & face validation
+      const result = await uploadAPI.uploadFacePhoto(file);
+      console.log('[ProfileTab] Face photo upload successful:', result.url);
 
       setEditFormData(prev => ({
         ...prev,
-        personalPhotos: [...prev.personalPhotos, imageUrl],
+        personalPhotos: [...prev.personalPhotos, result.url],
       }));
     } catch (err) {
-      setError(err.message);
+      console.error('[ProfileTab] Face photo upload error:', err);
+      setError(err.message || 'Failed to upload personal photo');
     } finally {
       setLoading(false);
     }
