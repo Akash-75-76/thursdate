@@ -121,13 +121,15 @@ router.get('/search', async (req, res) => {
         image: artist.images && artist.images.length > 0 ? artist.images[artist.images.length - 1].url : null,
         subtitle: artist.genres && artist.genres.length > 0 
           ? artist.genres.slice(0, 2).map(g => g.charAt(0).toUpperCase() + g.slice(1)).join(' • ')
-          : 'Artist'
+          : 'Artist',
+        type: 'artist' // Mark as artist for UI differentiation
       }));
       return res.json(results);
     } else if (type === 'track') {
       const results = (data.tracks?.items || []).map(track => ({
         id: track.id,
         name: track.name,
+        preview_url: track.preview_url || null, // Preview URL for 30-second audio clip
         album: {
           images: track.album?.images || [], // Full album images array
           name: track.album?.name || ''
@@ -136,7 +138,8 @@ router.get('/search', async (req, res) => {
         // Computed fields for autocomplete display
         display: track.name,
         image: track.album?.images?.[track.album.images.length - 1]?.url || null,
-        subtitle: track.artists?.map(a => a.name).join(', ') || 'Song'
+        subtitle: track.artists?.map(a => a.name).join(', ') || 'Song',
+        type: 'track' // Mark as track for UI differentiation
       }));
       return res.json(results);
     } else {

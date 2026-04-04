@@ -5,7 +5,7 @@ import { userAPI, uploadAPI } from '../../utils/api';
 import { saveOnboardingState, loadOnboardingState, clearOnboardingState, STORAGE_KEYS } from '../../utils/onboardingPersistence';
 import Cropper from 'react-easy-crop';
 import AutocompleteInput from '../../components/AutocompleteInput';
-import { searchMovies, searchTVShows, searchArtists, searchMoviesAndShows } from '../../utils/externalAPIs';
+import { searchMovies, searchTVShows, searchArtists, searchMoviesAndShows, searchArtistsAndTracks } from '../../utils/externalAPIs';
 import { searchInterests, createDebouncedSearch } from '../../utils/interests';
 
 const createImage = (url) =>
@@ -78,6 +78,7 @@ export default function UserIntent() {
   const [watchInput, setWatchInput] = useState('');
   const [artistsBands, setArtistsBands] = useState([]); // Step 9
   const [artistBandInput, setArtistBandInput] = useState('');
+  const [playingTrackId, setPlayingTrackId] = useState(null); // Track ID currently playing
   const [fitnessLevel, setFitnessLevel] = useState(''); // Step 10
   const [profileImageUrl, setProfileImageUrl] = useState(null); // Step 12
   const [profileImgUploading, setProfileImgUploading] = useState(false);
@@ -88,6 +89,7 @@ export default function UserIntent() {
   const profilePhotoInputRef = useRef(null);
   const profileVideoRef = useRef(null);
   const profileCanvasRef = useRef(null);
+  const audioRef = useRef(null); // For playing song previews
   const [lifestyleImageUrls, setLifestyleImageUrls] = useState([null, null, null, null, null]); // Step 12
   const [imgUploading, setImgUploading] = useState(false);
   const [imgError, setImgError] = useState('');
@@ -213,6 +215,16 @@ export default function UserIntent() {
     };
     load();
     return () => { mounted = false; };
+  }, []);
+
+  // Cleanup audio on component unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    };
   }, []);
 
   // Speech-to-text setup
@@ -502,6 +514,44 @@ export default function UserIntent() {
         ? x.name !== item.name
         : x !== item
     ));
+  }, []);
+
+  // Song preview handlers
+  const handlePlayTrack = useCallback((track) => {
+    if (!track.preview_url) {
+      alert('Preview not available for this track');
+      return;
+    }
+
+    if (playingTrackId === track.id) {
+      // Stop if already playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setPlayingTrackId(null);
+    } else {
+      // Play new track
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      audioRef.current = new Audio(track.preview_url);
+      audioRef.current.onended = () => setPlayingTrackId(null);
+      audioRef.current.play().catch((err) => {
+        console.error('Error playing audio:', err);
+        alert('Could not play preview');
+      });
+      setPlayingTrackId(track.id);
+    }
+  }, [playingTrackId]);
+
+  const handleStopAllTracks = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setPlayingTrackId(null);
   }, []);
 
   // Artists/Bands helpers
@@ -1210,7 +1260,7 @@ export default function UserIntent() {
       case 8:
         return <h1 className="text-white text-[22px] font-semibold mb-2">Current watch list?</h1>;
       case 9:
-        return <h1 className="text-white text-[22px] font-semibold mb-2">Your top favourite artists/bands?</h1>;
+        return <h1 className="text-white text-[22px] font-semibold mb-2">Your top favourite artists/bands & songs?</h1>;
       case 10:
         return <h1 className="text-white text-[22px] font-semibold mb-2">How would you describe your fitness level?</h1>;
       case 11:
@@ -1738,7 +1788,7 @@ export default function UserIntent() {
       }}
       onSelect={addArtistBand}
       placeholder="Add an artist/band..."
-      searchFn={searchArtists}
+      searchFn={searchArtistsAndTracks}
       className="w-full rounded-xl p-3 text-base"
       style={{
         background: 'rgba(255,255,255,0.03)',
@@ -1772,6 +1822,10 @@ export default function UserIntent() {
                 const itemName = typeof b === 'object' ? b.name : b;
                 const itemSubtitle = typeof b === 'object' ? b.subtitle : null;
                 const itemImage = typeof b === 'object' ? b.image : null;
+                const itemType = typeof b === 'object' ? b.type : null; // 'artist' or 'track'
+                const previewUrl = typeof b === 'object' ? b.preview_url : null;
+                const isPlaying = playingTrackId === b.id;
+                
                 return (
                   <div
                     key={i}
@@ -1792,11 +1846,33 @@ export default function UserIntent() {
                     )}
                     {/* Text */}
                     <div className="flex-1 min-w-0">
-                      <div className="text-white text-sm font-medium truncate">{itemName}</div>
+                      <div className="text-white text-sm font-medium truncate">
+                        {itemName}
+                        {itemType === 'track' && (
+                          <span className="ml-2 text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(34, 197, 94, 0.3)', color: '#86efac' }}>
+                            🎵 SONG
+                          </span>
+                        )}
+                      </div>
                       {itemSubtitle && (
                         <div className="text-white/60 text-xs truncate">{itemSubtitle}</div>
                       )}
                     </div>
+                    {/* Play button for tracks */}
+                    {itemType === 'track' && previewUrl && (
+                      <button
+                        type="button"
+                        onClick={() => handlePlayTrack(b)}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:opacity-80 transition"
+                        style={{
+                          background: isPlaying ? 'rgba(34, 197, 94, 0.8)' : 'rgba(255,255,255,0.2)',
+                          color: 'white'
+                        }}
+                        title={isPlaying ? 'Stop' : 'Play preview'}
+                      >
+                        {isPlaying ? '⏸' : '▶'}
+                      </button>
+                    )}
                     {/* Remove button */}
                     <button
                       type="button"

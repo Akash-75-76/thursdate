@@ -160,3 +160,35 @@ export async function searchMoviesAndShows(query) {
     return [];
   }
 }
+
+/**
+ * Search for both artists and tracks on Spotify (via backend)
+ * Used for favorite artists/bands field to show both singers and songs
+ * @param {string} query - Search query
+ * @returns {Promise<Array>} Combined artist and track suggestions
+ */
+export async function searchArtistsAndTracks(query) {
+  if (!query || !query.trim()) return [];
+  
+  try {
+    console.log('[Spotify] Searching for artists and tracks:', query);
+    
+    // Fetch both artists and tracks in parallel
+    const [artists, tracks] = await Promise.all([
+      searchArtists(query),
+      searchTracks(query)
+    ]);
+    
+    // Combine results: show 3 artists + 2 tracks (or adjust as needed)
+    const combined = [
+      ...artists.slice(0, 3),
+      ...tracks.slice(0, 2)
+    ];
+    
+    console.log('[Spotify] Found', artists.length, 'artists and', tracks.length, 'tracks');
+    return combined;
+  } catch (error) {
+    console.error('Error searching artists and tracks:', error);
+    return [];
+  }
+}
