@@ -16,6 +16,7 @@ const migrations = [
   'migrations/run-sql-migration.js migrations/create-blocks-table.sql',
   'migrations/run-sql-migration.js migrations/create-user-reports-table.sql',
   'migrations/run-sql-migration.js migrations/add-profile-columns.sql',
+  'migrations/run-sql-migration.js migrations/add-fitness-level.sql',
   'run-daily-games-migration.js'
 ];
 

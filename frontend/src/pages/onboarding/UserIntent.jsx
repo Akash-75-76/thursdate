@@ -2194,7 +2194,7 @@ export default function UserIntent() {
               }}
               className="w-full py-3 rounded-full font-semibold text-base shadow-lg"
               style={{ background: 'white', color: 'black' }}
-              disabled={loading || imgUploading}
+              disabled={loading || imgUploading || (step === 10 && !fitnessLevel)}
             >
               {loading || imgUploading ? 'Saving...' : (step === totalSteps ? 'Finish' : 'Next')}
             </button>
