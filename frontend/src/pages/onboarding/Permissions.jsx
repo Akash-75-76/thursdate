@@ -49,32 +49,19 @@ export default function Permissions() {
   };
 
   return (
-    <div className="h-screen bg-white px-6 pt-10 flex flex-col font-sans">
+    <div className="h-screen bg-white px-6 pt-10 flex flex-col font-sans relative">
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-6 left-6 text-[#1F2937] text-3xl font-light hover:opacity-60 transition z-50"
+        aria-label="Back"
+      >
+        &lt;
+      </button>
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-6 h-6 flex items-center justify-center"
-        >
-          {/* Back arrow SVG icon */}
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M15.75 19.5L8.25 12L15.75 4.5"
-              stroke="#1F2937"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-        <img src="/logo_dark.png" alt="Sundate" className="h-6 mx-auto" />
-        <div style={{ width: 24 }}></div>
+      <div className="flex items-center justify-center mb-6">
+        <img src="/logo_dark.png" alt="Sundate" className="h-6" />
       </div>
 
       {/* Main Content Area */}

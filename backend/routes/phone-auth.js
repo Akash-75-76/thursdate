@@ -145,6 +145,7 @@ router.post('/verify-otp', async (req, res) => {
       success: true,
       message: authResult.isNewUser ? 'Account created successfully' : 'Logged in successfully',
       token: authResult.token,
+      userId: authResult.userId,  // ✅ ADD userId to response
       user: authResult.user,
       isNewUser: authResult.isNewUser,
       userStatus: authResult.userStatus,

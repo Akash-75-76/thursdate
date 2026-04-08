@@ -274,4 +274,30 @@ export const userAPI = {
             body: JSON.stringify({ code }),
         });
     },
+
+    // ✅ NEW: Reset profile for resubmission after rejection
+    resetProfileForResubmission: async () => {
+        if (isMockMode()) {
+            console.log('MOCK MODE: Resetting profile for resubmission');
+            const currentMock = getMockProfile();
+            const resetProfile = {
+                ...currentMock,
+                approval: false,
+                onboardingComplete: false,
+                license_photos: null,
+                license_status: 'none',
+                face_photos: null,
+                face_photo_url: null,
+                driving_license_verified: false,
+                onboarding_current_step: 1,
+            };
+            setMockProfile(resetProfile);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            return { message: 'Profile reset successfully. User can resubmit application.', success: true };
+        }
+
+        return authRequest('/user/reset-profile-for-resubmission', {
+            method: 'POST',
+        });
+    },
 };

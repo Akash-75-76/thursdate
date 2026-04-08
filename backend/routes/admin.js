@@ -120,17 +120,23 @@ router.get('/waitlist', auth, adminAuth, async (req, res) => {
         u.current_location, u.profile_pic_url, u.intent, 
         u.onboarding_complete, u.approval, u.created_at, u.updated_at,
         u.license_photos, u.license_status, u.linkedin_verified,
-        u.driving_license_verified,
+        u.driving_license_verified, u.waitlistPriority, u.referralCount,
+        rr.status as referral_status,
         dlv.id as verification_id,
         dlv.front_image_url,
         dlv.back_image_url,
         dlv.verification_status,
         dlv.submitted_at
       FROM users u
+      LEFT JOIN referral_requests rr ON u.id = rr.newUserId
       LEFT JOIN driving_license_verifications dlv ON u.id = dlv.user_id 
         AND dlv.verification_status = 'UNDER_REVIEW'
       WHERE u.approval = false
-      ORDER BY u.created_at ASC
+        AND NOT EXISTS (
+          SELECT 1 FROM driving_license_verifications 
+          WHERE user_id = u.id AND verification_status = 'REJECTED'
+        )
+      ORDER BY u.waitlistPriority DESC, u.created_at ASC
     `);
 
     const transformedUsers = users.map(user => {
@@ -163,7 +169,10 @@ router.get('/waitlist', auth, adminAuth, async (req, res) => {
         licenseStatus,
         verificationId,
         linkedinVerified: user.linkedin_verified || false,
-        drivingLicenseVerified: user.driving_license_verified || false
+        drivingLicenseVerified: user.driving_license_verified || false,
+        waitlistPriority: user.waitlistPriority || 50,
+        referralCount: user.referralCount || 0,
+        referralStatus: user.referral_status || null
       };
     });
 

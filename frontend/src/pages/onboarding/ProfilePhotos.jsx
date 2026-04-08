@@ -215,26 +215,26 @@ export default function ProfilePhotos() {
             {/* Overlay */}
             <div className="absolute inset-0 bg-black/50 z-0"></div>
 
+            {/* Back Button */}
+            <button
+                onClick={() => {
+                    if (showTutorial) {
+                        navigate(-1);
+                    } else {
+                        setShowTutorial(true);
+                    }
+                }}
+                className="absolute top-6 left-6 text-white text-3xl font-light hover:opacity-80 transition z-50"
+                aria-label="Back"
+            >
+                &lt;
+            </button>
+
             {/* Content */}
             <div className="relative z-10 flex flex-col h-full">
                 {/* Header */}
-                <div className="p-6 pt-10 flex items-center justify-between">
-                    <button
-                        onClick={() => {
-                            if (showTutorial) {
-                                navigate(-1);
-                            } else {
-                                setShowTutorial(true);
-                            }
-                        }}
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
-                    >
-                        <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                            <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                    </button>
+                <div className="p-6 pt-10 flex items-center justify-center">
                     <img src="/logo.png" alt="Sundate" className="h-8" />
-                    <div style={{ width: 32 }}></div>
                 </div>
 
                 {/* Progress Bar */}
@@ -382,17 +382,25 @@ export default function ProfilePhotos() {
                             {/* Spacer */}
                             <div className="flex-1"></div>
 
-                            {/* Next Button */}
-                            <button
-                                onClick={handleNext}
-                                disabled={!canProceed || uploading}
-                                className={`w-full py-4 rounded-full font-semibold text-base transition-all ${canProceed && !uploading
-                                    ? 'bg-white text-black hover:bg-gray-100'
-                                    : 'bg-gray-400/50 text-white/50 cursor-not-allowed'
-                                    }`}
-                            >
-                                {uploading ? 'Uploading...' : 'Next'}
-                            </button>
+                            {/* Next & Back Buttons */}
+                            <div className="space-y-3">
+                                <button
+                                    onClick={handleNext}
+                                    disabled={!canProceed || uploading}
+                                    className={`w-full py-4 rounded-full font-semibold text-base transition-all ${canProceed && !uploading
+                                        ? 'bg-white text-black hover:bg-gray-100'
+                                        : 'bg-gray-400/50 text-white/50 cursor-not-allowed'
+                                        }`}
+                                >
+                                    {uploading ? 'Uploading...' : 'Next'}
+                                </button>
+                                <button
+                                    onClick={() => navigate(-1)}
+                                    className="w-full py-3 rounded-full text-white bg-white/10 border border-white/30 font-medium transition duration-200 hover:bg-white/20"
+                                >
+                                    Back
+                                </button>
+                            </div>
                         </>
                     )}
                 </div>

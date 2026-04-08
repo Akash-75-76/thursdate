@@ -57,29 +57,28 @@ export default function WaitlistStatus() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isRefreshing]);
 
-  // Auto-navigate when approved (after showing success screen briefly)
+  // Auto-navigate when approved (immediately, no delay)
   useEffect(() => {
     if (isUserApproved === true) {
-      console.log('User approved! Will auto-navigate in 2 seconds...');
-      const timer = setTimeout(() => {
-        navigate("/user-intent");
-      }, 2000);
-      return () => clearTimeout(timer);
+      console.log('User approved! Navigating to home immediately...');
+      navigate("/home");
     }
   }, [isUserApproved, navigate]);
 
   return (
-    <div className="h-screen bg-white px-6 pt-10 flex flex-col font-sans">
+    <div className="h-screen bg-white px-6 pt-10 flex flex-col font-sans relative">
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-6 left-6 text-[#222222] text-3xl font-light hover:opacity-60 transition z-50"
+        aria-label="Back"
+      >
+        &lt;
+      </button>
+
       {/* Header - Common to both loading and status screens */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => navigate(-1)} // Go back
-          className="w-6 h-6 flex items-center justify-center"
-        >
-          <img src="/backarrow.svg" alt="Back" width={24} height={24} />
-        </button>
-        <img src="/logo_dark.png" alt="Sundate" className="h-6 mx-auto" />
-        <div style={{ width: 24 }}></div> {/* Spacer */}
+      <div className="flex items-center justify-center mb-6">
+        <img src="/logo_dark.png" alt="Sundate" className="h-6" />
       </div>
 
       {/* Main content area - centered */}
@@ -168,7 +167,7 @@ export default function WaitlistStatus() {
           // ✅ Show Edit Profile and Resubmit buttons for rejected users
           <>
             <button
-              onClick={() => navigate("/edit-profile")}
+              onClick={() => navigate("/user-info")}
               className="w-full max-w-xs py-4 rounded-xl bg-[#222222] text-white font-medium text-sm mx-auto"
             >
               Edit Profile
@@ -176,17 +175,21 @@ export default function WaitlistStatus() {
             <button
               onClick={async () => {
                 try {
-                  // Reset verification status to UNDER_REVIEW for resubmission
-                  await userAPI.updateProfile({ verificationStatus: 'UNDER_REVIEW' });
-                  fetchApproval();
+                  setIsRefreshing(true);
+                  // Reset profile and delete rejected verification entry
+                  await userAPI.resetProfileForResubmission();
+                  // Navigate to user info to start fresh
+                  navigate("/user-info");
                 } catch (err) {
                   console.error('Resubmission failed:', err);
-                  alert('Failed to resubmit. Please try again.');
+                  alert('Failed to reset profile. Please try again.');
+                  setIsRefreshing(false);
                 }
               }}
-              className="w-full max-w-xs py-4 rounded-xl border-2 border-[#222222] text-[#222222] font-medium text-sm mx-auto hover:bg-gray-50"
+              disabled={isRefreshing}
+              className="w-full max-w-xs py-4 rounded-xl border-2 border-[#222222] text-[#222222] font-medium text-sm mx-auto hover:bg-gray-50 disabled:opacity-50"
             >
-              Resubmit Application
+              {isRefreshing ? 'Resetting...' : 'Resubmit Application'}
             </button>
           </>
         ) : (

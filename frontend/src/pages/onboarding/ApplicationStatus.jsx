@@ -27,17 +27,19 @@ export default function ApplicationStatus() {
   }, []);
 
   return (
-    <div className="h-screen bg-white px-6 pt-10 flex flex-col font-sans">
+    <div className="h-screen bg-white px-6 pt-10 flex flex-col font-sans relative">
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-6 left-6 text-[#222222] text-3xl font-light hover:opacity-60 transition z-50"
+        aria-label="Back"
+      >
+        &lt;
+      </button>
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-6 h-6 flex items-center justify-center"
-        >
-          <img src="/backarrow.svg" alt="Back" width={24} height={24} />
-        </button>
-        <img src="/logo_dark.png" alt="Sundate" className="h-6 mx-auto" />
-        <div style={{ width: 24 }}></div>
+      <div className="flex items-center justify-center mb-6">
+        <img src="/logo_dark.png" alt="Sundate" className="h-6" />
       </div>
 
       {isLoading ? (

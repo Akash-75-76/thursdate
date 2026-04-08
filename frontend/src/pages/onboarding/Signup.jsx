@@ -117,6 +117,15 @@ export default function Signup() {
 
       <div className="absolute inset-0 bg-black/50 z-0"></div>
 
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-6 left-6 text-white text-3xl font-light hover:opacity-80 transition z-50"
+        aria-label="Back"
+      >
+        &lt;
+      </button>
+
       <div className="absolute top-10 w-full text-center z-10">
         <img src="/logo.png" alt="Sundate" className="h-8 mx-auto" />
       </div>
@@ -134,13 +143,15 @@ export default function Signup() {
               required
             />
             {error && <div className="text-red-300 text-sm">{error}</div>}
-            <button
-              type="submit"
-              className={BUTTON_GLASS_ACTIVE_SOLID + " w-full py-4 rounded-xl mt-6"}
-              disabled={loading}
-            >
-              {loading ? "Sending OTP..." : "Send OTP"}
-            </button>
+            <div className="space-y-3">
+              <button
+                type="submit"
+                className={BUTTON_GLASS_ACTIVE_SOLID + " w-full py-4 rounded-xl"}
+                disabled={loading}
+              >
+                {loading ? "Sending OTP..." : "Send OTP"}
+              </button>
+            </div>
             <div className="pt-4 text-center text-sm">
               <span className={CARD_BODY_INACTIVE}>Already have an account?</span>
               <Link
@@ -173,13 +184,22 @@ export default function Signup() {
               )}
             </div>
             {error && <div className="text-red-300 text-sm">{error}</div>}
-            <button
-              type="submit"
-              className={BUTTON_GLASS_ACTIVE_SOLID + " w-full py-4 rounded-xl mt-6"}
-              disabled={loading || otp.length !== 6}
-            >
-              {loading ? "Verifying..." : "Verify & Sign Up"}
-            </button>
+            <div className="space-y-3">
+              <button
+                type="submit"
+                className={BUTTON_GLASS_ACTIVE_SOLID + " w-full py-4 rounded-xl"}
+                disabled={loading || otp.length !== 6}
+              >
+                {loading ? "Verifying..." : "Verify & Sign Up"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStep("email"); setOtp(""); setError(""); }}
+                className="w-full py-3 rounded-full text-white bg-white/10 border border-white/30 font-medium transition duration-200 hover:bg-white/20"
+              >
+                Back to Email
+              </button>
+            </div>
             <div className="pt-4 text-center text-sm">
               <span className={CARD_BODY_INACTIVE}>Entered wrong email?</span>
               <button type="button" className="text-white font-medium hover:text-white/80 transition ml-1" onClick={() => { setStep("email"); setOtp(""); setError(""); }}>

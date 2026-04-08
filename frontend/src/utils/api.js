@@ -21,3 +21,4 @@ export { userAPI } from './api/user';
 export { adminAPI } from './api/admin';
 export { uploadAPI } from './api/upload';
 export { chatAPI } from './api/chat';
+export { referralAPI } from './api/referral';

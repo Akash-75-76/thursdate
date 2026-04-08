@@ -6,9 +6,9 @@ const router = express.Router();
 // ===== GET ENDPOINTS =====
 
 // Get user's pending referral requests (for referrer)
-router.get('/pending-requests', auth, async (req, res) => {
+router.get('/pending-requests', auth.verifyToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.userId;
     
     const [requests] = await pool.execute(
       `SELECT * FROM referral_requests 
@@ -25,9 +25,9 @@ router.get('/pending-requests', auth, async (req, res) => {
 });
 
 // Get referral status for current user (if they were referred)
-router.get('/my-status', auth, async (req, res) => {
+router.get('/my-status', auth.verifyToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.userId;
     
     // Get the referral request for this user
     const [request] = await pool.execute(
@@ -47,9 +47,9 @@ router.get('/my-status', auth, async (req, res) => {
 });
 
 // Get referral stats for current user
-router.get('/stats', auth, async (req, res) => {
+router.get('/stats', auth.verifyToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.userId;
     
     const [user] = await pool.execute(
       `SELECT referralCount, waitlistPriority FROM users WHERE id = ?`,
@@ -71,9 +71,9 @@ router.get('/stats', auth, async (req, res) => {
 });
 
 // Get all referrals created by current user
-router.get('/my-referrals', auth, async (req, res) => {
+router.get('/my-referrals', auth.verifyToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.userId;
     
     const [requests] = await pool.execute(
       `SELECT rr.*, u.first_name, u.last_name, u.email 
@@ -92,14 +92,10 @@ router.get('/my-referrals', auth, async (req, res) => {
 });
 
 // Search for users to suggest as referrers
-router.get('/search-referrers', auth, async (req, res) => {
+router.get('/search-referrers', auth.verifyToken, async (req, res) => {
   try {
     const { query } = req.query;
-    const userId = req.user.userId;
-    
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
+    const userId = req.userId;
     
     if (!query || query.length < 2) {
       return res.json({ users: [] });
@@ -108,12 +104,12 @@ router.get('/search-referrers', auth, async (req, res) => {
     // Search by name or phone
     const [results] = await pool.execute(
       `SELECT id, first_name, last_name, email FROM users 
-       WHERE id != ? AND approval = 1 AND (
+       WHERE id != ? AND (
          CONCAT(first_name, ' ', last_name) LIKE ? OR
          email LIKE ?
        )
        LIMIT 10`,
-      [userId ?? null, `%${query}%`, `%${query}%`]
+      [userId, `%${query}%`, `%${query}%`]
     );
     
     const formattedResults = results.map(u => ({
@@ -132,17 +128,10 @@ router.get('/search-referrers', auth, async (req, res) => {
 // ===== POST ENDPOINTS =====
 
 // Create referral request (from new user during onboarding)
-router.post('/create-request', auth, async (req, res) => {
+router.post('/create-request', auth.verifyToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.userId;
     const { referrerName, referrerPhone, referrerUserId } = req.body;
-    
-    console.log('[REFERRAL] Creating referral request:', { userId, referrerName, referrerPhone, referrerUserId });
-    
-    // Validate and sanitize inputs
-    if (!referrerName || !referrerPhone) {
-      return res.status(400).json({ error: 'Name and phone are required' });
-    }
     
     // Get current user's name
     const [user] = await pool.execute(
@@ -156,52 +145,24 @@ router.post('/create-request', auth, async (req, res) => {
     
     const newUserName = `${user[0].first_name || ''} ${user[0].last_name || ''}`.trim();
     
-    // Sanitize inputs - ensure they're strings or null, never undefined
-    const sanitizedReferrerName = referrerName ? String(referrerName).trim() : null;
-    const sanitizedReferrerPhone = referrerPhone ? String(referrerPhone).trim() : null;
-    let sanitizedReferrerUserId = referrerUserId ? Number(referrerUserId) : null;
-    
-    console.log('[REFERRAL] Sanitized inputs:', { sanitizedReferrerName, sanitizedReferrerPhone, sanitizedReferrerUserId });
-    
-    // If no referrerUserId provided, try to find user by phone number
-    if (!sanitizedReferrerUserId && sanitizedReferrerPhone) {
-      console.log('[REFERRAL] Searching for user by phone:', sanitizedReferrerPhone);
-      const [phoneMatch] = await pool.execute(
-        `SELECT id, phone_number FROM users WHERE phone_number = ? LIMIT 1`,
-        [sanitizedReferrerPhone]
-      );
-      if (phoneMatch.length > 0) {
-        sanitizedReferrerUserId = phoneMatch[0].id;
-        console.log('[REFERRAL] Found user by phone:', sanitizedReferrerUserId);
-      } else {
-        console.log('[REFERRAL] No user found with phone:', sanitizedReferrerPhone);
-      }
-    }
-    
     // Create referral request
     const [result] = await pool.execute(
       `INSERT INTO referral_requests 
        (newUserId, newUserName, referrerUserId, referrerPhone, referrerName, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [userId, newUserName, sanitizedReferrerUserId, sanitizedReferrerPhone, sanitizedReferrerName]
+      [userId, newUserName, referrerUserId || null, referrerPhone, referrerName]
     );
     
-    console.log('[REFERRAL] Request created with ID:', result.insertId, 'Referrer UserId:', sanitizedReferrerUserId);
-    
-    // Create notification for referrer if found
-    if (sanitizedReferrerUserId) {
+    // Create notification for referrer
+    if (referrerUserId) {
       const message = `${newUserName} has listed you as their referrer on Sundate. Please confirm if you know them.`;
       
       await pool.execute(
         `INSERT INTO notifications 
          (userId, referralRequestId, type, message)
          VALUES (?, ?, 'referral_request', ?)`,
-        [sanitizedReferrerUserId, result.insertId, message]
+        [referrerUserId, result.insertId, message]
       );
-      
-      console.log('[REFERRAL] Notification created for user:', sanitizedReferrerUserId);
-    } else {
-      console.log('[REFERRAL] No notification created - referrer not found');
     }
     
     res.json({ 
@@ -217,10 +178,10 @@ router.post('/create-request', auth, async (req, res) => {
 // ===== PUT ENDPOINTS (Confirm/Reject Referral) =====
 
 // Accept referral request
-router.put('/:requestId/accept', auth, async (req, res) => {
+router.put('/:requestId/accept', auth.verifyToken, async (req, res) => {
   try {
     const requestId = req.params.requestId;
-    const userId = req.user.userId;
+    const userId = req.userId;
     
     // Get referral request
     const [request] = await pool.execute(
@@ -265,10 +226,10 @@ router.put('/:requestId/accept', auth, async (req, res) => {
 });
 
 // Reject referral with "I know them" option
-router.put('/:requestId/reject-known', auth, async (req, res) => {
+router.put('/:requestId/reject-known', auth.verifyToken, async (req, res) => {
   try {
     const requestId = req.params.requestId;
-    const userId = req.user.userId;
+    const userId = req.userId;
     
     const [request] = await pool.execute(
       `SELECT * FROM referral_requests WHERE id = ?`,
@@ -303,10 +264,10 @@ router.put('/:requestId/reject-known', auth, async (req, res) => {
 });
 
 // Reject referral with "I don't know" option
-router.put('/:requestId/reject-unknown', auth, async (req, res) => {
+router.put('/:requestId/reject-unknown', auth.verifyToken, async (req, res) => {
   try {
     const requestId = req.params.requestId;
-    const userId = req.user.userId;
+    const userId = req.userId;
     
     const [request] = await pool.execute(
       `SELECT * FROM referral_requests WHERE id = ?`,
@@ -341,10 +302,10 @@ router.put('/:requestId/reject-unknown', auth, async (req, res) => {
 });
 
 // Dismiss referral notification (without action)
-router.put('/:requestId/dismiss', auth, async (req, res) => {
+router.put('/:requestId/dismiss', auth.verifyToken, async (req, res) => {
   try {
     const requestId = req.params.requestId;
-    const userId = req.user.userId;
+    const userId = req.userId;
     
     // Verify ownership
     const [request] = await pool.execute(

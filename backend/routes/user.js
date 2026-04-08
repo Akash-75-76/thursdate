@@ -1387,4 +1387,62 @@ router.get('/places/search', async (req, res) => {  // 🧪 REMOVED auth middlew
     }
 });
 
+// ✅ NEW: Reset profile for resubmission (user rejected and wants to start over)
+router.post('/reset-profile-for-resubmission', auth, async (req, res) => {
+    try {
+        if (!(await validateConnection())) {
+            return res.status(500).json({ error: 'Database connection failed' });
+        }
+
+        const userId = req.user.userId;
+
+        // Start transaction to delete verification and reset user profile
+        const connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            // Delete the REJECTED driving license verification entry
+            await connection.execute(
+                'DELETE FROM driving_license_verifications WHERE user_id = ? AND verification_status = ?',
+                [userId, 'REJECTED']
+            );
+            console.log(`[Reset Profile] Deleted REJECTED verification for user ${userId}`);
+
+            // Reset user profile fields to NULL/default
+            // This includes clearing license data, face photos, and resetting approval/onboarding flags
+            await connection.execute(
+                `UPDATE users SET 
+                    approval = FALSE,
+                    onboarding_complete = FALSE,
+                    license_photos = NULL,
+                    license_status = 'none',
+                    face_photos = NULL,
+                    face_photo_url = NULL,
+                    driving_license_verified = FALSE,
+                    onboarding_current_step = 1
+                WHERE id = ?`,
+                [userId]
+            );
+            console.log(`[Reset Profile] Reset profile data for user ${userId}`);
+
+            await connection.commit();
+            connection.release();
+
+            res.json({ 
+                message: 'Profile reset successfully. User can resubmit application.',
+                success: true
+            });
+
+        } catch (error) {
+            await connection.rollback();
+            connection.release();
+            throw error;
+        }
+
+    } catch (error) {
+        console.error('Reset profile error:', error);
+        res.status(500).json({ error: 'Internal server error: ' + error.message });
+    }
+});
+
 module.exports = router;
