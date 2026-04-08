@@ -49,7 +49,7 @@ router.post('/register', async (req, res) => {
     
     // Get full user status for frontend routing
     const [userRows] = await pool.execute(
-      'SELECT id, email, phone_number, onboarding_complete, onboarding_current_step, account_status FROM users WHERE id = ?',
+      'SELECT id, email, phone_number, first_name, last_name, onboarding_complete, onboarding_current_step, account_status, approval FROM users WHERE id = ?',
       [result.insertId]
     );
     const userStatus = userRows.length > 0 ? 
@@ -205,9 +205,9 @@ router.post('/send-email-otp', async (req, res) => {
 // Verify Email OTP
 router.post('/verify-email-otp', async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, userId: phoneVerifiedUserId } = req.body;
     
-    console.log('📥 Verify OTP Request:', { email, otp, type: typeof otp, length: otp?.length });
+    console.log('📥 Verify OTP Request:', { email, otp, type: typeof otp, length: otp?.length, phoneVerifiedUserId });
     
     if (!email || !otp) {
       return res.status(400).json({ error: 'Email and OTP are required' });
@@ -240,7 +240,36 @@ router.post('/verify-email-otp', async (req, res) => {
     let userData = {};
     let isNewUser = false;
     
-    if (!existingCheck.exists) {
+    // ✅ FIX: Handle phone-based signup with email update
+    if (phoneVerifiedUserId) {
+      // User already created via phone OTP, just update their email
+      console.log(`📝 Updating phone-verified user ${phoneVerifiedUserId} with email: ${email}`);
+      
+      // First, check what's currently in the DB for this user
+      const [currentUser] = await pool.execute(
+        'SELECT id, phone_number, email FROM users WHERE id = ?',
+        [phoneVerifiedUserId]
+      );
+      console.log(`DEBUG: Current user before update:`, currentUser);
+      
+      // Update the user with real email
+      await pool.execute(
+        'UPDATE users SET email = ? WHERE id = ?',
+        [email, phoneVerifiedUserId]
+      );
+      
+      // Check after update
+      const [updatedUser] = await pool.execute(
+        'SELECT id, phone_number, email FROM users WHERE id = ?',
+        [phoneVerifiedUserId]
+      );
+      console.log(`DEBUG: User after email update:`, updatedUser);
+      
+      userId = phoneVerifiedUserId;
+      isNewUser = false;
+      
+      console.log(`✅ Phone user updated with email: ${email} (ID: ${userId})`);
+    } else if (!existingCheck.exists) {
       // ✅ NEW USER - CREATE ACCOUNT
       const [result] = await pool.execute(
         'INSERT INTO users (email, password, approval, onboarding_complete) VALUES (?, ?, ?, ?)',
@@ -258,7 +287,7 @@ router.post('/verify-email-otp', async (req, res) => {
     
     // Get full user status
     const [userRows] = await pool.execute(
-      'SELECT id, email, phone_number, onboarding_complete, onboarding_current_step, account_status FROM users WHERE id = ?',
+      'SELECT id, email, phone_number, first_name, last_name, onboarding_complete, onboarding_current_step, account_status, approval FROM users WHERE id = ?',
       [userId]
     );
     const userStatus = userRows.length > 0 ? 
@@ -479,6 +508,8 @@ router.post('/verify-otp', async (req, res) => {
       // Generate a temporary email since email is UNIQUE and required
       const tempEmail = `phone_${cleanNumber}_${Date.now()}@luyona.app`;
       
+      console.log(`DEBUG: About to INSERT with phone_number = ${cleanNumber}, email = ${tempEmail}`);
+      
       const [insertResult] = await pool.execute(
         'INSERT INTO users (phone_number, email, password, phone_verified, approval, onboarding_complete, onboarding_current_step) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [cleanNumber, tempEmail, '', true, false, false, 1]
@@ -487,7 +518,7 @@ router.post('/verify-otp', async (req, res) => {
       userId = insertResult.insertId;
       isNewUser = true;
       
-      console.log(`✅ New user created: ID ${userId}, Phone: ${cleanNumber}`);
+      console.log(`✅ New user created: ID ${userId}, Phone: ${cleanNumber}, Email: ${tempEmail}`);
     } else {
       // ✅ USER EXISTS - LOGIN FLOW
       userId = phoneCheck.user.id;
@@ -506,7 +537,7 @@ router.post('/verify-otp', async (req, res) => {
     
     // Get full user status for routing
     const [userRows] = await pool.execute(
-      'SELECT id, email, phone_number, onboarding_complete, onboarding_current_step, account_status FROM users WHERE id = ?',
+      'SELECT id, email, phone_number, first_name, last_name, onboarding_complete, onboarding_current_step, account_status, approval FROM users WHERE id = ?',
       [userId]
     );
     userStatus = userRows.length > 0 ? 
@@ -520,7 +551,9 @@ router.post('/verify-otp', async (req, res) => {
       { expiresIn: '7d' }
     );
     
-    res.json({
+    console.log(`DEBUG: About to return response with userId=${userId}, isNewUser=${isNewUser}`);
+    
+    const responseData = {
       message: isNewUser ? 'Account created successfully' : 'Login successful',
       verified: true,
       token,
@@ -528,7 +561,11 @@ router.post('/verify-otp', async (req, res) => {
       user: userStatus,
       redirectPath: userStatus.redirectPath,
       isNewUser
-    });
+    };
+    
+    console.log(`DEBUG: Response data:`, JSON.stringify(responseData, null, 2).substring(0, 300));
+    
+    res.json(responseData);
     
     console.log(`🎉 Auth complete for ${cleanNumber}: Status=${userStatus.accountStatus}, NewUser=${isNewUser}`);
     

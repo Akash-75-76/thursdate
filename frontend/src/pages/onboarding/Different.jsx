@@ -17,7 +17,7 @@ export default function Different() {
 
   return (
     <div
-      className="min-h-screen flex flex-col justify-between items-center p-6"
+      className="min-h-screen flex flex-col justify-between items-center p-6 relative"
       style={{
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
@@ -25,6 +25,15 @@ export default function Different() {
       }}
     >
       <div className="absolute inset-0 bg-black/30 z-0"></div>
+
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-6 left-6 text-white text-3xl font-light hover:opacity-80 transition z-50"
+        aria-label="Back"
+      >
+        &lt;
+      </button>
 
       <div className="absolute top-10 w-full text-center z-10">
         <img src="/logo.png" alt="Sundate" className="h-8 mx-auto" />
@@ -54,7 +63,7 @@ export default function Different() {
           ))}
         </div>
 
-        <div className="w-full">
+        <div className="w-full space-y-3">
           <button
             onClick={() => navigate("/verification")}
             className={`w-full py-4 rounded-full text-base font-medium transition duration-200 ${BUTTON_GLASS_ACTIVE_SOLID}`}

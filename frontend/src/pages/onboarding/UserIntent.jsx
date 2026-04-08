@@ -2238,12 +2238,16 @@ export default function UserIntent() {
     >
       <div className="absolute inset-0 bg-black/55" />
       <div className="relative z-10 h-full px-6 pt-8 flex flex-col">
-        <div className="flex items-center justify-between mb-6">
-          <button onClick={handleBack} aria-label="Back" className="w-8 h-8 flex items-center justify-center">
-            <img src="/backarrow.svg" alt="Back" className="w-5 h-5" />
-          </button>
+        <button
+          onClick={handleBack}
+          className="absolute top-6 left-6 text-white text-3xl font-light hover:opacity-80 transition z-50"
+          aria-label="Back"
+        >
+          &lt;
+        </button>
+
+        <div className="flex items-center justify-center mb-6">
           <img src="/logo.png" alt="Sundate" className="h-7" />
-          <div style={{ width: 32 }} />
         </div>
 
         <div className="w-full max-w-md mx-auto mb-5">

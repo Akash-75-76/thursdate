@@ -11,6 +11,9 @@ export default function AdminWaitlist() {
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   const [selectedLicense, setSelectedLicense] = useState(null);
   const [approving, setApproving] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectUserId, setRejectUserId] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,10 +36,10 @@ export default function AdminWaitlist() {
     }
   };
 
-  const handleApprove = async (userId, approved) => {
+  const handleApprove = async (userId, approved, reason = null) => {
     try {
       setApproving(true);
-      await adminAPI.updateUserApproval(userId, approved);
+      await adminAPI.updateUserApproval(userId, approved, reason);
       
       setUsers(prevUsers => 
         prevUsers.map(user => 
@@ -49,12 +52,28 @@ export default function AdminWaitlist() {
         setSelectedUser(null);
       }
       
+      setShowRejectModal(false);
+      setRejectionReason('');
       fetchWaitlist();
     } catch (err) {
       setError(err.message);
     } finally {
       setApproving(false);
     }
+  };
+
+  const handleRejectClick = (userId) => {
+    setRejectUserId(userId);
+    setRejectionReason('');
+    setShowRejectModal(true);
+  };
+
+  const handleSubmitRejection = async () => {
+    if (!rejectionReason.trim()) {
+      setError('Please enter a rejection reason');
+      return;
+    }
+    await handleApprove(rejectUserId, false, rejectionReason);
   };
 
   const viewUserDetails = async (userId) => {
@@ -95,6 +114,27 @@ export default function AdminWaitlist() {
       none: { bg: 'bg-gray-100', text: 'text-gray-500', label: 'No License' }
     };
     return badges[status] || badges.none;
+  };
+
+  const getPriorityBadge = (priority) => {
+    if (priority >= 100) return { bg: 'bg-green-100', text: 'text-green-700', label: '⭐ High Priority (100+)' };
+    if (priority >= 50) return { bg: 'bg-blue-100', text: 'text-blue-700', label: '📊 Standard (50+)' };
+    return { bg: 'bg-orange-100', text: 'text-orange-700', label: '📉 Lower (10+)' };
+  };
+
+  const getReferralStatusBadge = (referralStatus) => {
+    if (!referralStatus) {
+      return { bg: 'bg-gray-100', text: 'text-gray-700', label: 'No Referral' };
+    }
+    
+    const badges = {
+      pending: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: '⏳ Pending Confirmation' },
+      accepted: { bg: 'bg-green-100', text: 'text-green-700', label: '✓ Confirmed' },
+      rejected_known: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Known - Rejected' },
+      rejected_unknown: { bg: 'bg-red-100', text: 'text-red-700', label: 'Unknown - Rejected' }
+    };
+    
+    return badges[referralStatus] || badges.pending;
   };
 
   const formatDate = (dateString) => {
@@ -219,8 +259,39 @@ export default function AdminWaitlist() {
                     </div>
                   </div>
 
+                  {/* Priority and Referral Status */}
+                  <div className="mb-3 p-3 bg-gray-50 rounded-lg space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Waitlist Priority:</span>
+                      <span className="text-sm font-bold text-blue-600">{user.waitlistPriority || 50}/100</span>
+                    </div>
+                    {user.referralStatus && (
+                      <div>
+                        <span className="text-sm text-gray-600">Referral:</span>
+                        <div className="mt-1">
+                          {(() => {
+                            const badge = getReferralStatusBadge(user.referralStatus);
+                            return (
+                              <div className={`inline-block px-2 py-1 rounded-full text-xs ${badge.bg} ${badge.text}`}>
+                                {badge.label}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Status Indicators */}
                   <div className="flex flex-wrap gap-2 mb-3">
+                    {(() => {
+                      const badge = getPriorityBadge(user.waitlistPriority || 50);
+                      return (
+                        <div className={`px-2 py-1 rounded-full text-xs ${badge.bg} ${badge.text}`}>
+                          {badge.label}
+                        </div>
+                      );
+                    })()}
                     <div className={`px-2 py-1 rounded-full text-xs ${
                       user.hasProfilePic 
                         ? 'bg-green-100 text-green-700' 
@@ -288,7 +359,7 @@ export default function AdminWaitlist() {
                         {approving ? 'Approving...' : 'Approve'}
                       </button>
                       <button
-                        onClick={() => handleApprove(user.id, false)}
+                        onClick={() => handleRejectClick(user.id)}
                         disabled={approving}
                         className="flex-1 px-3 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
                       >
@@ -407,7 +478,7 @@ export default function AdminWaitlist() {
                   {approving ? 'Approving...' : 'Approve User'}
                 </button>
                 <button
-                  onClick={() => handleApprove(selectedUser.id, false)}
+                  onClick={() => handleRejectClick(selectedUser.id)}
                   disabled={approving}
                   className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
                 >
@@ -511,6 +582,57 @@ export default function AdminWaitlist() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Reason Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full">
+            <div className="p-4 border-b">
+              <h2 className="text-lg font-semibold">Reject User</h2>
+              <p className="text-sm text-gray-500 mt-1">Please provide a reason for rejection</p>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason</label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Enter the reason for rejecting this user..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm resize-none"
+                  rows="4"
+                />
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded p-2">
+                  <div className="text-red-600 text-sm">{error}</div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectionReason('');
+                    setError('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitRejection}
+                  disabled={approving || !rejectionReason.trim()}
+                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {approving ? 'Rejecting...' : 'Reject User'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

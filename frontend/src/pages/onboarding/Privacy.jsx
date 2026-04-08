@@ -9,7 +9,7 @@ export default function Privacy() {
 
   return (
     <div 
-      className="h-screen w-screen flex flex-col justify-end items-center p-6"
+      className="h-screen w-screen flex flex-col justify-end items-center p-6 relative"
       style={{
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
@@ -17,6 +17,15 @@ export default function Privacy() {
       }}
     >
       <div className="absolute inset-0 bg-black/30 z-0"></div>
+
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-6 left-6 text-white text-3xl font-light hover:opacity-80 transition z-50"
+        aria-label="Back"
+      >
+        &lt;
+      </button>
 
       <div className={`relative z-10 w-full max-w-sm p-6 pt-10 pb-8 rounded-3xl mb-6 flex flex-col items-center ${CARD_GLASS_ACTIVE}`}>
         <div className="mb-8">
@@ -35,7 +44,7 @@ export default function Privacy() {
           </p>
         </div>
 
-        <div className="w-full">
+        <div className="w-full space-y-3">
           <button
             onClick={() => navigate("/different")}
             className={`w-full py-4 rounded-full text-base font-medium transition duration-200 ${BUTTON_GLASS_ACTIVE_SOLID}`}

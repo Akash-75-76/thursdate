@@ -6,3 +6,4 @@ export { userAPI } from './user';
 export { adminAPI } from './admin';
 export { uploadAPI } from './upload';
 export { chatAPI } from './chat';
+export { referralAPI } from './referral';

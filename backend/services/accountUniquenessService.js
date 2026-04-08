@@ -16,7 +16,7 @@ class AccountUniquenessService {
     try {
       const normalizedEmail = email.toLowerCase().trim();
       
-      let query = 'SELECT id, email, onboarding_complete, account_status FROM users WHERE LOWER(email) = ?';
+      let query = 'SELECT id, email, onboarding_complete, account_status, approval FROM users WHERE LOWER(email) = ?';
       const params = [normalizedEmail];
 
       if (excludeUserId) {
@@ -57,7 +57,7 @@ class AccountUniquenessService {
         return { exists: false, userId: null, user: null };
       }
 
-      let query = 'SELECT id, phone_number, onboarding_complete, account_status FROM users WHERE phone_number = ?';
+      let query = 'SELECT id, phone_number, onboarding_complete, account_status, approval FROM users WHERE phone_number = ?';
       const params = [phoneNumber];
 
       if (excludeUserId) {
@@ -329,9 +329,12 @@ class AccountUniquenessService {
       userId: user.id,
       email: user.email,
       phoneNumber: user.phone_number,
+      firstName: user.first_name,
+      lastName: user.last_name,
       onboardingComplete: user.onboarding_complete,
       onboardingCurrentStep: user.onboarding_current_step || 1,
       accountStatus: user.account_status,
+      approval: user.approval,
       redirectPath: this.getUserRedirectPath(user),
       requiresAction: this.userRequiresAction(user),
     };

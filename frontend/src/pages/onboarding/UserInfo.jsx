@@ -1504,7 +1504,7 @@ where do you work?</h1>
               <button
                 disabled={getNextButtonDisabled()}
                 onClick={handleNext}
-                className={`w-full py-4 rounded-[9999px] font-medium text-lg transition mt-6 ${getNextButtonDisabled() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE
+                className={`w-full py-4 rounded-[9999px] font-medium text-lg transition ${getNextButtonDisabled() ? BUTTON_GLASS_INACTIVE : BUTTON_GLASS_ACTIVE
                   }`}
               >
                 {getNextButtonText()}

@@ -162,18 +162,18 @@ const FaceVerification = () => {
 
             {/* Main Content */}
             <div className="relative z-40 p-6 pt-10 flex flex-col flex-grow">
+                {/* Back Button */}
+                <button
+                    className="absolute top-6 left-6 text-white text-3xl font-light hover:opacity-80 transition z-50"
+                    onClick={() => navigate(-1)}
+                    aria-label="Back"
+                >
+                    &lt;
+                </button>
+
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <button
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
-                        onClick={() => navigate(-1)}
-                    >
-                        <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                            <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                    </button>
-                    <img src="/logo.png" alt="Sundate" className="h-8 mx-auto" />
-                    <div style={{ width: 32 }}></div>
+                <div className="flex items-center justify-center mb-6">
+                    <img src="/logo.png" alt="Sundate" className="h-8" />
                 </div>
 
                 {/* Progress Bar */}

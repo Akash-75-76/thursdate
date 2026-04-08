@@ -5,7 +5,9 @@ import ExploreTab from "../tabs/ExploreTab";
 import MessagesTab from "../tabs/MessagesTab";
 import ProfileTab from "../tabs/ProfileTab";
 import GameTab from "../tabs/GameTab";
+import ReferralConfirmationModal from "../../components/ReferralConfirmationModal";
 import { userAPI, chatAPI } from "../../utils/api";
+import { useReferralRequests } from "../../hooks/useReferralRequests";
 import socketService from "../../utils/socket";
 
 const navOptions = [
@@ -23,6 +25,14 @@ export default function Home() {
   // The default selected tab is 'matches'
   const [selected, setSelected] = useState("matches");
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  
+  // Referral requests management
+  const {
+    currentRequest,
+    showModal,
+    handleModalClose,
+    handleRequestAction
+  } = useReferralRequests();
 
   // Get current user ID from token
   const getCurrentUserId = () => {
@@ -164,6 +174,15 @@ export default function Home() {
           );
         })}
       </nav>
+
+      {/* Referral Confirmation Modal */}
+      {showModal && currentRequest && (
+        <ReferralConfirmationModal
+          referralRequest={currentRequest}
+          onClose={handleModalClose}
+          onAction={handleRequestAction}
+        />
+      )}
     </div>
   );
 }

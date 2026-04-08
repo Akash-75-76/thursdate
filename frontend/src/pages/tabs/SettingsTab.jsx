@@ -246,6 +246,14 @@ export default function SettingsTab() {
             />
           </SettingsGroup>
 
+          <SettingsGroup title="Community">
+            <SettingItem
+              title="Referrals"
+              value="Manage referrals"
+              onClick={() => navigate("/settings/referrals")}
+            />
+          </SettingsGroup>
+
           <SettingsGroup>
             <SettingItem title="Email us" onClick={() => window.location.href = 'mailto:support@sundate.app'} />
             <SettingItem title="Terms & Conditions" onClick={() => navigate("/terms")} />

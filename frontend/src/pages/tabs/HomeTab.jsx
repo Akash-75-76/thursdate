@@ -30,11 +30,6 @@ export default function HomeTab() {
   // Image preloading state
   const [preloadedImages, setPreloadedImages] = useState(new Set());
 
-  // Draggable button state
-  const [buttonPosition, setButtonPosition] = useState({ x: window.innerWidth - 100, y: window.innerHeight / 2 - 100 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
   // Match notification state
   const [showMatchNotification, setShowMatchNotification] = useState(false);
   const [matchedUser, setMatchedUser] = useState(null);
@@ -183,7 +178,7 @@ export default function HomeTab() {
         };
       }
     });
-  }, [candidates, currentCandidateIndex]);
+  }, [candidates, currentCandidateIndex, preloadedImages]);
 
   const currentCandidate = candidates[currentCandidateIndex];
 
@@ -227,44 +222,7 @@ export default function HomeTab() {
 
 
 
-  // Button dragging handlers
-  const handleButtonMouseDown = (e) => {
-    setIsDragging(true);
-    setDragStart({
-      x: e.clientX - buttonPosition.x,
-      y: e.clientY - buttonPosition.y
-    });
-  };
 
-  const handleButtonTouchStart = (e) => {
-    setIsDragging(true);
-    setDragStart({
-      x: e.touches[0].clientX - buttonPosition.x,
-      y: e.touches[0].clientY - buttonPosition.y
-    });
-  };
-
-  const handleButtonMouseMove = (e) => {
-    if (isDragging) {
-      setButtonPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
-    }
-  };
-
-  const handleButtonTouchMove = (e) => {
-    if (isDragging) {
-      setButtonPosition({
-        x: e.touches[0].clientX - dragStart.x,
-        y: e.touches[0].clientY - dragStart.y
-      });
-    }
-  };
-
-  const handleButtonMouseUp = () => {
-    setIsDragging(false);
-  };
 
   const handleLike = async () => {
     if (!currentCandidate) return;
@@ -405,10 +363,6 @@ export default function HomeTab() {
   return (
     <div
       className="h-screen flex flex-col font-sans overflow-hidden"
-      onMouseMove={handleButtonMouseMove}
-      onMouseUp={handleButtonMouseUp}
-      onTouchMove={handleButtonTouchMove}
-      onTouchEnd={handleButtonMouseUp}
     >
       <div
         className="flex-1 pb-28 overflow-hidden relative"
@@ -532,15 +486,14 @@ export default function HomeTab() {
               <div style={{ width: 40 }}></div>
             </div>
 
-            {/* Action Buttons - Draggable */}
+            {/* Action Buttons - Fixed Position */}
             <div
-              className="fixed z-10 rounded-full p-3 flex flex-col gap-3 cursor-move"
+              className="fixed z-10 rounded-full p-3 flex flex-col gap-3"
               style={{
-                left: `${buttonPosition.x}px`,
-                top: `${buttonPosition.y}px`,
+                right: '20px',
+                top: '70%',
+                transform: 'translateY(-50%)',
               }}
-              onMouseDown={handleButtonMouseDown}
-              onTouchStart={handleButtonTouchStart}
             >
               <div className="flex flex-col items-center gap-1">
                 <button
@@ -615,149 +568,150 @@ export default function HomeTab() {
                 onTouchMove={handleTouchMove}
                 onClick={() => isMinimized && setIsMinimized(false)}
               >
+                {currentCandidate && (
+                  <>
+                    {/* Profile Header */}
+                    <div className="flex items-start gap-4 mb-6">
+                      <div className="relative">
+                        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/50">
+                          <img src={currentCandidate.profilePicUrl} alt="Profile" className="w-full h-full object-cover" />
+                        </div>
+                      </div>
 
-
-                {/* Profile Header */}
-                <div className="flex items-start gap-4 mb-6">
-                  <div className="relative">
-                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/50">
-                      <img src={currentCandidate.profilePicUrl} alt="Profile" className="w-full h-full object-cover" />
+                      <div className="flex-1">
+                        <div className="text-white text-lg font-semibold">
+                          {currentCandidate.firstName}, {currentCandidate.age}
+                        </div>
+                        <div className="text-white/70 text-sm">
+                          {currentCandidate.jobTitle}
+                        </div>
+                        <div className="text-white/60 text-xs">
+                          {currentCandidate.currentLocation}
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex-1">
-                    <div className="text-white text-lg font-semibold">
-                      {currentCandidate.firstName}, {currentCandidate.age}
-                    </div>
-                    <div className="text-white/70 text-sm">
-                      {currentCandidate.jobTitle}
-                    </div>
-                    <div className="text-white/60 text-xs">
-                      {currentCandidate.currentLocation}
-                    </div>
-                  </div>
-                </div>
+                    {/* Quick Info Icons */}
+                    <div className="flex items-center justify-between mb-6 pb-6 border-b border-white/20">
+                      <div className="flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+                          <img src="/profileMale.svg" alt="Gender" className="w-6 h-6" />
+                        </div>
+                        <span className="text-white/80 text-[10px] mt-1">{currentCandidate.gender}</span>
+                      </div>
 
-                {/* Quick Info Icons */}
-                <div className="flex items-center justify-between mb-6 pb-6 border-b border-white/20">
-                  <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                      <img src="/profileMale.svg" alt="Gender" className="w-6 h-6" />
-                    </div>
-                    <span className="text-white/80 text-[10px] mt-1">{currentCandidate.gender}</span>
-                  </div>
+                      <div className="flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+                          <img src="/profileFitnessLevel.svg" alt="Fitness Level" className="w-12 h-12" />
+                        </div>
+                        <span className="text-white/80 text-[10px] mt-1">{currentCandidate.fitnessLevel}</span>
+                      </div>
 
-                  <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                      <img src="/profileFitnessLevel.svg" alt="Fitness Level" className="w-12 h-12" />
-                    </div>
-                    <span className="text-white/80 text-[10px] mt-1">{currentCandidate.fitnessLevel}</span>
-                  </div>
+                      <div className="flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+                          <img src="/profileRelationship.svg" alt="Relationship" className="w-6 h-6" />
+                        </div>
+                        <span className="text-white/80 text-[10px] mt-1">{currentCandidate.relationshipStatus}</span>
+                      </div>
 
-                  <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                      <img src="/profileRelationship.svg" alt="Relationship" className="w-6 h-6" />
-                    </div>
-                    <span className="text-white/80 text-[10px] mt-1">{currentCandidate.relationshipStatus}</span>
-                  </div>
-
-                  <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                      <img src="/profileOriginalLocation.svg" alt="From Location" className="w-6 h-6" />
-                    </div>
-                    <span className="text-white/80 text-[10px] mt-1 max-w-[60px] truncate text-center">
-                      {currentCandidate.fromLocation}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                      <img src="/profileLocation.svg" alt="Current Location" className="w-6 h-6" />
-                    </div>
-                    <span className="text-white/80 text-[10px] mt-1 truncate max-w-[60px] text-center">
-                      {currentCandidate.currentLocation}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bio */}
-                {currentCandidate.bio && (
-                  <div className="mb-6">
-                    <h3 className="text-white text-base font-semibold mb-3">About</h3>
-                    <p className="text-white/80 text-sm leading-relaxed">{currentCandidate.bio}</p>
-                  </div>
-                )}
-
-                {/* Interests */}
-                {currentCandidate.interests && currentCandidate.interests.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="text-white text-base font-semibold mb-3">Interests</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {currentCandidate.interests.map((interest, idx) => (
-                        <span key={idx} className="px-4 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white text-sm">
-                          {interest}
+                      <div className="flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+                          <img src="/profileOriginalLocation.svg" alt="From Location" className="w-6 h-6" />
+                        </div>
+                        <span className="text-white/80 text-[10px] mt-1 max-w-[60px] truncate text-center">
+                          {currentCandidate.fromLocation}
                         </span>
-                      ))}
+                      </div>
+
+                      <div className="flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+                          <img src="/profileLocation.svg" alt="Current Location" className="w-6 h-6" />
+                        </div>
+                        <span className="text-white/80 text-[10px] mt-1 truncate max-w-[60px] text-center">
+                          {currentCandidate.currentLocation}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                {/* Entertainment */}
-                {currentCandidate.entertainment && (
-                  <div className="mb-6">
-                    <h3 className="text-white text-base font-semibold mb-3">Entertainment</h3>
+                    {/* Bio */}
+                    {currentCandidate.bio && (
+                      <div className="mb-6">
+                        <h3 className="text-white text-base font-semibold mb-3">About</h3>
+                        <p className="text-white/80 text-sm leading-relaxed">{currentCandidate.bio}</p>
+                      </div>
+                    )}
 
-                    {currentCandidate.entertainment.movies && currentCandidate.entertainment.movies.length > 0 && (
-                      <div className="mb-3">
-                        <div className="text-white/70 text-sm mb-1">Movies</div>
-                        <div className="flex flex-col">
-                          {currentCandidate.entertainment.movies.map((movie, idx) => (
-                            <MediaItemCard
-                              key={idx}
-                              type="movie"
-                              item={movie}
-                            />
+                    {/* Interests */}
+                    {currentCandidate.interests && currentCandidate.interests.length > 0 && (
+                      <div className="mb-6">
+                        <h3 className="text-white text-base font-semibold mb-3">Interests</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {currentCandidate.interests.map((interest, idx) => (
+                            <span key={idx} className="px-4 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white text-sm">
+                              {interest}
+                            </span>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {currentCandidate.entertainment.tvShows && currentCandidate.entertainment.tvShows.length > 0 && (
-                      <div className="mb-3">
-                        <div className="text-white/70 text-sm mb-1">TV Shows</div>
-                        <div className="flex flex-col">
-                          {currentCandidate.entertainment.tvShows.map((show, idx) => (
-                            <MediaItemCard
-                              key={idx}
-                              type="tv"
-                              item={show}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {/* Entertainment */}
+                    {currentCandidate.entertainment && (
+                      <div className="mb-6">
+                        <h3 className="text-white text-base font-semibold mb-3">Entertainment</h3>
 
-                    {currentCandidate.entertainment.music && currentCandidate.entertainment.music.length > 0 && (
-                      <div>
-                        <div className="text-white/70 text-sm mb-1">Tunes</div>
-                        <div className="flex flex-col">
-                          {currentCandidate.entertainment.music.map((artist, idx) => (
-                            <MediaItemCard
-                              key={idx}
-                              type="artist"
-                              item={artist}
-                            />
-                          ))}
-                        </div>
+                        {currentCandidate.entertainment.movies && currentCandidate.entertainment.movies.length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-white/70 text-sm mb-1">Movies</div>
+                            <div className="flex flex-col">
+                              {currentCandidate.entertainment.movies.map((movie, idx) => (
+                                <MediaItemCard
+                                  key={idx}
+                                  type="movie"
+                                  item={movie}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {currentCandidate.entertainment.tvShows && currentCandidate.entertainment.tvShows.length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-white/70 text-sm mb-1">TV Shows</div>
+                            <div className="flex flex-col">
+                              {currentCandidate.entertainment.tvShows.map((show, idx) => (
+                                <MediaItemCard
+                                  key={idx}
+                                  type="tv"
+                                  item={show}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {currentCandidate.entertainment.music && currentCandidate.entertainment.music.length > 0 && (
+                          <div>
+                            <div className="text-white/70 text-sm mb-1">Tunes</div>
+                            <div className="flex flex-col">
+                              {currentCandidate.entertainment.music.map((artist, idx) => (
+                                <MediaItemCard
+                                  key={idx}
+                                  type="artist"
+                                  item={artist}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
+              </>
+            )}
             </div>
-          </>
-        )}
       </div>
+        </>
+        )}
 
       {/* Match First Prompt Modal */}
       {showMatchFirstPrompt && promptCandidate && (
@@ -850,6 +804,7 @@ export default function HomeTab() {
       {showDailyGame && (
         <DailyGamePopup onClose={() => setShowDailyGame(false)} />
       )}
+    </div>
     </div>
   );
 } 

@@ -29,6 +29,7 @@ import AccountPrivacy from "./pages/settings/AccountPrivacyPage";
 import BlockedAccounts from "./pages/settings/BlockedAccountsPage";
 import Membership from "./pages/settings/MembershipPage";
 import DevicePermissions from "./pages/settings/DevicePermissionsPage";
+import ReferralSettings from "./pages/settings/ReferralSettings";
 import ChatConversation from "./pages/tabs/ChatConversation";
 import GameConnection from "./pages/tabs/GameConnection";
 import UserProfileInfo from "./pages/tabs/UserProfileInfo";
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="/settings/blocked-accounts" element={<BlockedAccounts />} />
         <Route path="/settings/membership" element={<Membership />} />
         <Route path="/settings/device-permissions" element={<DevicePermissions />} />
+        <Route path="/settings/referrals" element={<ReferralSettings />} />
 
         {/* Chat Routes */}
         <Route path="/chat-conversation" element={<ChatConversation />} />
