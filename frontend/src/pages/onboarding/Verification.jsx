@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { setToken } from "../../utils/tokenManager";
+import { API_BASE_URL } from "../../utils/config";
 
-const API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api';
+const API_URL = API_BASE_URL;
 
 const BUTTON_SOLID =
   "bg-white text-black text-base font-medium rounded-full transition duration-200 hover:bg-gray-100 disabled:opacity-60";

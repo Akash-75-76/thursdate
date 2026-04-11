@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { API_BASE_URL } from "../../utils/config";
 
 export default function GameTab() {
   const [todayGame, setTodayGame] = useState(null);
@@ -8,7 +9,7 @@ export default function GameTab() {
   const [expandedGame, setExpandedGame] = useState(null);
   const [gameMatches, setGameMatches] = useState({});
 
-  const API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api';
+  const API_URL = API_BASE_URL;
 
   // Fetch today's game and history
   useEffect(() => {

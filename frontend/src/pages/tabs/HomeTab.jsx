@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { userAPI, chatAPI } from "../../utils/api";
 import DailyGamePopup from "../../components/DailyGamePopup";
 import MediaItemCard from "../../components/MediaItemCard";
+import { API_BASE_URL } from "../../utils/config";
 
 const navOptions = [
   { key: "matches", label: "Matches", icon: "/matches-icon.svg" },
@@ -52,7 +53,7 @@ export default function HomeTab() {
         if (lastGameDate !== today) {
           // Check if there's a game available for today
           const token = localStorage.getItem('token');
-          const API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api';
+          const API_URL = API_BASE_URL;
 
           const response = await fetch(`${API_URL}/daily-game/today`, {
             headers: {

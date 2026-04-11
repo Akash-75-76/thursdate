@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../utils/config";
 
-const API_URL = import.meta.env.VITE_BACKEND_API_URL || "http://localhost:5000/api";
+const API_URL = API_BASE_URL;
 
 export default function TodayGameMembers() {
     const navigate = useNavigate();

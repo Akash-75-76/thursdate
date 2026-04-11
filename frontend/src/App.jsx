@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Splash from "./pages/onboarding/Splash";
 import Gateway from "./pages/onboarding/Gateway";
 import UserInfo from "./pages/onboarding/UserInfo";
@@ -96,6 +96,7 @@ export default function App() {
         <Route path="/game-connection" element={<GameConnection />} />
         <Route path="/user-profile-info" element={<UserProfileInfo />} />
         <Route path="/today-game" element={<TodayGameMembers />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>
     </Router>

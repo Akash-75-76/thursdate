@@ -5,6 +5,7 @@ import socketService from '../../utils/socket';
 import LevelUpPopup from './LevelUpPopup';
 import Level2UnlockedPopup from './Level2UnlockedPopup';
 import ConsentReminderBanner from '../../components/ConsentReminderBanner';
+import { API_BASE_URL } from '../../utils/config';
 
 export default function ChatConversation() {
     const navigate = useNavigate();
@@ -640,7 +641,7 @@ export default function ChatConversation() {
 
             const token = localStorage.getItem('token');
             const uploadResponse = await fetch(
-                `${import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api'}/upload/voice-message`,
+                `${API_BASE_URL}/upload/voice-message`,
                 {
                     method: 'POST',
                     headers: {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { userAPI } from "../../utils/api";
+import { API_ORIGIN } from "../../utils/config";
 
 export default function SocialPresence() {
     const navigate = useNavigate();
@@ -69,9 +70,7 @@ export default function SocialPresence() {
     }, []);
 
     const handleLinkedInVerification = () => {
-        // Get backend URL with fallback
-        const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://sundate-backend.onrender.com/api';
-        const backendUrl = backendApiUrl.replace('/api', '');
+        const backendUrl = API_ORIGIN;
 
         // Extract user ID from JWT token (if available)
         let redirectUrl = `${backendUrl}/auth/linkedin`;

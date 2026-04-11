@@ -1,11 +1,12 @@
 // frontend/src/utils/externalAPIs.js
 // External API integrations for autocomplete suggestions
+import { API_BASE_URL } from "./config";
 
 // ============= TMDB API =============
 // The Movie Database API (via secure backend proxy)
 // Backend proxy keeps API key safe and works in production
 
-const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api';
+const BACKEND_API_URL = API_BASE_URL;
 
 /**
  * Search for movies on TMDB (via backend proxy)

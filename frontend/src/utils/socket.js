@@ -1,7 +1,8 @@
 import { io } from 'socket.io-client';
+import { API_ORIGIN } from './config';
 
 // Construct socket URL from backend API URL
-let SOCKET_URL = import.meta.env.VITE_BACKEND_API_URL?.replace('/api', '') || 'http://localhost:5000';
+let SOCKET_URL = API_ORIGIN;
 // Ensure it uses the same protocol as the page (https in production)
 if (window.location.protocol === 'https:' && SOCKET_URL.startsWith('http:')) {
   SOCKET_URL = SOCKET_URL.replace('http:', 'https:');
