@@ -27,7 +27,7 @@ export const referralAPI = {
   // Search for users to suggest as referrers
   searchReferrers: async (query) => {
     const response = await authRequest(`/referral/search-referrers?query=${encodeURIComponent(query)}`);
-    return response;
+    return response.users || [];
   },
 
   // Create a referral request during onboarding
