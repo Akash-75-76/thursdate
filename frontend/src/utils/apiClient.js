@@ -24,7 +24,10 @@ export const authRequest = async (url, options = {}, forceLiveMode = false) => {
         throw new Error('No authentication token found');
     }
 
-    const response = await fetch(`${API_BASE_URL}${url}`, {
+    const fullUrl = `${API_BASE_URL}${url}`;
+    console.log('🔵 API Request:', fullUrl); // Debug log
+
+    const response = await fetch(fullUrl, {
         ...options,
         headers: {
             'Content-Type': options.method === 'POST' && options.body instanceof FormData ? undefined : 'application/json',
